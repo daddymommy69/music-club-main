@@ -1,29 +1,28 @@
 import { NextResponse } from "next/server";
-import { getCurrentCycle, sendCycleToSubscribers } from "@/lib/release";
+import { getCurrentDrop, sendDropToSubscribers } from "@/lib/release";
+import { checkBearerAuth } from "@/lib/adminAuth";
 
 /**
  * Manual "send now" override — lets you trigger a release outside the
- * automatic 45-day schedule. Protected by a shared secret so randoms
+ * automatic cycle schedule. Protected by a shared secret so randoms
  * can't blast your subscriber list.
  *
  * Call it with: curl -X POST https://yoursite/api/send \
  *   -H "Authorization: Bearer <ADMIN_SECRET>"
  */
 export async function POST(request: Request) {
-  const auth = request.headers.get("authorization");
-  const expected = `Bearer ${process.env.ADMIN_SECRET}`;
-  if (!process.env.ADMIN_SECRET || auth !== expected) {
+  if (!checkBearerAuth(request, "ADMIN_SECRET")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const cycle = await getCurrentCycle();
-  if (!cycle) {
+  const drop = await getCurrentDrop();
+  if (!drop) {
     return NextResponse.json(
-      { error: "No cycle exists yet — create one first." },
+      { error: "No drop exists yet — create one first." },
       { status: 400 }
     );
   }
 
-  const result = await sendCycleToSubscribers(cycle);
-  return NextResponse.json({ ok: true, cycle: cycle.cycleNumber, ...result });
+  const result = await sendDropToSubscribers(drop);
+  return NextResponse.json({ ok: true, drop: drop.num, ...result });
 }

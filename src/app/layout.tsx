@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Music Club",
-  description: "Sign up to get the shared playlist every 45 days.",
+  title: "Gooberz Music Club",
+  description: "A shared playlist, sent to you by text or email.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

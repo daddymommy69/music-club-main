@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCurrentCycle, sendCycleToSubscribers } from "@/lib/release";
+import { getCurrentDrop, sendDropToSubscribers } from "@/lib/release";
+import { checkBearerAuth } from "@/lib/adminAuth";
 
 const CYCLE_DAYS = 45;
 
@@ -7,28 +8,33 @@ const CYCLE_DAYS = 45;
  * Runs on Vercel's daily Cron schedule (see vercel.json). Vercel's free
  * tier only supports daily cron granularity, so instead of trying to
  * schedule "every 45 days" directly, this checks every day whether the
- * current cycle is due and only sends when it actually is.
+ * current drop is due and only sends when it actually is.
+ *
+ * Note: the design handoff's club.cycle can be weekly / biweekly /
+ * monthly / every45 / quarterly / custom / manual. This route still
+ * only implements the every-45-days case (Phase 0 scope); the other
+ * cycle types and manual mode are Phase 1.5 (curator room) work, where
+ * shipping a drop becomes an explicit curator action rather than a
+ * fixed clock and the "manual" cycle simply skips the cron check.
  *
  * Vercel automatically sends `Authorization: Bearer $CRON_SECRET` when
  * invoking this route if CRON_SECRET is set as an env var — that's what
  * this checks.
  */
 export async function GET(request: Request) {
-  const auth = request.headers.get("authorization");
-  const expected = `Bearer ${process.env.CRON_SECRET}`;
-  if (!process.env.CRON_SECRET || auth !== expected) {
+  if (!checkBearerAuth(request, "CRON_SECRET")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const cycle = await getCurrentCycle();
-  if (!cycle) {
-    return NextResponse.json({ ok: true, skipped: "no cycle exists yet" });
+  const drop = await getCurrentDrop();
+  if (!drop) {
+    return NextResponse.json({ ok: true, skipped: "no drop exists yet" });
   }
-  if (cycle.sentAt) {
-    return NextResponse.json({ ok: true, skipped: "current cycle already sent" });
+  if (drop.publishedAt) {
+    return NextResponse.json({ ok: true, skipped: "current drop already sent" });
   }
 
-  const dueAt = new Date(cycle.startDate);
+  const dueAt = new Date(drop.createdAt);
   dueAt.setDate(dueAt.getDate() + CYCLE_DAYS);
   if (new Date() < dueAt) {
     return NextResponse.json({
@@ -38,6 +44,6 @@ export async function GET(request: Request) {
     });
   }
 
-  const result = await sendCycleToSubscribers(cycle);
-  return NextResponse.json({ ok: true, cycle: cycle.cycleNumber, ...result });
+  const result = await sendDropToSubscribers(drop);
+  return NextResponse.json({ ok: true, drop: drop.num, ...result });
 }
