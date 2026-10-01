@@ -1,4 +1,4 @@
-# Gooberz Music Club
+# Gooberz Music Club 
 
 A shared-playlist club for friends: curators build a playlist together
 every cycle, subscribers get it by text/email, and everyone can submit
