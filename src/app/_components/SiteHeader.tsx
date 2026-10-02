@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// "/" itself isn't in this list — it just redirects to /archive (the
+// "/" itself isn't in this list — it just redirects to /releases (the
 // site's home since 2026-10), so the active check below only ever
 // needs to match real routes.
 const NAV_ITEMS = [
-  { href: "/archive", label: "Releases" },
+  { href: "/releases", label: "Releases" },
   { href: "/submit", label: "Submit a song" },
   { href: "/signup", label: "Sign up" },
 ];

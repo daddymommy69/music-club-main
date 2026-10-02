@@ -8,7 +8,7 @@ import { getSignupContext } from "@/lib/signup";
 export const dynamic = "force-dynamic";
 
 // The dedicated sign-up page (moved here from "/" — the site now opens
-// on Releases, see /archive and the popup rendered there). Kept as its
+// on Releases, see /releases and the popup rendered there). Kept as its
 // own standalone page rather than only living in the popup, since the
 // popup only shows once per visitor.
 export default async function SignupPage() {

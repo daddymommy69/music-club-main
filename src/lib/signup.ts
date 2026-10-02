@@ -1,6 +1,6 @@
 import { and, count, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { subscribers, type Club } from "@/db/schema";
+import { members, type Club } from "@/db/schema";
 import { getDropStatus } from "./dropStatus";
 import { siteDisplayPath } from "@/lib/site";
 
@@ -20,8 +20,8 @@ export async function getSignupContext(club: Club): Promise<SignupContext> {
 
   const [{ value: subscriberCount }] = await db
     .select({ value: count() })
-    .from(subscribers)
-    .where(and(eq(subscribers.clubId, club.id), eq(subscribers.optedOut, false)));
+    .from(members)
+    .where(and(eq(members.clubId, club.id), eq(members.optedOut, false)));
 
   const status = await getDropStatus(club);
 

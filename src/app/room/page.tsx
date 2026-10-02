@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getSessionCuratorId } from "@/lib/curatorSession";
-import { getCuratorById } from "@/lib/curators";
+import { getSessionMember } from "@/lib/memberSession";
 import { getDefaultClub } from "@/lib/club";
 import { getOpenDrop, getRoomData } from "@/lib/room";
 import LogoutButton from "@/app/_components/LogoutButton";
@@ -14,11 +13,8 @@ export const dynamic = "force-dynamic";
 // curators until it ships. Columns/stream views, add-a-pick, per-curator
 // notes, and a curator-only comment thread.
 export default async function RoomPage() {
-  const curatorId = await getSessionCuratorId();
-  if (!curatorId) redirect("/curators");
-
-  const curator = await getCuratorById(curatorId);
-  if (!curator) redirect("/curators");
+  const curator = await getSessionMember();
+  if (!curator || !curator.isCurator) redirect("/curators");
 
   const club = await getDefaultClub();
   const drop = await getOpenDrop(club);
@@ -54,10 +50,10 @@ export default async function RoomPage() {
         isManual={data.isManual}
         daysUntilNext={data.daysUntilNext}
         meId={curator.id}
-        meName={curator.name}
+        meName={curator.name ?? ""}
         curators={data.curators.map((c) => ({
           id: c.curator.id,
-          name: c.curator.name,
+          name: c.curator.name ?? "",
           picks: c.picks.map((p) => ({
             id: p.id,
             title: p.title,

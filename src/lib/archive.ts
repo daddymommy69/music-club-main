@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { drops, songs, curatorNotes, curators, top10Entries, type Drop } from "@/db/schema";
+import { drops, songs, curatorNotes, members, top10Entries, type Drop } from "@/db/schema";
 import { getTop10Phase } from "./top10";
 import { getTop10Summary } from "./top10Data";
 
@@ -152,14 +152,19 @@ export async function getPublicDrop(
     .where(eq(songs.dropId, drop.id))
     .orderBy(asc(songs.position));
 
-  const noteRows = await db
-    .select({
-      curatorName: curators.name,
-      text: curatorNotes.text,
-    })
-    .from(curatorNotes)
-    .innerJoin(curators, eq(curatorNotes.curatorId, curators.id))
-    .where(eq(curatorNotes.dropId, drop.id));
+  // members.name is nullable (unlike the old curators.name, which was
+  // required) — coalesce so PublicCuratorNote.curatorName stays a plain
+  // string, same contract this page has always had.
+  const noteRows = (
+    await db
+      .select({
+        curatorName: members.name,
+        text: curatorNotes.text,
+      })
+      .from(curatorNotes)
+      .innerJoin(members, eq(curatorNotes.curatorId, members.id))
+      .where(eq(curatorNotes.dropId, drop.id))
+  ).map((row) => ({ curatorName: row.curatorName ?? "", text: row.text }));
 
   const top10Summary = await getTop10Summary(drop);
   const top10 =

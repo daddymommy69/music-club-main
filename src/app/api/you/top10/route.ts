@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSubscriberByYouToken } from "@/lib/subscribers";
+import { getMemberByToken } from "@/lib/members";
 import { getTargetDropForTop10, getTop10Summary, submitTop10Pick } from "@/lib/top10Data";
 import { isValidMusicLink } from "@/lib/musicLink";
 import { resolveSongMetadata } from "@/lib/odesli";
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const subscriber = await getSubscriberByYouToken(token);
+  const subscriber = await getMemberByToken(token);
   if (!subscriber) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }

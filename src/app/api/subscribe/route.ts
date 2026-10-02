@@ -1,31 +1,24 @@
 import { NextResponse } from "next/server";
-import { and, eq, or } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { subscribers } from "@/db/schema";
+import { members } from "@/db/schema";
 import { getDefaultClub } from "@/lib/club";
-import { normalizePhone, normalizeEmail, isUniqueViolation } from "@/lib/normalize";
+import { findMemberByEmail, findOrCreateMember } from "@/lib/members";
+import { setMemberSession } from "@/lib/memberSession";
+import { generateMemberToken } from "@/lib/memberToken";
+import { normalizePhone, isUniqueViolation } from "@/lib/normalize";
 import { sendSms } from "@/lib/sms";
 import { sendEmail } from "@/lib/email";
 import { confirmationSmsBody, confirmationEmailHtml } from "@/lib/messages";
-import { generateYouToken } from "@/lib/subscriberToken";
 
-/** Indexed lookup on the normalized *Key columns — replaces the old
- * fetch-everyone-and-compare-in-JS scan. */
-async function findSubscriberDuplicate(
-  clubId: number,
-  phoneKey: string | null,
-  emailKey: string | null
-) {
-  if (!phoneKey && !emailKey) return null;
+/** Indexed lookup on the normalized phoneKey column — for the
+ * phone-only (no email) signup path, see the comment below. */
+async function findMemberByPhone(clubId: number, phoneKey: string) {
   const db = getDb();
-  const matchers = [
-    phoneKey ? eq(subscribers.phoneKey, phoneKey) : undefined,
-    emailKey ? eq(subscribers.emailKey, emailKey) : undefined,
-  ].filter((m): m is NonNullable<typeof m> => !!m);
   const [row] = await db
     .select()
-    .from(subscribers)
-    .where(and(eq(subscribers.clubId, clubId), or(...matchers)))
+    .from(members)
+    .where(and(eq(members.clubId, clubId), eq(members.phoneKey, phoneKey)))
     .limit(1);
   return row ?? null;
 }
@@ -87,55 +80,101 @@ export async function POST(request: Request) {
     }
   }
 
-  const db = getDb();
   const club = await getDefaultClub();
 
-  // Duplicate sign-up: match on phone or email within this club and
-  // treat it as a no-op rather than a second record or an error.
-  const phoneKey = wantsText && phone ? normalizePhone(phone) : null;
-  const emailKey = wantsEmail && email ? normalizeEmail(email) : null;
+  // Unified account model: a Member's identity key is email
+  // (findOrCreateMember/findMemberByEmail in members.ts only dedupe by
+  // email — it's the login identity now). SignupForm.tsx only ever
+  // submits email, so this is the path every real signup takes.
+  if (wantsEmail && email && email.trim()) {
+    const existing = await findMemberByEmail(club, email);
+    if (existing) {
+      // Report what's actually on file, not what this submission happened
+      // to have checked — a duplicate is a no-op, so if someone's stored
+      // preference is text-only and they just tried to sign up for email,
+      // telling them "you'll get it by email" would be a real promise this
+      // response can't back up.
+      await setMemberSession(existing.id);
+      return NextResponse.json({
+        ok: true,
+        id: existing.id,
+        duplicate: true,
+        wantsText: existing.wantsText,
+        wantsEmail: existing.wantsEmail,
+      });
+    }
 
-  const existing = await findSubscriberDuplicate(club.id, phoneKey, emailKey);
-  if (existing) {
-    // Report what's actually on file, not what this submission happened
-    // to have checked — a duplicate is a no-op, so if someone's stored
-    // preference is text-only and they just tried to sign up for email,
-    // telling them "you'll get it by email" would be a real promise this
-    // response can't back up.
+    const created = await findOrCreateMember(club, {
+      name,
+      email: email.trim(),
+      phone: wantsText ? phone : null,
+      wantsText: !!wantsText,
+      wantsEmail: !!wantsEmail,
+      smsConsent: wantsText ? !!smsOptIn : false,
+    });
+
+    // New behavior (intentional, per the unified account model): signing
+    // up now also logs you in immediately — no separate login step.
+    await setMemberSession(created.id);
+
+    // Best-effort confirmation — a failure here shouldn't fail the signup.
+    try {
+      if (created.wantsText && created.phone) {
+        await sendSms(created.phone, confirmationSmsBody());
+      }
+      if (created.wantsEmail && created.email) {
+        await sendEmail(created.email, "You're in!", confirmationEmailHtml());
+      }
+    } catch (err) {
+      console.error("Confirmation send failed:", err);
+    }
+
+    return NextResponse.json({ ok: true, id: created.id });
+  }
+
+  // Phone-only (no email) signup. findOrCreateMember requires an email —
+  // by design, it's the member's unified-account login identity — so
+  // this legacy text-only path (no longer reachable from SignupForm.tsx,
+  // which dropped the phone option entirely) talks to `members` directly,
+  // same phoneKey dedupe-and-insert the old subscribers-table code did.
+  const phoneKey = normalizePhone(phone as string);
+  const existingByPhone = await findMemberByPhone(club.id, phoneKey);
+  if (existingByPhone) {
+    await setMemberSession(existingByPhone.id);
     return NextResponse.json({
       ok: true,
-      id: existing.id,
+      id: existingByPhone.id,
       duplicate: true,
-      wantsText: existing.wantsText,
-      wantsEmail: existing.wantsEmail,
+      wantsText: existingByPhone.wantsText,
+      wantsEmail: existingByPhone.wantsEmail,
     });
   }
 
+  const db = getDb();
   let created;
   try {
     [created] = await db
-      .insert(subscribers)
+      .insert(members)
       .values({
         clubId: club.id,
         name: name?.trim() || null,
-        phone: wantsText ? phone : null,
-        email: wantsEmail ? email : null,
+        phone: phone as string,
         phoneKey,
-        emailKey,
-        wantsText: !!wantsText,
-        wantsEmail: !!wantsEmail,
-        smsConsent: wantsText ? !!smsOptIn : false,
-        smsOptInAt: wantsText ? new Date() : null,
-        youToken: generateYouToken(),
+        wantsText: true,
+        wantsEmail: false,
+        smsConsent: !!smsOptIn,
+        smsOptInAt: new Date(),
+        memberToken: generateMemberToken(),
       })
       .returning();
   } catch (err) {
-    // Lost a race with another request signing up the same phone/email
+    // Lost a race with another request signing up the same phone
     // between our check above and this insert. Same outcome as a normal
     // duplicate: hand back the row that won.
     if (isUniqueViolation(err)) {
-      const dupe = await findSubscriberDuplicate(club.id, phoneKey, emailKey);
+      const dupe = await findMemberByPhone(club.id, phoneKey);
       if (dupe) {
+        await setMemberSession(dupe.id);
         return NextResponse.json({
           ok: true,
           id: dupe.id,
@@ -148,17 +187,11 @@ export async function POST(request: Request) {
     throw err;
   }
 
-  // Best-effort confirmation — a failure here shouldn't fail the signup.
+  await setMemberSession(created.id);
+
   try {
     if (created.wantsText && created.phone) {
       await sendSms(created.phone, confirmationSmsBody());
-    }
-    if (created.wantsEmail && created.email) {
-      await sendEmail(
-        created.email,
-        "You're in!",
-        confirmationEmailHtml()
-      );
     }
   } catch (err) {
     console.error("Confirmation send failed:", err);

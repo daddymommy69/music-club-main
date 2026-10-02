@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/db/client";
 import { songs } from "@/db/schema";
-import { getSessionCuratorId } from "@/lib/curatorSession";
-import { getCuratorById } from "@/lib/curators";
+import { getSessionMember } from "@/lib/memberSession";
 import { getDefaultClub } from "@/lib/club";
 import { getOpenDrop } from "@/lib/room";
 import { isValidMusicLink } from "@/lib/musicLink";
@@ -11,12 +10,8 @@ import { findDuplicateInDrop } from "@/lib/duplicateCheck";
 
 /** Add-a-pick: a curator pastes a link straight into the room, attributed to them. */
 export async function POST(request: Request) {
-  const curatorId = await getSessionCuratorId();
-  if (!curatorId) {
-    return NextResponse.json({ error: "Not logged in" }, { status: 401 });
-  }
-  const curator = await getCuratorById(curatorId);
-  if (!curator) {
+  const curator = await getSessionMember();
+  if (!curator || !curator.isCurator) {
     return NextResponse.json({ error: "Not logged in" }, { status: 401 });
   }
 

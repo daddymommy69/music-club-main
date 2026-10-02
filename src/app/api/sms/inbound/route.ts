@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { subscribers } from "@/db/schema";
+import { members } from "@/db/schema";
 import { getDefaultClub } from "@/lib/club";
 import { normalizePhone } from "@/lib/normalize";
 import { handleInboundSongText } from "@/lib/smsSubmit";
@@ -43,11 +43,11 @@ export async function POST(request: Request) {
   const db = getDb();
 
   if (bodyUpper === "STOP") {
-    await db.update(subscribers).set({ optedOut: true }).where(eq(subscribers.phoneKey, phoneKey));
+    await db.update(members).set({ optedOut: true }).where(eq(members.phoneKey, phoneKey));
     return twiml();
   }
   if (bodyUpper === "START") {
-    await db.update(subscribers).set({ optedOut: false }).where(eq(subscribers.phoneKey, phoneKey));
+    await db.update(members).set({ optedOut: false }).where(eq(members.phoneKey, phoneKey));
     return twiml();
   }
 

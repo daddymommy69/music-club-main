@@ -48,6 +48,15 @@ export const clubs = pgTable("clubs", {
   cycle: cycleEnum("cycle").notNull().default("every45"),
   // only meaningful when cycle = 'custom'
   cycleCustomDays: integer("cycle_custom_days"),
+  // Spotify auto-build (2026-10 decision): a long-lived refresh token for
+  // whichever single Spotify account did the one-time /api/spotify/connect
+  // authorization — that account is the one that owns every auto-built
+  // playlist. Dynamic data (not a static secret like the env vars), so it
+  // lives here rather than in an env var. Null means "never connected, or
+  // connection needs to be redone" — every call site treats that as a
+  // signal to fall back to the manual paste-the-link flow rather than
+  // erroring, same as a revoked/expired token (see src/lib/spotify.ts).
+  spotifyRefreshToken: text("spotify_refresh_token"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -92,6 +101,14 @@ export const songs = pgTable("songs", {
   // around for re-resolving / dedupe.
   sourceUrl: text("source_url"),
   artworkUrl: text("artwork_url"),
+  // Set by the Spotify auto-build step (src/lib/spotifyBuild.ts) when
+  // shipping finds a confident match for this song on Spotify — null
+  // either because auto-build hasn't run yet or because no match was
+  // found, and the two cases are deliberately not distinguished here:
+  // ship's response already tells the curator which titles came up
+  // empty at the moment it happens, and this column only needs to
+  // answer "is this song actually in the built playlist."
+  spotifyUri: text("spotify_uri"),
   // Who sent it in. PRIVATE — never returned from a public query.
   submittedBy: text("submitted_by"),
   // The curator who championed the track. PUBLIC. Null/empty means
@@ -100,8 +117,10 @@ export const songs = pgTable("songs", {
   // Same curator as curatorCredit, but a real FK — used for the room's
   // per-curator columns (curatorCredit is just display text and isn't
   // reliable to group/own by). Nullable: a subscriber submission pulled
-  // into the drop with no curator attached yet has no owner.
-  curatorId: integer("curator_id").references(() => curators.id, { onDelete: "set null" }),
+  // into the drop with no curator attached yet has no owner. Points at
+  // `members` (unified account model) — still named/scoped to "curator"
+  // since that's what this column means, just not its own table anymore.
+  curatorId: integer("curator_id").references(() => members.id, { onDelete: "set null" }),
   // Display order within the drop's tracklist.
   position: integer("position").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -132,55 +151,23 @@ export const submissions = pgTable("submissions", {
   pulledAt: timestamp("pulled_at", { withTimezone: true }),
 });
 
-export const curators = pgTable(
-  "curators",
-  {
-    id: serial("id").primaryKey(),
-    clubId: integer("club_id")
-      .notNull()
-      .references(() => clubs.id, { onDelete: "cascade" }),
-    name: text("name").notNull(),
-    phone: varchar("phone", { length: 20 }),
-    email: text("email"),
-    // Normalized dedupe keys (src/lib/normalize.ts) — last-10-digits /
-    // lowercased-trimmed. phone/email above keep whatever was typed, for
-    // actually sending the login code; these carry the real uniqueness
-    // constraint so two concurrent joins can't create duplicate curators.
-    // Nullable + unique is fine: Postgres doesn't treat NULLs as equal,
-    // so multiple curators with no phone (email-only) don't collide.
-    phoneKey: varchar("phone_key", { length: 10 }),
-    emailKey: text("email_key"),
-    joinedAt: timestamp("joined_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    unique().on(table.clubId, table.phoneKey),
-    unique().on(table.clubId, table.emailKey),
-  ],
-);
-
 /**
- * One-time six-digit codes for curator login (design-handoff.md's
- * `#/curators` screen: phone/email → code, no passwords to manage).
- * Not part of the README's literal data model — that model doesn't
- * cover auth at all — but needed to actually implement it.
+ * Unified account model (2026-10 decision — see claude/next-build.md).
+ * Curators and subscribers used to be two entirely separate tables with
+ * no cross-table dedupe, which meant the same phone/email could quietly
+ * exist as both a curator row and a subscriber row. They're now one
+ * account type — "member" — distinguished by isCurator rather than by
+ * which table a row lives in. Everyone signs up the same lightweight
+ * way (name + phone/email, no password); isCurator is granted by an
+ * admin (see isAdmin below), not self-served.
+ *
+ * Replaces the old `curators` and `subscribers` tables. See
+ * `scripts/migrate-to-members.sql` for the one-time data migration this
+ * requires on an existing database — this is NOT a fresh-install-only
+ * change, there's real subscriber/curator data to carry over.
  */
-export const curatorLoginCodes = pgTable("curator_login_codes", {
-  id: serial("id").primaryKey(),
-  curatorId: integer("curator_id")
-    .notNull()
-    .references(() => curators.id, { onDelete: "cascade" }),
-  code: varchar("code", { length: 6 }).notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  consumedAt: timestamp("consumed_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
-
-export const subscribers = pgTable(
-  "subscribers",
+export const members = pgTable(
+  "members",
   {
     id: serial("id").primaryKey(),
     clubId: integer("club_id")
@@ -189,20 +176,35 @@ export const subscribers = pgTable(
     name: text("name"),
     phone: varchar("phone", { length: 20 }), // E.164 format, e.g. +15551234567
     email: text("email"),
-    // Normalized dedupe keys — see curators.phoneKey/emailKey above for
-    // why these exist alongside the raw columns.
+    // Normalized dedupe keys (src/lib/normalize.ts) — last-10-digits /
+    // lowercased-trimmed. phone/email above keep whatever was typed, for
+    // actually sending login codes/texts; these carry the real
+    // uniqueness constraint so two concurrent signups (or a signup
+    // racing a curator-grant) can't create duplicate members. Nullable +
+    // unique is fine: Postgres doesn't treat NULLs as equal, so multiple
+    // email-only members don't collide on a null phoneKey.
     phoneKey: varchar("phone_key", { length: 10 }),
     emailKey: text("email_key"),
+    // The role flag replacing "which table is this row in." Granted
+    // manually by an admin (there's no self-serve join-code path to
+    // curator status anymore) — see isAdmin below.
+    isCurator: boolean("is_curator").notNull().default(false),
+    // Who can grant isCurator. Founder-only for now (no admin UI yet,
+    // flipped directly in the data) — jacobfogelhut@gmail.com is the
+    // sole admin as of this column's introduction.
+    isAdmin: boolean("is_admin").notNull().default(false),
     wantsText: boolean("wants_text").notNull().default(false),
     wantsEmail: boolean("wants_email").notNull().default(false),
     smsConsent: boolean("sms_consent").notNull().default(false),
     smsOptInAt: timestamp("sms_opt_in_at", { withTimezone: true }),
     optedOut: boolean("opted_out").notNull().default(false),
-    // Unguessable per-subscriber token for the magic-link /you page — the
-    // link in every text/email always points here, never at a raw id.
-    // Generated once at signup and reused for the subscriber's lifetime;
-    // see src/lib/subscriberToken.ts.
-    youToken: varchar("you_token", { length: 48 }).unique(),
+    // Unguessable per-member token for the magic-link straight into the
+    // unified account page — every release text/email link uses this so
+    // clicking it lands you already signed in, no code needed. Typing
+    // your email on the site directly still works via the emailed-code
+    // login instead (see src/lib/memberSession.ts). Generated once and
+    // reused for the member's lifetime; see src/lib/memberToken.ts.
+    memberToken: varchar("member_token", { length: 48 }).unique(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -213,6 +215,26 @@ export const subscribers = pgTable(
   ],
 );
 
+/**
+ * One-time six-digit codes for the unified email-code login (replaces
+ * the old curator-only phone/email code — every member logs in this
+ * way now, not just curators). Not part of the README's literal data
+ * model — that model doesn't cover auth at all — but needed to actually
+ * implement it.
+ */
+export const loginCodes = pgTable("login_codes", {
+  id: serial("id").primaryKey(),
+  memberId: integer("member_id")
+    .notNull()
+    .references(() => members.id, { onDelete: "cascade" }),
+  code: varchar("code", { length: 6 }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const curatorNotes = pgTable(
   "curator_notes",
   {
@@ -222,7 +244,7 @@ export const curatorNotes = pgTable(
       .references(() => drops.id, { onDelete: "cascade" }),
     curatorId: integer("curator_id")
       .notNull()
-      .references(() => curators.id, { onDelete: "cascade" }),
+      .references(() => members.id, { onDelete: "cascade" }),
     text: text("text").notNull().default(""),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
@@ -255,7 +277,7 @@ export const top10Entries = pgTable(
       .references(() => drops.id, { onDelete: "cascade" }),
     subscriberId: integer("subscriber_id")
       .notNull()
-      .references(() => subscribers.id, { onDelete: "cascade" }),
+      .references(() => members.id, { onDelete: "cascade" }),
     link: text("link").notNull(),
     // Resolved via Odesli, same best-effort pattern as submissions/songs.
     // Cross-platform duplicate votes (a Spotify link and an Apple Music
@@ -279,12 +301,37 @@ export const comments = pgTable("comments", {
   dropNum: integer("drop_num").notNull(),
   curatorId: integer("curator_id")
     .notNull()
-    .references(() => curators.id, { onDelete: "cascade" }),
+    .references(() => members.id, { onDelete: "cascade" }),
   text: text("text").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });
+
+/**
+ * Song likes (2026-10 decision — see claude/next-build.md): any member
+ * can like an individual song on any drop, past or current. Public —
+ * the like count shows on the song, not just a private favorites list.
+ * One like per member per song, enforced the same way top10Entries
+ * enforces "one pick" — a real unique constraint, not just an app-level
+ * check, so a double-click/retried request can't double-count.
+ */
+export const songLikes = pgTable(
+  "song_likes",
+  {
+    id: serial("id").primaryKey(),
+    songId: integer("song_id")
+      .notNull()
+      .references(() => songs.id, { onDelete: "cascade" }),
+    memberId: integer("member_id")
+      .notNull()
+      .references(() => members.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [unique().on(table.songId, table.memberId)],
+);
 
 export type Club = typeof clubs.$inferSelect;
 export type NewClub = typeof clubs.$inferInsert;
@@ -294,18 +341,18 @@ export type Song = typeof songs.$inferSelect;
 export type NewSong = typeof songs.$inferInsert;
 export type Submission = typeof submissions.$inferSelect;
 export type NewSubmission = typeof submissions.$inferInsert;
-export type Curator = typeof curators.$inferSelect;
-export type NewCurator = typeof curators.$inferInsert;
-export type CuratorLoginCode = typeof curatorLoginCodes.$inferSelect;
-export type NewCuratorLoginCode = typeof curatorLoginCodes.$inferInsert;
-export type Subscriber = typeof subscribers.$inferSelect;
-export type NewSubscriber = typeof subscribers.$inferInsert;
+export type Member = typeof members.$inferSelect;
+export type NewMember = typeof members.$inferInsert;
+export type LoginCode = typeof loginCodes.$inferSelect;
+export type NewLoginCode = typeof loginCodes.$inferInsert;
 export type CuratorNote = typeof curatorNotes.$inferSelect;
 export type NewCuratorNote = typeof curatorNotes.$inferInsert;
 export type Comment = typeof comments.$inferSelect;
 export type NewComment = typeof comments.$inferInsert;
 export type Top10Entry = typeof top10Entries.$inferSelect;
 export type NewTop10Entry = typeof top10Entries.$inferInsert;
+export type SongLike = typeof songLikes.$inferSelect;
+export type NewSongLike = typeof songLikes.$inferInsert;
 
 /** Public-safe song shape — never includes submittedBy. */
 export type PublicSong = Omit<Song, "submittedBy">;

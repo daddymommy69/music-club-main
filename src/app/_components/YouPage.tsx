@@ -199,7 +199,7 @@ export default function YouPage({
       <p className="mut" style={{ fontSize: 11, lineHeight: 1.6 }}>
         This page is yours — the link in your email always opens the newest drop.
       </p>
-      <Link href="/archive" className="link-btn" style={{ display: "inline-block", marginTop: 10 }}>
+      <Link href="/releases" className="link-btn" style={{ display: "inline-block", marginTop: 10 }}>
         Every drop so far →
       </Link>
     </div>

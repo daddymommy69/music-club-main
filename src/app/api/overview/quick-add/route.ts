@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { submissions, songs } from "@/db/schema";
-import { getSessionCuratorId } from "@/lib/curatorSession";
-import { getCuratorById } from "@/lib/curators";
+import { getSessionMember } from "@/lib/memberSession";
 import { getDefaultClub } from "@/lib/club";
 import { getOpenDrop } from "@/lib/room";
 import { resolveSongMetadata } from "@/lib/odesli";
@@ -11,12 +10,8 @@ import { findDuplicateInDrop } from "@/lib/duplicateCheck";
 
 /** Pulls a subscriber submission straight into the logged-in curator's picks. */
 export async function POST(request: Request) {
-  const curatorId = await getSessionCuratorId();
-  if (!curatorId) {
-    return NextResponse.json({ error: "Not logged in" }, { status: 401 });
-  }
-  const curator = await getCuratorById(curatorId);
-  if (!curator) {
+  const curator = await getSessionMember();
+  if (!curator || !curator.isCurator) {
     return NextResponse.json({ error: "Not logged in" }, { status: 401 });
   }
 

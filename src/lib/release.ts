@@ -1,11 +1,11 @@
 import { eq, desc, and, or } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { subscribers, drops, type Drop } from "@/db/schema";
+import { members, drops, type Drop } from "@/db/schema";
 import { getDefaultClub } from "./club";
 import { sendSms } from "./sms";
 import { sendEmail } from "./email";
 import { releaseSmsBody, releaseEmailHtml, top10ReleaseSmsBody, top10ReleaseEmailHtml } from "./messages";
-import { generateYouToken } from "./subscriberToken";
+import { generateMemberToken } from "./memberToken";
 
 /** The drop that hasn't shipped yet (or most recent one, if all have). */
 export async function getCurrentDrop(): Promise<Drop | null> {
@@ -36,12 +36,12 @@ export async function sendDropToSubscribers(drop: Drop) {
 
   const active = await db
     .select()
-    .from(subscribers)
+    .from(members)
     .where(
       and(
-        eq(subscribers.clubId, club.id),
-        eq(subscribers.optedOut, false),
-        or(eq(subscribers.wantsText, true), eq(subscribers.wantsEmail, true))
+        eq(members.clubId, club.id),
+        eq(members.optedOut, false),
+        or(eq(members.wantsText, true), eq(members.wantsEmail, true))
       )
     );
 
@@ -50,21 +50,22 @@ export async function sendDropToSubscribers(drop: Drop) {
 
   for (const sub of active) {
     try {
-      // Subscribers created before the /you page existed won't have a
-      // token yet — generate and persist one now rather than skipping
-      // the personalized link (self-healing backfill, no separate
-      // migration script needed since every send passes through here).
-      let youToken = sub.youToken;
-      if (!youToken) {
-        youToken = generateYouToken();
-        await db.update(subscribers).set({ youToken }).where(eq(subscribers.id, sub.id));
+      // Members created before the /you page existed (or before the
+      // unified account model) won't have a token yet — generate and
+      // persist one now rather than skipping the personalized link
+      // (self-healing backfill, no separate migration script needed
+      // since every send passes through here).
+      let memberToken = sub.memberToken;
+      if (!memberToken) {
+        memberToken = generateMemberToken();
+        await db.update(members).set({ memberToken }).where(eq(members.id, sub.id));
       }
 
       if (sub.wantsText && sub.phone) {
-        await sendSms(sub.phone, releaseSmsBody(drop, youToken));
+        await sendSms(sub.phone, releaseSmsBody(drop, memberToken));
       }
       if (sub.wantsEmail && sub.email) {
-        await sendEmail(sub.email, "New playlist is here 🎵", releaseEmailHtml(drop, youToken));
+        await sendEmail(sub.email, "New playlist is here 🎵", releaseEmailHtml(drop, memberToken));
       }
       sent += 1;
     } catch (err) {
@@ -92,12 +93,12 @@ export async function sendTop10ToSubscribers(dropNum: number) {
 
   const active = await db
     .select()
-    .from(subscribers)
+    .from(members)
     .where(
       and(
-        eq(subscribers.clubId, club.id),
-        eq(subscribers.optedOut, false),
-        or(eq(subscribers.wantsText, true), eq(subscribers.wantsEmail, true))
+        eq(members.clubId, club.id),
+        eq(members.optedOut, false),
+        or(eq(members.wantsText, true), eq(members.wantsEmail, true))
       )
     );
 

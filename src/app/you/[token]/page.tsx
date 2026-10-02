@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getDefaultClub } from "@/lib/club";
-import { getSubscriberByYouToken } from "@/lib/subscribers";
+import { getMemberByToken } from "@/lib/members";
 import { getLatestPublicDrop } from "@/lib/archive";
 import { getTargetDropForTop10, getTop10Summary, getSubscriberTop10Pick } from "@/lib/top10Data";
 import YouPage from "@/app/_components/YouPage";
@@ -18,7 +18,7 @@ export default async function YouTokenPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
-  const subscriber = await getSubscriberByYouToken(token);
+  const subscriber = await getMemberByToken(token);
   if (!subscriber) notFound();
 
   const club = await getDefaultClub();

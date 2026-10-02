@@ -1,11 +1,11 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { subscribers, submissions, type Club } from "@/db/schema";
+import { members, submissions, type Club } from "@/db/schema";
 import { normalizePhone, isUniqueViolation } from "@/lib/normalize";
 import { isValidMusicLink } from "@/lib/musicLink";
 import { resolveSongMetadata } from "@/lib/odesli";
 import { getSubmitContext } from "@/lib/submit";
-import { generateYouToken } from "@/lib/subscriberToken";
+import { generateMemberToken } from "@/lib/memberToken";
 import {
   smsSubmitNoLinkBody,
   smsSubmitClosedBody,
@@ -80,8 +80,8 @@ export async function handleInboundSongText(
 
   const [existingSubscriber] = await db
     .select()
-    .from(subscribers)
-    .where(and(eq(subscribers.clubId, club.id), eq(subscribers.phoneKey, phoneKey)))
+    .from(members)
+    .where(and(eq(members.clubId, club.id), eq(members.phoneKey, phoneKey)))
     .limit(1);
 
   let subscriber = existingSubscriber ?? null;
@@ -90,7 +90,7 @@ export async function handleInboundSongText(
   if (!subscriber) {
     try {
       const [created] = await db
-        .insert(subscribers)
+        .insert(members)
         .values({
           clubId: club.id,
           phone: from,
@@ -98,7 +98,7 @@ export async function handleInboundSongText(
           wantsText: true,
           smsConsent: true,
           smsOptInAt: new Date(),
-          youToken: generateYouToken(),
+          memberToken: generateMemberToken(),
         })
         .returning();
       subscriber = created;
@@ -109,8 +109,8 @@ export async function handleInboundSongText(
       if (!isUniqueViolation(err)) throw err;
       const [dupe] = await db
         .select()
-        .from(subscribers)
-        .where(and(eq(subscribers.clubId, club.id), eq(subscribers.phoneKey, phoneKey)))
+        .from(members)
+        .where(and(eq(members.clubId, club.id), eq(members.phoneKey, phoneKey)))
         .limit(1);
       subscriber = dupe ?? null;
     }

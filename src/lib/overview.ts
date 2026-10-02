@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { subscribers, submissions, curators, songs, type Club } from "@/db/schema";
+import { members, submissions, songs, type Club } from "@/db/schema";
 import { getDropStatus } from "./dropStatus";
 
 export type PileItem = {
@@ -48,28 +48,38 @@ export async function getOverviewData(club: Club): Promise<OverviewData> {
 
   const [subscriberCountRows, pileRows, curatorRows, lifetimeCounts, cycleCounts, pickCountRows] =
     await Promise.all([
+      // "Subscriber" count here still means every active member — the
+      // overview stat predates the unified account model and isCurator
+      // doesn't exclude someone from this count, same as before.
       db
-        .select({ id: subscribers.id })
-        .from(subscribers)
-        .where(and(eq(subscribers.clubId, club.id), eq(subscribers.optedOut, false))),
+        .select({ id: members.id })
+        .from(members)
+        .where(and(eq(members.clubId, club.id), eq(members.optedOut, false))),
       db
         .select()
         .from(submissions)
         .where(and(eq(submissions.clubId, club.id), eq(submissions.dropNum, status.nextDropNum)))
         .orderBy(desc(submissions.submittedAt)),
-      db.select().from(curators).where(eq(curators.clubId, club.id)).orderBy(asc(curators.joinedAt)),
+      // Only members with isCurator — the old `curators` table only ever
+      // held curators, so selecting from the unified `members` table
+      // without this filter would pull in every subscriber too.
+      db
+        .select()
+        .from(members)
+        .where(and(eq(members.clubId, club.id), eq(members.isCurator, true)))
+        .orderBy(asc(members.createdAt)),
       db
         .select({ curatorId: songs.curatorId, value: count() })
         .from(songs)
-        .innerJoin(curators, eq(songs.curatorId, curators.id))
-        .where(eq(curators.clubId, club.id))
+        .innerJoin(members, eq(songs.curatorId, members.id))
+        .where(eq(members.clubId, club.id))
         .groupBy(songs.curatorId),
       openDropId
         ? db
             .select({ curatorId: songs.curatorId, value: count() })
             .from(songs)
-            .innerJoin(curators, eq(songs.curatorId, curators.id))
-            .where(and(eq(curators.clubId, club.id), eq(songs.dropId, openDropId)))
+            .innerJoin(members, eq(songs.curatorId, members.id))
+            .where(and(eq(members.clubId, club.id), eq(songs.dropId, openDropId)))
             .groupBy(songs.curatorId)
         : Promise.resolve([]),
       // Total tracklist count for the open drop — every song regardless of
@@ -93,10 +103,14 @@ export async function getOverviewData(club: Club): Promise<OverviewData> {
 
   const roster: RosterCurator[] = curatorRows.map((c) => ({
     id: c.id,
-    name: c.name,
+    // members.name is nullable (unlike the old curators.name, which was
+    // required) — coalesce so RosterCurator.name stays a plain string.
+    name: c.name ?? "",
     picksThisCycle: cycleByCurator.get(c.id) ?? 0,
     picksLifetime: lifetimeByCurator.get(c.id) ?? 0,
-    joinedAt: c.joinedAt,
+    // members has no joinedAt column (it has createdAt) — same value,
+    // new column name post-unification.
+    joinedAt: c.createdAt,
   }));
 
   return {

@@ -1,12 +1,12 @@
 import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import {
-  curators,
+  members,
   songs,
   curatorNotes,
   comments,
   type Club,
-  type Curator,
+  type Member,
   type Drop,
 } from "@/db/schema";
 import { getDropStatus } from "./dropStatus";
@@ -22,7 +22,7 @@ export type RoomPick = {
 };
 
 export type RoomCuratorColumn = {
-  curator: Curator;
+  curator: Member;
   picks: RoomPick[];
   note: string;
   noteUpdatedAt: Date | null;
@@ -66,8 +66,15 @@ export async function getOpenDrop(club: Club): Promise<Drop | null> {
 export async function getRoomData(club: Club, drop: Drop): Promise<RoomData> {
   const db = getDb();
 
+  // Only members with isCurator — the old `curators` table only ever
+  // held curators, so selecting from the unified `members` table without
+  // this filter would pull in every subscriber too.
   const [curatorRows, songRows, noteRows, commentRows, status] = await Promise.all([
-    db.select().from(curators).where(eq(curators.clubId, club.id)).orderBy(asc(curators.joinedAt)),
+    db
+      .select()
+      .from(members)
+      .where(and(eq(members.clubId, club.id), eq(members.isCurator, true)))
+      .orderBy(asc(members.createdAt)),
     db
       .select()
       .from(songs)
@@ -78,12 +85,12 @@ export async function getRoomData(club: Club, drop: Drop): Promise<RoomData> {
       .select({
         id: comments.id,
         curatorId: comments.curatorId,
-        curatorName: curators.name,
+        curatorName: members.name,
         text: comments.text,
         createdAt: comments.createdAt,
       })
       .from(comments)
-      .innerJoin(curators, eq(comments.curatorId, curators.id))
+      .innerJoin(members, eq(comments.curatorId, members.id))
       .where(and(eq(comments.clubId, club.id), eq(comments.dropNum, drop.num)))
       .orderBy(asc(comments.createdAt)),
     getDropStatus(club),
@@ -126,14 +133,18 @@ export async function getRoomData(club: Club, drop: Drop): Promise<RoomData> {
 
   const stream: RoomStreamItem[] = [];
   for (const col of curatorColumns) {
+    // members.name is nullable (unlike the old curators.name, which was
+    // required) — coalesce so RoomStreamItem.curatorName stays a plain
+    // string, same contract this page has always had.
+    const curatorName = col.curator.name ?? "";
     for (const pick of col.picks) {
-      stream.push({ kind: "pick", at: pick.createdAt, curatorName: col.curator.name, pick });
+      stream.push({ kind: "pick", at: pick.createdAt, curatorName, pick });
     }
     if (col.note.trim()) {
       stream.push({
         kind: "note",
-        at: col.noteUpdatedAt ?? col.curator.joinedAt,
-        curatorName: col.curator.name,
+        at: col.noteUpdatedAt ?? col.curator.createdAt,
+        curatorName,
         text: col.note,
       });
     }
@@ -145,7 +156,7 @@ export async function getRoomData(club: Club, drop: Drop): Promise<RoomData> {
     daysUntilNext: status.daysUntilNext,
     isManual: status.isManual,
     curators: curatorColumns,
-    comments: commentRows,
+    comments: commentRows.map((c) => ({ ...c, curatorName: c.curatorName ?? "" })),
     stream,
   };
 }

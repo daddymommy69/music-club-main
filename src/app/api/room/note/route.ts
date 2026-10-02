@@ -2,19 +2,14 @@ import { NextResponse } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { curatorNotes } from "@/db/schema";
-import { getSessionCuratorId } from "@/lib/curatorSession";
-import { getCuratorById } from "@/lib/curators";
+import { getSessionMember } from "@/lib/memberSession";
 import { getDefaultClub } from "@/lib/club";
 import { getOpenDrop } from "@/lib/room";
 
 /** Upserts the logged-in curator's note for the currently-open drop. */
 export async function PUT(request: Request) {
-  const curatorId = await getSessionCuratorId();
-  if (!curatorId) {
-    return NextResponse.json({ error: "Not logged in" }, { status: 401 });
-  }
-  const curator = await getCuratorById(curatorId);
-  if (!curator) {
+  const curator = await getSessionMember();
+  if (!curator || !curator.isCurator) {
     return NextResponse.json({ error: "Not logged in" }, { status: 401 });
   }
 

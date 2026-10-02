@@ -1,34 +1,37 @@
 import { NextResponse } from "next/server";
 import { getDefaultClub } from "@/lib/club";
-import {
-  detectDestinationType,
-  findCuratorByDestination,
-  issueLoginCode,
-  maskDestination,
-} from "@/lib/curators";
+import { findMemberByEmail, issueLoginCode, maskEmail } from "@/lib/members";
 
-/** Step 1 of curator login: does this phone/email belong to an existing curator? */
+const NOT_A_CURATOR_MESSAGE =
+  "This email isn't set up as a curator yet — ask an admin, or sign up as a member at /signup first if you haven't.";
+
+/**
+ * Step 1 of curator login (email-only now — see CuratorLogin.tsx).
+ * There's no self-serve join-code path anymore: a login only succeeds
+ * for a member that already exists AND already has isCurator set by an
+ * admin. Anything else gets the same "ask an admin" message, whether
+ * the email has no member at all or belongs to a non-curator member —
+ * no need to tell those two cases apart for someone trying to log in.
+ */
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
-  const destination = (body as { destination?: string } | null)?.destination?.trim();
+  const email = (body as { email?: string } | null)?.email?.trim();
 
-  if (!destination) {
-    return NextResponse.json({ error: "Enter a phone number or email" }, { status: 400 });
+  if (!email) {
+    return NextResponse.json({ error: "Enter your email" }, { status: 400 });
   }
 
   const club = await getDefaultClub();
-  const type = detectDestinationType(destination);
-  const curator = await findCuratorByDestination(club, type, destination);
+  const member = await findMemberByEmail(club, email);
 
-  if (!curator) {
-    return NextResponse.json({ status: "new", destinationType: type });
+  if (!member || !member.isCurator) {
+    return NextResponse.json({ error: NOT_A_CURATOR_MESSAGE }, { status: 400 });
   }
 
-  await issueLoginCode(curator, type, destination);
+  await issueLoginCode(member);
 
   return NextResponse.json({
-    status: "existing",
-    curatorId: curator.id,
-    masked: maskDestination(type, destination),
+    memberId: member.id,
+    masked: maskEmail(email),
   });
 }

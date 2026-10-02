@@ -13,23 +13,23 @@ export function confirmationEmailHtml() {
 
 /** Every text/email points here, not straight at the raw playlist URLs —
  * this is "the link in your text" that #/you's own copy refers to. */
-function youUrl(youToken: string) {
-  return siteUrl(`/you/${youToken}`);
+function memberUrl(memberToken: string) {
+  return siteUrl(`/you/${memberToken}`);
 }
 
-export function releaseSmsBody(drop: Drop, youToken: string) {
+export function releaseSmsBody(drop: Drop, memberToken: string) {
   const label = drop.title ? `drop ${drop.num} — "${drop.title}"` : `drop ${drop.num}`;
   const lines = [
-    `New playlist from ${CLUB_NAME} (${label}): ${youUrl(youToken)}`,
+    `New playlist from ${CLUB_NAME} (${label}): ${memberUrl(memberToken)}`,
     "Reply STOP to unsubscribe.",
   ];
   return lines.join("\n");
 }
 
-export function releaseEmailHtml(drop: Drop, youToken: string) {
+export function releaseEmailHtml(drop: Drop, memberToken: string) {
   const label = drop.title ? `drop ${drop.num} — "${drop.title}"` : `drop ${drop.num}`;
-  return `<p>New playlist from <strong>${CLUB_NAME}</strong> (${label}):</p><p><a href="${youUrl(
-    youToken
+  return `<p>New playlist from <strong>${CLUB_NAME}</strong> (${label}):</p><p><a href="${memberUrl(
+    memberToken
   )}">See what's on it</a></p>`;
 }
 

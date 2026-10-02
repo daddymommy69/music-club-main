@@ -8,10 +8,20 @@ export type ShipDropCardProps = {
   pickCount: number;
 };
 
+type SpotifyAutoBuild = {
+  matchedCount: number;
+  totalCount: number;
+  unmatchedTitles: string[];
+} | null;
+
 /**
- * The "finish the drop" step — paste the final playlist link(s) once
- * curators are done picking in /room, and ship it. Same paste-the-link
- * pattern as Top10Card, and the same one-shot behavior: once this
+ * The "finish the drop" step — once curators are done picking in /room,
+ * ship it. The Spotify playlist auto-builds from this drop's songs when
+ * that field's left blank (search-match each song, create a public
+ * playlist, upload a matching cover) — pasting a link here still works
+ * and always wins, as the manual fallback for whenever auto-build isn't
+ * connected or you want to override it. Apple Music stays a manual
+ * paste, same as always. Same one-shot behavior either way: once this
  * succeeds the drop is published and the release message is already
  * sent, so there's nothing left to edit here afterward (the next load of
  * /overview simply won't have a ship candidate anymore).
@@ -23,13 +33,10 @@ export default function ShipDropCard({ dropNum, title: initialTitle, pickCount }
   const [shipping, setShipping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shipped, setShipped] = useState<{ sent: number; total: number } | null>(null);
+  const [spotifyAutoBuild, setSpotifyAutoBuild] = useState<SpotifyAutoBuild>(null);
 
   async function ship(e: React.FormEvent) {
     e.preventDefault();
-    if (!spotifyUrl.trim() && !appleUrl.trim()) {
-      setError("Paste at least one playlist link");
-      return;
-    }
     setShipping(true);
     setError(null);
     try {
@@ -48,6 +55,7 @@ export default function ShipDropCard({ dropNum, title: initialTitle, pickCount }
         return;
       }
       setShipped({ sent: data.sent ?? 0, total: data.total ?? 0 });
+      setSpotifyAutoBuild(data.spotifyAutoBuild ?? null);
     } catch {
       setError("Something went wrong. Try again.");
     } finally {
@@ -66,13 +74,27 @@ export default function ShipDropCard({ dropNum, title: initialTitle, pickCount }
           <p style={{ fontSize: 13 }}>
             Drop {dropNum} is live — sent to {shipped.sent} of {shipped.total} subscribers.
           </p>
+          {spotifyAutoBuild && (
+            <p style={{ fontSize: 12, marginTop: 8 }}>
+              Spotify playlist built — matched {spotifyAutoBuild.matchedCount} of{" "}
+              {spotifyAutoBuild.totalCount} song{spotifyAutoBuild.totalCount === 1 ? "" : "s"}.
+              {spotifyAutoBuild.unmatchedTitles.length > 0 && (
+                <>
+                  {" "}
+                  Couldn&rsquo;t find:{" "}
+                  <span className="mut">{spotifyAutoBuild.unmatchedTitles.join(", ")}</span>.
+                </>
+              )}
+            </p>
+          )}
         </div>
       ) : (
         <form onSubmit={ship} className="form">
           <p className="mut" style={{ fontSize: 11.5, marginBottom: 10 }}>
-            {pickCount} pick{pickCount === 1 ? "" : "s"} so far. Once you&rsquo;ve built the
-            playlist, paste the link(s) below to publish this drop and text/email everyone —
-            there&rsquo;s no separate step after this.
+            {pickCount} pick{pickCount === 1 ? "" : "s"} so far. Spotify builds itself
+            automatically from the picks — paste an Apple Music link below (and a Spotify link
+            too, only if you want to override the auto-build). Ship publishes this drop and
+            texts/emails everyone, no separate step after this.
           </p>
           <label>
             Title (optional)
@@ -84,7 +106,7 @@ export default function ShipDropCard({ dropNum, title: initialTitle, pickCount }
             />
           </label>
           <label>
-            Spotify link
+            Spotify link (optional — leave blank to auto-build)
             <input
               type="text"
               value={spotifyUrl}

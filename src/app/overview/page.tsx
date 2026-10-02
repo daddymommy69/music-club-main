@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getSessionCuratorId } from "@/lib/curatorSession";
-import { getCuratorById } from "@/lib/curators";
+import { getSessionMember } from "@/lib/memberSession";
 import { getDefaultClub } from "@/lib/club";
 import { getOverviewData } from "@/lib/overview";
 import { getTargetDropForTop10, getTop10Summary } from "@/lib/top10Data";
@@ -17,11 +16,8 @@ export const dynamic = "force-dynamic";
 // submission pile (the one place submitter identity is visible — curators
 // need it to dedupe and spot abuse), quick-add into picks, curator roster.
 export default async function OverviewPage() {
-  const curatorId = await getSessionCuratorId();
-  if (!curatorId) redirect("/curators");
-
-  const curator = await getCuratorById(curatorId);
-  if (!curator) redirect("/curators");
+  const curator = await getSessionMember();
+  if (!curator || !curator.isCurator) redirect("/curators");
 
   const club = await getDefaultClub();
   const data = await getOverviewData(club);

@@ -115,7 +115,7 @@ export default function SignupForm({
           {body}
         </p>
         <hr className="hairline" />
-        <Link href="/archive" style={{ fontSize: 12.5, display: "block", marginBottom: 8 }}>
+        <Link href="/releases" style={{ fontSize: 12.5, display: "block", marginBottom: 8 }}>
           Hear every drop so far →
         </Link>
         <button
@@ -163,7 +163,7 @@ export default function SignupForm({
 
       <hr className="hairline" style={{ margin: "4px 0" }} />
       <Link href="/curators" style={{ fontSize: 11.5, textAlign: "center" }}>
-        Got a curator code? Join as a curator →
+        Already a curator? Log in →
       </Link>
     </form>
   );

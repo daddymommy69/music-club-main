@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getSessionCuratorId } from "@/lib/curatorSession";
-import { getCuratorById } from "@/lib/curators";
+import { getSessionMember } from "@/lib/memberSession";
 import { getDefaultClub } from "@/lib/club";
 import { isCycleValue } from "@/lib/cycle";
 import CuratorNav from "@/app/_components/CuratorNav";
@@ -13,17 +12,19 @@ export const dynamic = "force-dynamic";
 // #/settings (design-handoff.md §9): club rename, the cycle picker, and
 // the join code. Curator-gated the same way as /room and /overview —
 // this changes what every subscriber-facing countdown shows.
-export default async function SettingsPage() {
-  const curatorId = await getSessionCuratorId();
-  if (!curatorId) redirect("/curators");
-
-  const curator = await getCuratorById(curatorId);
-  if (!curator) redirect("/curators");
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ spotify?: string }>;
+}) {
+  const curator = await getSessionMember();
+  if (!curator || !curator.isCurator) redirect("/curators");
 
   const club = await getDefaultClub();
   // Defensive fallback only — the DB column is constrained to the same
   // enum, so this should never actually miss.
   const cycle = isCycleValue(club.cycle) ? club.cycle : "manual";
+  const { spotify: spotifyStatus } = await searchParams;
 
   return (
     <main className="shell page">
@@ -40,6 +41,8 @@ export default async function SettingsPage() {
         cycle={cycle}
         cycleCustomDays={club.cycleCustomDays}
         joinCode={club.joinCode}
+        spotifyConnected={club.spotifyRefreshToken != null}
+        spotifyCallbackStatus={spotifyStatus ?? null}
       />
 
       <div style={{ marginTop: 28 }}>

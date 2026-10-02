@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSubscriberByYouToken, optOutSubscriber } from "@/lib/subscribers";
+import { getMemberByToken, optOutMember } from "@/lib/members";
 
 /** "Stop texting me" on /you. Token-authorized (no session) — the
  * unguessable token itself is the proof this is the subscriber's own
@@ -11,11 +11,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing token" }, { status: 400 });
   }
 
-  const subscriber = await getSubscriberByYouToken(token);
+  const subscriber = await getMemberByToken(token);
   if (!subscriber) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  await optOutSubscriber(subscriber.id);
+  await optOutMember(subscriber.id);
   return NextResponse.json({ ok: true });
 }

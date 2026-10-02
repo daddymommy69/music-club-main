@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionCuratorId } from "@/lib/curatorSession";
-import { getCuratorById } from "@/lib/curators";
+import { getSessionMember } from "@/lib/memberSession";
 import { getDefaultClub, updateClub } from "@/lib/club";
 import { isCycleValue } from "@/lib/cycle";
 import type { Club } from "@/db/schema";
@@ -13,12 +12,8 @@ const MAX_CUSTOM_DAYS = 3650; // ~10 years — generous ceiling, just guards aga
  * whole page, matching the inline-rename / click-a-pill interactions
  * the handoff describes. */
 export async function PUT(request: Request) {
-  const curatorId = await getSessionCuratorId();
-  if (!curatorId) {
-    return NextResponse.json({ error: "Not logged in" }, { status: 401 });
-  }
-  const curator = await getCuratorById(curatorId);
-  if (!curator) {
+  const curator = await getSessionMember();
+  if (!curator || !curator.isCurator) {
     return NextResponse.json({ error: "Not logged in" }, { status: 401 });
   }
 

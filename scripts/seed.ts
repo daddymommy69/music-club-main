@@ -2,18 +2,13 @@
 // can be visually verified against real data. Local dev only — never
 // run against production.
 //
+// Unified account model (2026-10): curators and subscribers are both
+// just `members` now, distinguished by isCurator.
+//
 //   npx tsx scripts/seed.ts
 import "dotenv/config";
 import { getDb } from "../src/db/client";
-import {
-  clubs,
-  drops,
-  songs,
-  curators,
-  curatorNotes,
-  subscribers,
-  submissions,
-} from "../src/db/schema";
+import { clubs, drops, songs, members, curatorNotes, submissions } from "../src/db/schema";
 
 async function main() {
   const db = getDb();
@@ -22,8 +17,7 @@ async function main() {
   await db.delete(curatorNotes);
   await db.delete(songs);
   await db.delete(submissions);
-  await db.delete(curators);
-  await db.delete(subscribers);
+  await db.delete(members);
   await db.delete(drops);
   await db.delete(clubs);
 
@@ -39,16 +33,16 @@ async function main() {
 
   console.log("Creating curators...");
   const [nico, june, sam] = await db
-    .insert(curators)
+    .insert(members)
     .values([
-      { clubId: club.id, name: "nico", phone: "+15551230001" },
-      { clubId: club.id, name: "june", phone: "+15551230002" },
-      { clubId: club.id, name: "sam", phone: "+15551230003" },
+      { clubId: club.id, name: "nico", phone: "+15551230001", isCurator: true },
+      { clubId: club.id, name: "june", phone: "+15551230002", isCurator: true },
+      { clubId: club.id, name: "sam", phone: "+15551230003", isCurator: true },
     ])
     .returning();
 
   console.log("Creating subscribers...");
-  await db.insert(subscribers).values(
+  await db.insert(members).values(
     Array.from({ length: 34 }).map((_, i) => ({
       clubId: club.id,
       name: `subscriber ${i + 1}`,
