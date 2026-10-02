@@ -8,7 +8,7 @@ export default function CuratorsPage() {
   return (
     <main className="col page">
       <Link href="/" className="wordmark" style={{ display: "block", marginBottom: 4 }}>
-        gooberz music club
+        project music club
       </Link>
       <p className="mut" style={{ fontSize: 11.5, marginBottom: 28 }}>
         Curator login
