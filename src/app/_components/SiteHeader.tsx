@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+// "/" itself isn't in this list — it just redirects to /archive (the
+// site's home since 2026-10), so the active check below only ever
+// needs to match real routes.
 const NAV_ITEMS = [
-  { href: "/", label: "Sign up" },
+  { href: "/archive", label: "Releases" },
   { href: "/submit", label: "Submit a song" },
-  { href: "/archive", label: "Archive" },
+  { href: "/signup", label: "Sign up" },
 ];
 
 export default function SiteHeader() {
@@ -29,8 +32,7 @@ export default function SiteHeader() {
           }}
         >
           {NAV_ITEMS.map((item) => {
-            const active =
-              item.href === "/" ? pathname === "/" : pathname?.startsWith(item.href);
+            const active = pathname?.startsWith(item.href);
             return (
               <Link
                 key={item.href}

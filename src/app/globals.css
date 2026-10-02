@@ -1036,3 +1036,22 @@ input {
   font-size: 13px;
   letter-spacing: -0.01em;
 }
+
+/* ---------- Releases-page sign-up popup ---------- */
+
+.signup-popup-trigger {
+  width: auto;
+  height: 40px;
+  padding: 0 18px;
+  margin: 4px 0 28px;
+}
+
+.popup-close {
+  background: none;
+  border: none;
+  color: var(--mut);
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px;
+}

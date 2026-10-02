@@ -3,7 +3,7 @@ import type { SignupContext } from "@/lib/signup";
 
 /**
  * The block that leads the sign-up page. Answers the two silent
- * objections to giving out a phone number — what arrives, and how
+ * objections to giving out an email address — what arrives, and how
  * often — before the visitor ever reaches the form.
  */
 export default function DropTextPreview({
@@ -12,13 +12,13 @@ export default function DropTextPreview({
   cycleDays,
 }: Pick<SignupContext, "latestPublishedDrop" | "isManual" | "cycleDays">) {
   const cadence = isManual
-    ? "One text a drop, whenever a drop is ready. Nothing else."
-    : `One text a drop, about every ${cycleDays ?? 45} days. Nothing else.`;
+    ? "One email a drop, whenever a drop is ready. Nothing else."
+    : `One email a drop, about every ${cycleDays ?? 45} days. Nothing else.`;
 
   return (
     <div className="drop-preview gz-up">
       <div className="label" style={{ marginBottom: 10 }}>
-        The text you&rsquo;ll get
+        The email you&rsquo;ll get
       </div>
 
       <div className="sms-bubble">
@@ -33,7 +33,7 @@ export default function DropTextPreview({
             </div>
           </>
         ) : (
-          <div>You&rsquo;ll get a text like this once the first drop ships.</div>
+          <div>You&rsquo;ll get an email like this once the first drop ships.</div>
         )}
       </div>
 

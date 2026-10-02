@@ -34,9 +34,9 @@ export default function SubmitClosed({
 
       <div className="acc-panel">
         <p style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 14 }}>
-          Get a text when the floor opens.
+          Get an email when the floor opens.
         </p>
-        <Link href="/" className="btn btn-primary" style={{ display: "flex" }}>
+        <Link href="/signup" className="btn btn-primary" style={{ display: "flex" }}>
           Sign me up
         </Link>
       </div>

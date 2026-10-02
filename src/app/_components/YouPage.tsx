@@ -145,7 +145,7 @@ export default function YouPage({
         </>
       ) : (
         <div className="empty-state">
-          Your first drop is coming — you&rsquo;ll get a text the moment it ships.
+          Your first drop is coming — you&rsquo;ll get a link the moment it ships.
         </div>
       )}
 
@@ -197,7 +197,7 @@ export default function YouPage({
 
       <hr className="hairline" style={{ marginTop: 30 }} />
       <p className="mut" style={{ fontSize: 11, lineHeight: 1.6 }}>
-        This page is yours — the link in your text always opens the newest drop.
+        This page is yours — the link in your email always opens the newest drop.
       </p>
       <Link href="/archive" className="link-btn" style={{ display: "inline-block", marginTop: 10 }}>
         Every drop so far →

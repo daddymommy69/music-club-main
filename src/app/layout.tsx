@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Project Music Club",
-  description: "A shared playlist, sent to you by text or email.",
+  description: "A shared playlist, sent to your inbox.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
