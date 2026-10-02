@@ -100,7 +100,7 @@ export async function issueLoginCode(
 
   try {
     if (type === "phone") {
-      await sendSms(value, `Your gooberz music club curator code: ${code}`);
+      await sendSms(value, `Your project music club curator code: ${code}`);
     } else {
       await sendEmail(value, "Your curator login code", `<p>Your code: <strong>${code}</strong></p>`);
     }

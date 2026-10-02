@@ -25,7 +25,7 @@ export default function DropTextPreview({
         {latestPublishedDrop ? (
           <>
             <div>
-              gooberz {String(latestPublishedDrop.num).padStart(2, "0")}
+              project music club {String(latestPublishedDrop.num).padStart(2, "0")}
               {latestPublishedDrop.title ? ` — "${latestPublishedDrop.title}"` : ""}
             </div>
             <div style={{ color: "var(--accent)", marginTop: 2 }}>

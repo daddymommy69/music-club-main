@@ -242,7 +242,7 @@ export default function SignupForm({
                 clearError("consent");
               }}
             />
-            I agree to receive text messages from gooberz music club. Reply STOP anytime
+            I agree to receive text messages from project music club. Reply STOP anytime
             to unsubscribe.
           </label>
           {errors.consent && (

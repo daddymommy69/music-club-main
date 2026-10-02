@@ -15,7 +15,7 @@ export default function SiteHeader() {
   return (
     <header style={{ padding: "28px 0 0" }}>
       <div className="col" style={{ padding: 0 }}>
-        <div className="wordmark">gooberz music club</div>
+        <div className="wordmark">project music club</div>
         <p className="mut" style={{ fontSize: 11.5, marginTop: 4 }}>
           A shared playlist, sent to you.
         </p>

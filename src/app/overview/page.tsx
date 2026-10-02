@@ -36,7 +36,7 @@ export default async function OverviewPage() {
   return (
     <main className="shell page">
       <Link href="/" className="wordmark" style={{ display: "block", marginBottom: 4 }}>
-        gooberz music club
+        project music club
       </Link>
       <p className="mut" style={{ fontSize: 11.5, marginBottom: 16 }}>
         Curator overview

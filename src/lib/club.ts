@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { clubs, type Club } from "@/db/schema";
 
-const DEFAULT_CLUB_NAME = process.env.NEXT_PUBLIC_CLUB_NAME || "Gooberz Music Club";
+const DEFAULT_CLUB_NAME = process.env.NEXT_PUBLIC_CLUB_NAME || "Project Music Club";
 const DEFAULT_JOIN_CODE = process.env.CLUB_JOIN_CODE || "GOOBERZ-4821";
 
 /**
