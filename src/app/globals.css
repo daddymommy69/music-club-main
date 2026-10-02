@@ -466,44 +466,31 @@ input {
 
 /* ---------- archive ---------- */
 
-.archive-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+.archive-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+  gap: 22px 16px;
 }
 
 .drop-card {
-  display: flex;
-  align-items: baseline;
-  gap: 16px;
-  border: 1px solid var(--ln);
-  border-radius: 7px;
-  padding: 20px;
-  background: var(--fill);
-}
-
-.drop-card .num {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 26px;
-  letter-spacing: -0.04em;
-  color: var(--accent);
-  flex-shrink: 0;
+  display: block;
+  min-width: 0;
 }
 
 .drop-card .info {
   min-width: 0;
+  margin-top: 10px;
 }
 
 .drop-card .title {
-  font-size: 15px;
+  font-size: 13px;
   line-height: 1.35;
-  letter-spacing: -0.02em;
-  margin-bottom: 4px;
+  letter-spacing: -0.01em;
+  margin-bottom: 3px;
 }
 
 .drop-card .meta {
-  font-size: 11px;
+  font-size: 10.5px;
   color: var(--mut);
 }
 
@@ -517,6 +504,69 @@ input {
   padding: 2px 7px;
   margin-left: 8px;
   vertical-align: middle;
+}
+
+/* The square number+artwork tile — reused on the Releases grid and at
+   the top of a drop's own page, so a drop always reads the same way
+   wherever it shows up. */
+.drop-tile {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--ln);
+  background: var(--fill);
+}
+
+.drop-tile-grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.drop-tile-quad {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.drop-tile-quad-empty {
+  background: var(--fill);
+}
+
+.drop-tile-num {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drop-tile-num::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.drop-tile-num span {
+  position: relative;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(22px, 8vw, 34px);
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+
+/* Large variant for the drop-detail header, where the tile stands
+   alone above the title rather than sitting in a grid of cards. */
+.drop-tile-hero {
+  max-width: 220px;
+  margin-bottom: 16px;
 }
 
 .empty-state {
@@ -606,16 +656,20 @@ input {
 }
 
 .track-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-  padding: 10px 0;
+  padding: 14px 0;
   border-bottom: 1px solid var(--ln);
 }
 
 .track-row:last-child {
   border-bottom: none;
+}
+
+.track-row-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
 }
 
 .track-row .track-info {
@@ -637,6 +691,20 @@ input {
   color: var(--mut);
   flex-shrink: 0;
   white-space: nowrap;
+}
+
+/* Per-song embedded player — the iframe itself sets its own chrome, so
+   this just clips its corners to match the rest of the UI and keeps it
+   full-width within the track row. */
+.track-embed {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.track-embed iframe {
+  display: block;
+  width: 100%;
+  border: none;
 }
 
 .curator-notes {

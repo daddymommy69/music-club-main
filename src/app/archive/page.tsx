@@ -1,6 +1,7 @@
 import Link from "next/link";
 import SiteHeader from "@/app/_components/SiteHeader";
 import SignupPopup from "@/app/_components/SignupPopup";
+import DropTile from "@/app/_components/DropTile";
 import { getDefaultClub } from "@/lib/club";
 import { getPublishedDrops } from "@/lib/archive";
 import { getSignupContext } from "@/lib/signup";
@@ -41,10 +42,10 @@ export default async function ArchivePage() {
             No drops yet — the first one is still being built.
           </p>
         ) : (
-          <div className="archive-list">
+          <div className="archive-grid">
             {dropList.map((drop) => (
               <Link key={drop.num} href={`/drop/${drop.num}`} className="drop-card">
-                <div className="num">{String(drop.num).padStart(2, "0")}</div>
+                <DropTile num={drop.num} artworkUrls={drop.artworkUrls} />
                 <div className="info">
                   <div className="title">
                     {drop.title ?? `Drop ${drop.num}`}

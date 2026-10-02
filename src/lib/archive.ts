@@ -18,6 +18,10 @@ export type ArchiveDropSummary = {
   title: string | null;
   publishedAt: Date;
   songCount: number;
+  /** Up to 4 cover-art URLs, in track order, for the archive tile's
+   * quadrant collage — skips songs with no artwork rather than leaving
+   * a gap, so a drop with 2 songs that both have art still fills in. */
+  artworkUrls: string[];
   /** True once this drop's Top 10 window has closed with at least one
    * vote — drives the small badge on its archive card. A closed window
    * with zero votes shows no badge (nothing to see). */
@@ -42,7 +46,15 @@ export async function getPublishedDrops(clubId: number): Promise<ArchiveDropSumm
 
   const dropIds = publishedDrops.map((d) => d.id);
   const [songRows, top10Rows] = await Promise.all([
-    db.select({ dropId: songs.dropId }).from(songs).where(inArray(songs.dropId, dropIds)),
+    db
+      .select({
+        dropId: songs.dropId,
+        artworkUrl: songs.artworkUrl,
+        position: songs.position,
+      })
+      .from(songs)
+      .where(inArray(songs.dropId, dropIds))
+      .orderBy(asc(songs.position)),
     db
       .select({ dropId: top10Entries.dropId })
       .from(top10Entries)
@@ -50,8 +62,14 @@ export async function getPublishedDrops(clubId: number): Promise<ArchiveDropSumm
   ]);
 
   const countByDropId = new Map<number, number>();
+  const artworkByDropId = new Map<number, string[]>();
   for (const row of songRows) {
     countByDropId.set(row.dropId, (countByDropId.get(row.dropId) ?? 0) + 1);
+    if (row.artworkUrl) {
+      const list = artworkByDropId.get(row.dropId) ?? [];
+      if (list.length < 4) list.push(row.artworkUrl);
+      artworkByDropId.set(row.dropId, list);
+    }
   }
   const dropIdsWithVotes = new Set(top10Rows.map((row) => row.dropId));
 
@@ -61,6 +79,7 @@ export async function getPublishedDrops(clubId: number): Promise<ArchiveDropSumm
     // isNotNull filtered this above, so it's safe to assert non-null.
     publishedAt: d.publishedAt as Date,
     songCount: countByDropId.get(d.id) ?? 0,
+    artworkUrls: artworkByDropId.get(d.id) ?? [],
     hasTop10: dropIdsWithVotes.has(d.id) && getTop10Phase({ publishedAt: d.publishedAt }) === "closed",
   }));
 }
@@ -69,6 +88,11 @@ export type PublicSongRow = {
   title: string;
   artist: string;
   curatorCredit: string | null;
+  /** The Spotify/Apple Music link a curator pasted in — public, so it's
+   * safe to expose (unlike submittedBy, see the anonymity rule above).
+   * Used to build each track's embedded player. */
+  sourceUrl: string | null;
+  artworkUrl: string | null;
 };
 
 export type PublicCuratorNote = {
@@ -121,6 +145,8 @@ export async function getPublicDrop(
       title: songs.title,
       artist: songs.artist,
       curatorCredit: songs.curatorCredit,
+      sourceUrl: songs.sourceUrl,
+      artworkUrl: songs.artworkUrl,
     })
     .from(songs)
     .where(eq(songs.dropId, drop.id))

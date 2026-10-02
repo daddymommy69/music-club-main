@@ -1,6 +1,8 @@
 import type { PublicDropDetail } from "@/lib/archive";
 import { formatDropMonth } from "@/lib/format";
 import CloseButton from "./CloseButton";
+import DropTile from "./DropTile";
+import SongEmbed from "./SongEmbed";
 
 export default function DropDetail({
   drop,
@@ -11,12 +13,15 @@ export default function DropDetail({
   closable?: boolean;
   shareUrl: string;
 }) {
+  const artworkUrls = drop.songs
+    .map((s) => s.artworkUrl)
+    .filter((url): url is string => !!url)
+    .slice(0, 4);
+
   return (
     <div className="drop-detail">
       <div className="top-row">
-        <div className="numeral" style={{ fontSize: 40 }}>
-          {String(drop.num).padStart(2, "0")}
-        </div>
+        <DropTile num={drop.num} artworkUrls={artworkUrls} hero />
         {closable && <CloseButton />}
       </div>
       <div className="drop-title">{drop.title ?? `Drop ${drop.num}`}</div>
@@ -57,11 +62,14 @@ export default function DropDetail({
       <div>
         {drop.songs.map((song, i) => (
           <div className="track-row" key={i}>
-            <div className="track-info">
-              <div className="track-title">{song.title}</div>
-              <div className="track-artist">{song.artist}</div>
+            <div className="track-row-meta">
+              <div className="track-info">
+                <div className="track-title">{song.title}</div>
+                <div className="track-artist">{song.artist}</div>
+              </div>
+              <div className="track-credit">{song.curatorCredit ?? ""}</div>
             </div>
-            <div className="track-credit">{song.curatorCredit ?? ""}</div>
+            <SongEmbed sourceUrl={song.sourceUrl} />
           </div>
         ))}
       </div>
