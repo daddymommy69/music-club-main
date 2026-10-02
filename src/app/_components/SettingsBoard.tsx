@@ -8,6 +8,8 @@ type SettingsBoardProps = {
   cycle: CycleValue;
   cycleCustomDays: number | null;
   joinCode: string;
+  spotifyConnected: boolean;
+  spotifyCallbackStatus: string | null;
 };
 
 export default function SettingsBoard({
@@ -15,12 +17,15 @@ export default function SettingsBoard({
   cycle,
   cycleCustomDays,
   joinCode,
+  spotifyConnected,
+  spotifyCallbackStatus,
 }: SettingsBoardProps) {
   return (
     <div className="gz-up">
       <ClubNameSection initialName={clubName} />
       <CycleSection initialCycle={cycle} initialCustomDays={cycleCustomDays} />
       <JoinCodeSection joinCode={joinCode} />
+      <SpotifySection initialConnected={spotifyConnected} callbackStatus={spotifyCallbackStatus} />
     </div>
   );
 }
@@ -198,6 +203,105 @@ function CycleSection({
         </div>
       )}
 
+      {error && (
+        <p className="notice error" style={{ marginTop: 10 }}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** The Spotify auto-build connection (2026-10) — just one account for
+ * the whole club, whoever clicks "Connect Spotify" here. Connecting is a
+ * plain link to /api/spotify/connect rather than a fetch call, since
+ * that route's whole job is to issue a redirect into Spotify's own
+ * consent screen — not something you can do from inside a fetch(). */
+function SpotifySection({
+  initialConnected,
+  callbackStatus,
+}: {
+  initialConnected: boolean;
+  callbackStatus: string | null;
+}) {
+  const [connected, setConnected] = useState(initialConnected);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function disconnect() {
+    setDisconnecting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/spotify/disconnect", { method: "POST" });
+      if (!res.ok) throw new Error("Something went wrong. Try again.");
+      setConnected(false);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
+  return (
+    <div className="settings-section">
+      <label className="label" style={{ display: "block", marginBottom: 8 }}>
+        Spotify
+      </label>
+      {callbackStatus === "connected" && (
+        <p className="notice" style={{ marginBottom: 10 }}>
+          Spotify connected — new drops will auto-build a playlist when shipped.
+        </p>
+      )}
+      {callbackStatus === "declined" && (
+        <p className="notice" style={{ marginBottom: 10 }}>
+          Spotify connection cancelled — nothing changed.
+        </p>
+      )}
+      {callbackStatus === "error" && (
+        <p className="notice error" style={{ marginBottom: 10 }}>
+          Couldn&rsquo;t connect to Spotify. Try again, or check SPOTIFY_CLIENT_ID/SECRET are set.
+        </p>
+      )}
+
+      {connected ? (
+        <>
+          <p className="mut" style={{ fontSize: 11.5, marginBottom: 10 }}>
+            Connected — shipping a drop with the Spotify field left blank auto-builds that
+            playlist.
+          </p>
+          <button
+            type="button"
+            className="btn"
+            style={{ width: "auto", minHeight: 36, height: 36, padding: "0 14px", fontSize: 12 }}
+            onClick={disconnect}
+            disabled={disconnecting}
+          >
+            {disconnecting ? "Disconnecting…" : "Disconnect"}
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="mut" style={{ fontSize: 11.5, marginBottom: 10 }}>
+            Not connected — ship currently needs a Spotify link pasted in by hand. Connect your
+            account to auto-build it instead.
+          </p>
+          <a
+            href="/api/spotify/connect"
+            className="btn"
+            style={{
+              width: "auto",
+              minHeight: 36,
+              height: 36,
+              padding: "0 14px",
+              fontSize: 12,
+              display: "inline-flex",
+              alignItems: "center",
+            }}
+          >
+            Connect Spotify
+          </a>
+        </>
+      )}
       {error && (
         <p className="notice error" style={{ marginTop: 10 }}>
           {error}

@@ -7,11 +7,12 @@ songs and vote on a subscriber-picked Top 10. See the project's
 history — this file only covers setup and deployment.
 
 **What's built:** everything. Sign-up (`/`), song submission by web form
-or by texting a link to the club's number (`/submit`), the public archive
-and drop pages (`/archive`, `/drop/:num`), the personalized subscriber
+or by texting a link to the club's number (`/submit`), the public releases
+and drop pages (`/releases`, `/drop/:num`), the personalized subscriber
 page (`/you/:token`), curator login (`/curators`), the curator room
 (`/room`), the curator dashboard including shipping a drop
-(`/overview`), club settings (`/settings`), and the Subscriber Top 10.
+(`/overview`), club settings (`/settings`) with optional Spotify
+auto-build, and the Subscriber Top 10.
 
 ## 1. Database
 
@@ -97,6 +98,35 @@ Copy `.env.example` to `.env.local` and fill in everything above for
 local development. In production, add the same variables in your Vercel
 project's **Settings → Environment Variables**.
 
+## 6. Spotify (playlist auto-build)
+
+Optional. Without this, shipping a drop needs the Spotify playlist link
+pasted in by hand, same as Apple Music — the app works fine without it.
+With it, leaving the Spotify field blank when you ship auto-builds that
+playlist from the drop's songs (search-matched by title/artist), uploads
+a cover image built from the same 2x2 artwork grid the site itself uses,
+and makes it public immediately.
+
+1. Go to [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard)
+   and create an app (any name/description).
+2. In the app's settings, add a Redirect URI of
+   `<your-deployed-site>/api/spotify/callback` (use
+   `http://localhost:3000/api/spotify/callback` for local dev). This has
+   to match your `NEXT_PUBLIC_SITE_URL` exactly, protocol included.
+3. Copy the **Client ID** and **Client Secret** into `SPOTIFY_CLIENT_ID`
+   / `SPOTIFY_CLIENT_SECRET`.
+4. Deploy with those set, log into `/curators`, go to `/settings`, and
+   click **Connect Spotify** — authorize with whichever Spotify account
+   should own the auto-built playlists (needs Premium; a free account
+   can't create playlists via the API). That's a one-time step — every
+   drop shipped after this auto-builds against that same account until
+   someone disconnects it from `/settings`.
+
+If the connection ever breaks (the account's Premium lapses, the token
+gets revoked, Spotify's API is down), shipping just quietly falls back
+to needing a pasted link, exactly like before this existed — it never
+blocks a release.
+
 ## Running locally
 
 ```bash
@@ -128,10 +158,28 @@ submissions (web or text-in) show up in `/overview`'s pile to quick-add.
 ## Shipping a drop
 
 Once curators are happy with the picks in `/room`, ship it from
-`/overview`: paste the final Spotify/Apple Music playlist link(s) (and
-optionally a title) into the "Ship drop" card there. Saving publishes the
-drop and sends the release text/email to every subscriber, in one step —
-no separate curl command needed for a normal release.
+`/overview`: paste the final Apple Music playlist link (and optionally a
+title) into the "Ship drop" card there and save. If Spotify's connected
+(see "6. Spotify" above), leave the Spotify field blank and it auto-
+builds from the drop's songs — the ship result shows how many songs
+matched and names any that didn't. Pasting a Spotify link in that field
+always overrides auto-build, for whenever you want to use a hand-built
+playlist instead or the connection's down. Saving publishes the drop and
+sends the release text/email to every subscriber, in one step — no
+separate curl command needed for a normal release.
+
+## Backfilling a Spotify playlist
+
+For a drop that already shipped without a Spotify link (built to retest
+drop #1 against the real auto-build, see plan.md) — this attaches an
+auto-built playlist to it without re-sending the release message:
+
+```bash
+curl -X POST https://<your-site>/api/admin/spotify-backfill \
+  -H "Authorization: Bearer <ADMIN_SECRET>" \
+  -H "Content-Type: application/json" \
+  -d '{"dropNum": 1}'
+```
 
 ## Sending
 
@@ -168,18 +216,23 @@ src/lib/messages.ts             Message text templates
 src/lib/site.ts                 The real deployed domain, read from NEXT_PUBLIC_SITE_URL
 src/lib/release.ts              Shared "send this drop to everyone" logic
 src/lib/smsSubmit.ts            SMS text-in submission logic
+src/lib/spotify.ts              Spotify OAuth, search, playlist + cover upload calls
+src/lib/spotifyBuild.ts         Orchestrates auto-building a drop's Spotify playlist
+src/lib/dropCover.ts            Builds the 2x2-artwork playlist cover image (sharp)
 src/lib/top10.ts, top10Data.ts  Subscriber Top 10 window/tally logic + queries
 src/app/page.tsx                Sign-up landing page
 src/app/submit                  Submission web form
-src/app/archive, drop/[num]     Public archive + drop detail
+src/app/releases, drop/[num]    Public releases + drop detail (/archive until 2026-10)
 src/app/you/[token]             Personalized subscriber page (magic link)
 src/app/curators                Curator login
 src/app/room                    Curator picks/notes/comments
 src/app/overview                Curator dashboard: pile, roster, ship a drop, Top 10
 src/app/settings                Club name/cycle/join-code
 src/app/api/drops               Start a new drop (admin-only)
-src/app/api/overview/ship       Paste playlist link(s) + publish + send
+src/app/api/overview/ship       Paste/auto-build playlist link(s) + publish + send
 src/app/api/send                Manual "send now" override (admin-only)
 src/app/api/cron/send           Daily automatic-send check (Vercel Cron)
 src/app/api/sms/inbound         Twilio webhook: STOP/START + SMS text-in
+src/app/api/spotify             Connect/callback/disconnect for the Spotify auto-build account
+src/app/api/admin/spotify-backfill  Attach an auto-built playlist to an already-shipped drop
 ```
