@@ -1,6 +1,7 @@
 import SiteHeader from "@/app/_components/SiteHeader";
 import AccountAuth from "@/app/_components/AccountAuth";
 import AccountBoard from "@/app/_components/AccountBoard";
+import RoleName from "@/app/_components/RoleName";
 import { getDefaultClub } from "@/lib/club";
 import { getSessionMember } from "@/lib/memberSession";
 import { getOpenDrop } from "@/lib/room";
@@ -27,6 +28,13 @@ export default async function AccountPage() {
   const member = await getSessionMember();
 
   if (!member) {
+    // Public, no-session preview (added 2026-10-06, per the founder's
+    // "show what can be on the account page" ask) — the leaderboard
+    // doesn't need a login to read (see leaderboard.ts's own comment:
+    // "Public to everyone, not curator-only"), so a logged-out visitor
+    // gets a real look at it rather than just a blank sign-up box.
+    const leaderboard = await getLeaderboard(club.id);
+
     return (
       <>
         <SiteHeader />
@@ -34,7 +42,33 @@ export default async function AccountPage() {
           <h1 style={{ fontSize: 19, letterSpacing: "-0.02em", marginBottom: 20 }}>
             Your account
           </h1>
+          <p className="mut" style={{ fontSize: 12.5, lineHeight: 1.65, marginBottom: 20 }}>
+            One account for everything: a bio on your profile, this cycle&rsquo;s Listener Pick,
+            your full submission history, a favorites showcase of up to 5 past drops, your drop
+            ratings, and the leaderboard below.
+          </p>
           <AccountAuth />
+
+          {leaderboard.length > 0 && (
+            <div style={{ marginTop: 36 }}>
+              <div className="label" style={{ marginBottom: 12 }}>
+                Leaderboard
+              </div>
+              <hr className="hairline" style={{ margin: "0 0 4px" }} />
+              <div>
+                {leaderboard.slice(0, 10).map((row) => (
+                  <div key={row.memberId} className="roster-row">
+                    <span className="roster-name">
+                      <RoleName name={row.name || "Someone"} isCurator={row.isCurator} />
+                    </span>
+                    <span className="roster-meta">
+                      {row.pickCount} pick{row.pickCount === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </main>
       </>
     );

@@ -213,6 +213,23 @@ input {
 
 /* ---------- animations ---------- */
 
+/* Every keyframe below ends at `transform: none`, not a zero-value
+ * transform like `translateY(0)` (found 2026-10-06, chasing a popup
+ * bug): these animations use `animation-fill-mode: both` (see the
+ * .gz-* classes below), so whatever the `to`/end state's transform is
+ * stays applied to the element forever after the animation finishes —
+ * and per the CSS spec, ANY non-`none` transform (even one that's
+ * visually a no-op, like `translateY(0)`) permanently creates a new
+ * containing block for that element's descendants. A `position: fixed`
+ * child — like a modal overlay — then anchors to that ancestor's box
+ * instead of the real viewport, which is exactly what broke the
+ * sign-up popup: it lives inside `<main class="... gz-up">`, so once
+ * that `gz-up` animation ended, the popup's "fixed, full-viewport"
+ * overlay was actually sized to `<main>`'s (much taller) content box
+ * instead, pushing the popup up away from center and leaving a large
+ * dead area below it. `none` is visually identical to these zero
+ * values and animates from/to just as well, but never creates that
+ * containing block. */
 @keyframes gz-up {
   from {
     opacity: 0;
@@ -220,7 +237,7 @@ input {
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
 
@@ -232,14 +249,14 @@ input {
     transform: scale(1.14);
   }
   100% {
-    transform: scale(1);
+    transform: none;
   }
 }
 
 @keyframes gz-shake {
   0%,
   100% {
-    transform: translateX(0);
+    transform: none;
   }
   25% {
     transform: translateX(-5px);
@@ -256,7 +273,7 @@ input {
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: none;
   }
 }
 

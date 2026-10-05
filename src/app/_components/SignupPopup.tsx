@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import SignupForm from "./SignupForm";
 import type { SignupContext } from "@/lib/signup";
 
@@ -14,6 +15,23 @@ const SEEN_KEY = "pmc-signup-popup-seen";
  * renders. The dedicated /signup page still exists separately; this
  * is just a second, lower-friction way in for someone who landed on
  * Releases first.
+ *
+ * The overlay renders through a portal into `document.body` (found
+ * 2026-10-06, chasing a real bug): this component is used inline on
+ * `/releases`, nested inside `<main className="... gz-up">`. `gz-up`
+ * (like every `.gz-*` entrance animation) ends with `animation-fill-mode:
+ * both`, which keeps that element "animating" at rest — and a
+ * CSS-animated `transform`, even one that settles on an identity value,
+ * makes the browser treat that element as still having an active
+ * transform for layout purposes. Per spec, ANY element with a transform
+ * becomes the containing block for its `position: fixed` descendants —
+ * so the popup's "fixed, full-viewport" overlay was actually being
+ * boxed into `<main>`'s (much taller, non-viewport-sized) content area
+ * instead of the real viewport, leaving the visible popup pushed down
+ * into empty space below the fold. A portal sidesteps the whole
+ * category of bug: wherever this component sits in the React tree, the
+ * overlay's actual DOM position is always a direct child of `<body>`,
+ * so it can never inherit a transformed ancestor by accident.
  */
 export default function SignupPopup({
   nextDropNum,
@@ -68,45 +86,47 @@ export default function SignupPopup({
         Join the club
       </button>
 
-      {open && (
-        <div
-          className="modal-overlay"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setOpen(false);
-          }}
-        >
-          <div className="modal-sheet gz-sheet" role="dialog" aria-modal="true">
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                marginBottom: 4,
-              }}
-            >
-              <div className="wordmark" style={{ fontSize: 15 }}>
-                project music club
-              </div>
-              <button
-                type="button"
-                className="popup-close"
-                onClick={() => setOpen(false)}
-                aria-label="Close"
+      {open &&
+        createPortal(
+          <div
+            className="modal-overlay"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setOpen(false);
+            }}
+          >
+            <div className="modal-sheet gz-sheet" role="dialog" aria-modal="true">
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  marginBottom: 4,
+                }}
               >
-                ✕
-              </button>
+                <div className="wordmark" style={{ fontSize: 15 }}>
+                  project music club
+                </div>
+                <button
+                  type="button"
+                  className="popup-close"
+                  onClick={() => setOpen(false)}
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="mut" style={{ fontSize: 12.5, lineHeight: 1.6, margin: "4px 0 20px" }}>
+                One email a drop. Sign up once, that&rsquo;s it.
+              </p>
+              <SignupForm
+                nextDropNum={nextDropNum}
+                daysUntilNext={daysUntilNext}
+                isManual={isManual}
+              />
             </div>
-            <p className="mut" style={{ fontSize: 12.5, lineHeight: 1.6, margin: "4px 0 20px" }}>
-              One email a drop. Sign up once, that&rsquo;s it.
-            </p>
-            <SignupForm
-              nextDropNum={nextDropNum}
-              daysUntilNext={daysUntilNext}
-              isManual={isManual}
-            />
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </>
   );
 }
