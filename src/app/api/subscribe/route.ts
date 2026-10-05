@@ -89,12 +89,16 @@ export async function POST(request: Request) {
   if (wantsEmail && email && email.trim()) {
     const existing = await findMemberByEmail(club, email);
     if (existing) {
-      // Report what's actually on file, not what this submission happened
-      // to have checked — a duplicate is a no-op, so if someone's stored
-      // preference is text-only and they just tried to sign up for email,
-      // telling them "you'll get it by email" would be a real promise this
-      // response can't back up.
-      await setMemberSession(existing.id);
+      // Deliberately NOT calling setMemberSession here (found 2026-10-05,
+      // during the next-build session, while auditing how /account's new
+      // signup-or-login route proves identity): this is a public,
+      // unauthenticated form, so "I typed an email that happens to match
+      // an existing member" is not proof it's actually that member —
+      // logging them in on the strength of a bare re-submitted email would
+      // let anyone who knows another member's address take over their
+      // session. Report what's actually on file (same as before), just
+      // without the free login. Returning members who want back in use
+      // /account's emailed-code flow instead, same as curators always have.
       return NextResponse.json({
         ok: true,
         id: existing.id,
@@ -140,7 +144,8 @@ export async function POST(request: Request) {
   const phoneKey = normalizePhone(phone as string);
   const existingByPhone = await findMemberByPhone(club.id, phoneKey);
   if (existingByPhone) {
-    await setMemberSession(existingByPhone.id);
+    // Same reasoning as the email duplicate branch above — a bare phone
+    // number on an unauthenticated form isn't proof of identity either.
     return NextResponse.json({
       ok: true,
       id: existingByPhone.id,

@@ -113,3 +113,16 @@ export async function requireAdminSession(): Promise<Member | null> {
   if (!member || !member.isAdmin) return null;
   return member;
 }
+
+/**
+ * For any-logged-in-member routes (Listener Pick submit/edit/withdraw,
+ * song likes, drop ratings, favorites, profile bio) — modeled exactly
+ * on requireAdminSession above, just without the isCurator/isAdmin
+ * check. A real `gz_session` is required (not the memberToken magic
+ * link, which sets no session at all — see claude/next-build.md's
+ * login-model decision): that's the whole point of gating writes on
+ * this rather than on the token.
+ */
+export async function requireMemberSession(): Promise<Member | null> {
+  return getSessionMember();
+}

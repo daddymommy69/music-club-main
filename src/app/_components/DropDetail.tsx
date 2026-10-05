@@ -1,22 +1,44 @@
-import type { PublicDropDetail } from "@/lib/archive";
+import type { PublicDropDetail, PublicSongRow } from "@/lib/archive";
 import { formatDropMonth } from "@/lib/format";
 import CloseButton from "./CloseButton";
 import DropTile from "./DropTile";
 import SongEmbed from "./SongEmbed";
+import LikeButton from "./LikeButton";
+import RateDropControl from "./RateDropControl";
+import RoleName from "./RoleName";
 
 export default function DropDetail({
   drop,
   closable,
   shareUrl,
+  likedSongIds,
+  viewerRating,
 }: {
   drop: PublicDropDetail;
   closable?: boolean;
   shareUrl: string;
+  /** Song ids the current viewer has liked — empty for a logged-out
+   * visitor (LikeButton still works for them; see its own comment). */
+  likedSongIds?: number[];
+  /** The current viewer's own rating for this drop, or null if they
+   * haven't rated it (or aren't logged in — RateDropControl handles
+   * that case itself on click). */
+  viewerRating?: number | null;
 }) {
   const artworkUrls = drop.songs
     .map((s) => s.artworkUrl)
     .filter((url): url is string => !!url)
     .slice(0, 4);
+
+  const likedSet = new Set(likedSongIds ?? []);
+
+  // Only split into headed Curator Picks / Listener Picks sections once
+  // there's actually a Listener Pick to show — an all-curator drop (every
+  // drop shipped before this feature, and any drop with no listener
+  // submissions) keeps the single, unheaded tracklist it's always had.
+  const curatorSongs = drop.songs.filter((s) => s.pickType === "curator");
+  const listenerSongs = drop.songs.filter((s) => s.pickType === "listener");
+  const hasListenerPicks = listenerSongs.length > 0;
 
   return (
     <div className="drop-detail">
@@ -30,6 +52,14 @@ export default function DropDetail({
         {drop.songs.length === 1 ? "song" : "songs"}
       </div>
       <div className="share-url">{shareUrl}</div>
+
+      {drop.rating.count > 0 && (
+        <div className="drop-rating-line">
+          ★ {drop.rating.average?.toFixed(1)} · {drop.rating.count}{" "}
+          {drop.rating.count === 1 ? "rating" : "ratings"}
+        </div>
+      )}
+      <RateDropControl dropId={drop.id} initialRating={viewerRating ?? null} />
 
       <div className="listen-row">
         {drop.spotifyUrl && (
@@ -54,25 +84,21 @@ export default function DropDetail({
         )}
       </div>
 
-      <div className="tracklist-header">
-        <span className="label">The songs</span>
-        <span className="label">Picked by</span>
-      </div>
-      <hr className="hairline" style={{ margin: "0 0 4px" }} />
-      <div>
-        {drop.songs.map((song, i) => (
-          <div className="track-row" key={i}>
-            <div className="track-row-meta">
-              <div className="track-info">
-                <div className="track-title">{song.title}</div>
-                <div className="track-artist">{song.artist}</div>
-              </div>
-              <div className="track-credit">{song.curatorCredit ?? ""}</div>
-            </div>
-            <SongEmbed sourceUrl={song.sourceUrl} />
+      {hasListenerPicks ? (
+        <>
+          <div className="label" style={{ marginBottom: 12 }}>
+            Curator Picks
           </div>
-        ))}
-      </div>
+          <Tracklist songs={curatorSongs} likedSet={likedSet} />
+
+          <div className="label" style={{ marginTop: 30, marginBottom: 12 }}>
+            Listener Picks
+          </div>
+          <Tracklist songs={listenerSongs} likedSet={likedSet} />
+        </>
+      ) : (
+        <Tracklist songs={drop.songs} likedSet={likedSet} />
+      )}
 
       {drop.notes.length > 0 && (
         <>
@@ -82,7 +108,9 @@ export default function DropDetail({
           <div className="curator-notes" style={{ marginTop: 0 }}>
             {drop.notes.map((note, i) => (
               <div className="curator-note" key={i}>
-                <div className="curator-name">{note.curatorName}</div>
+                <div className="curator-name">
+                  <RoleName name={note.curatorName} isCurator />
+                </div>
                 <div className="note-text">{note.text}</div>
               </div>
             ))}
@@ -129,5 +157,40 @@ export default function DropDetail({
         </>
       )}
     </div>
+  );
+}
+
+function Tracklist({ songs, likedSet }: { songs: PublicSongRow[]; likedSet: Set<number> }) {
+  return (
+    <>
+      <div className="tracklist-header">
+        <span className="label">The songs</span>
+        <span className="label">Picked by</span>
+      </div>
+      <hr className="hairline" style={{ margin: "0 0 4px" }} />
+      <div>
+        {songs.map((song) => (
+          <div className="track-row" key={song.id}>
+            <div className="track-row-meta">
+              <div className="track-info">
+                <div className="track-title">{song.title}</div>
+                <div className="track-artist">{song.artist}</div>
+              </div>
+              <div className="track-credit">
+                {song.pickType === "curator"
+                  ? song.curatorCredit && <RoleName name={song.curatorCredit} isCurator />
+                  : song.listenerCredit && (
+                      <RoleName name={song.listenerCredit} isCurator={song.listenerIsCurator} />
+                    )}
+              </div>
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <LikeButton songId={song.id} initialLiked={likedSet.has(song.id)} initialCount={song.likeCount} />
+            </div>
+            <SongEmbed sourceUrl={song.sourceUrl} />
+          </div>
+        ))}
+      </div>
+    </>
   );
 }

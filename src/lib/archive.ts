@@ -1,8 +1,16 @@
 import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { getDb } from "@/db/client";
 import { drops, songs, curatorNotes, members, top10Entries, type Drop } from "@/db/schema";
 import { getTop10Phase } from "./top10";
 import { getTop10Summary } from "./top10Data";
+import { getLikeCounts } from "./songLikes";
+import { getDropRatingSummary } from "./ratings";
+
+// Aliased so a Listener Pick's submittedByMemberId -> members join
+// (for its public listenerCredit name) can't collide with the
+// unrelated curatorNotes -> members join further down this file.
+const membersListener = alias(members, "members_listener");
 
 /**
  * Public-safe query helpers for the archive + drop detail pages.
@@ -14,6 +22,9 @@ import { getTop10Summary } from "./top10Data";
  */
 
 export type ArchiveDropSummary = {
+  /** The real drops.id — needed anywhere that writes against a specific
+   * drop (favorites, ratings) rather than just displaying it by number. */
+  id: number;
   num: number;
   title: string | null;
   publishedAt: Date;
@@ -74,6 +85,7 @@ export async function getPublishedDrops(clubId: number): Promise<ArchiveDropSumm
   const dropIdsWithVotes = new Set(top10Rows.map((row) => row.dropId));
 
   return publishedDrops.map((d) => ({
+    id: d.id,
     num: d.num,
     title: d.title,
     // isNotNull filtered this above, so it's safe to assert non-null.
@@ -85,6 +97,7 @@ export async function getPublishedDrops(clubId: number): Promise<ArchiveDropSumm
 }
 
 export type PublicSongRow = {
+  id: number;
   title: string;
   artist: string;
   curatorCredit: string | null;
@@ -93,6 +106,22 @@ export type PublicSongRow = {
    * Used to build each track's embedded player. */
   sourceUrl: string | null;
   artworkUrl: string | null;
+  /** 'curator' (unchanged default) or 'listener' — which public section
+   * (Curator Picks / Listener Picks) this song shows under. */
+  pickType: "curator" | "listener";
+  /** The real submitting member's name, public, ONLY for a Listener
+   * Pick (2026-10 policy change — see claude/next-build.md: "both
+   * Curator Picks and Listener Picks get public picked-by credit on
+   * the release page," going forward from this column's introduction).
+   * Null for a Curator Pick — that credit is curatorCredit instead. */
+  listenerCredit: string | null;
+  /** Whether the member behind listenerCredit is themselves a curator
+   * (a curator can have their own personal Listener Pick, a different
+   * row/role from any Curator Pick they own — see schema.ts) — drives
+   * which role color RoleName renders. Meaningless when listenerCredit
+   * is null. */
+  listenerIsCurator: boolean;
+  likeCount: number;
 };
 
 export type PublicCuratorNote = {
@@ -115,6 +144,9 @@ export type PublicTop10 = {
 };
 
 export type PublicDropDetail = {
+  /** The real drops.id — needed for anything that writes against this
+   * specific drop (ratings) rather than just displaying it by number. */
+  id: number;
   num: number;
   title: string | null;
   publishedAt: Date;
@@ -124,6 +156,10 @@ export type PublicDropDetail = {
   notes: PublicCuratorNote[];
   /** null unless the Top 10 window has closed with at least one vote. */
   top10: PublicTop10 | null;
+  /** Public average + count — see src/lib/ratings.ts. average is null
+   * when nobody's rated this drop yet; the release page hides the line
+   * entirely in that case rather than showing "0". */
+  rating: { average: number | null; count: number };
 };
 
 export async function getPublicDrop(
@@ -142,15 +178,43 @@ export async function getPublicDrop(
 
   const songRows = await db
     .select({
+      id: songs.id,
       title: songs.title,
       artist: songs.artist,
       curatorCredit: songs.curatorCredit,
       sourceUrl: songs.sourceUrl,
       artworkUrl: songs.artworkUrl,
+      pickType: songs.pickType,
+      submittedByMemberId: songs.submittedByMemberId,
+      listenerName: membersListener.name,
+      listenerIsCurator: membersListener.isCurator,
     })
     .from(songs)
+    // Left join, not inner — a Curator Pick has no submittedByMemberId
+    // at all, and this join must not drop those rows. Aliased
+    // (membersListener) so this doesn't collide with the curator-notes
+    // join on `members` further down in this same function.
+    .leftJoin(membersListener, eq(songs.submittedByMemberId, membersListener.id))
     .where(eq(songs.dropId, drop.id))
     .orderBy(asc(songs.position));
+
+  const [likeCounts, ratingSummary] = await Promise.all([
+    getLikeCounts(songRows.map((s) => s.id)),
+    getDropRatingSummary(drop.id),
+  ]);
+
+  const publicSongs: PublicSongRow[] = songRows.map((s) => ({
+    id: s.id,
+    title: s.title,
+    artist: s.artist,
+    curatorCredit: s.curatorCredit,
+    sourceUrl: s.sourceUrl,
+    artworkUrl: s.artworkUrl,
+    pickType: s.pickType,
+    listenerCredit: s.pickType === "listener" ? s.listenerName ?? null : null,
+    listenerIsCurator: s.pickType === "listener" ? s.listenerIsCurator ?? false : false,
+    likeCount: likeCounts.get(s.id) ?? 0,
+  }));
 
   // members.name is nullable (unlike the old curators.name, which was
   // required) — coalesce so PublicCuratorNote.curatorName stays a plain
@@ -181,14 +245,16 @@ export async function getPublicDrop(
       : null;
 
   return {
+    id: drop.id,
     num: drop.num,
     title: drop.title,
     publishedAt: drop.publishedAt as Date,
     spotifyUrl: drop.spotifyUrl,
     appleUrl: drop.appleUrl,
-    songs: songRows,
+    songs: publicSongs,
     notes: noteRows,
     top10,
+    rating: ratingSummary,
   };
 }
 

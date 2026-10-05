@@ -8,7 +8,9 @@ import {
   timestamp,
   integer,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 /**
  * Club-scoped schema, per the design handoff (claude/design-handoff.md
@@ -90,43 +92,83 @@ export const drops = pgTable(
   (table) => [unique().on(table.clubId, table.num)],
 );
 
-export const songs = pgTable("songs", {
-  id: serial("id").primaryKey(),
-  dropId: integer("drop_id")
-    .notNull()
-    .references(() => drops.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  artist: text("artist").notNull(),
-  // Resolved from the submitted Spotify/Apple link via Odesli, kept
-  // around for re-resolving / dedupe.
-  sourceUrl: text("source_url"),
-  artworkUrl: text("artwork_url"),
-  // Set by the Spotify auto-build step (src/lib/spotifyBuild.ts) when
-  // shipping finds a confident match for this song on Spotify — null
-  // either because auto-build hasn't run yet or because no match was
-  // found, and the two cases are deliberately not distinguished here:
-  // ship's response already tells the curator which titles came up
-  // empty at the moment it happens, and this column only needs to
-  // answer "is this song actually in the built playlist."
-  spotifyUri: text("spotify_uri"),
-  // Who sent it in. PRIVATE — never returned from a public query.
-  submittedBy: text("submitted_by"),
-  // The curator who championed the track. PUBLIC. Null/empty means
-  // a subscriber submission nobody claimed credit for.
-  curatorCredit: text("curator_credit"),
-  // Same curator as curatorCredit, but a real FK — used for the room's
-  // per-curator columns (curatorCredit is just display text and isn't
-  // reliable to group/own by). Nullable: a subscriber submission pulled
-  // into the drop with no curator attached yet has no owner. Points at
-  // `members` (unified account model) — still named/scoped to "curator"
-  // since that's what this column means, just not its own table anymore.
-  curatorId: integer("curator_id").references(() => members.id, { onDelete: "set null" }),
-  // Display order within the drop's tracklist.
-  position: integer("position").notNull().default(0),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+/**
+ * Curator Picks vs. Listener Picks (2026-10 decision — see
+ * claude/next-build.md). Every song still belongs to exactly one drop
+ * and renders in one tracklist, but who put it there now matters for
+ * public attribution: a Curator Pick is credited via curatorCredit
+ * (unchanged), a Listener Pick is credited via the real member behind
+ * submittedByMemberId below — a deliberate policy change, since
+ * submittedBy itself stays private forever (see that column's comment).
+ */
+export const pickTypeEnum = pgEnum("pick_type", ["curator", "listener"]);
+
+export const songs = pgTable(
+  "songs",
+  {
+    id: serial("id").primaryKey(),
+    dropId: integer("drop_id")
+      .notNull()
+      .references(() => drops.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    artist: text("artist").notNull(),
+    // Resolved from the submitted Spotify/Apple link via Odesli, kept
+    // around for re-resolving / dedupe.
+    sourceUrl: text("source_url"),
+    artworkUrl: text("artwork_url"),
+    // Set by the Spotify auto-build step (src/lib/spotifyBuild.ts) when
+    // shipping finds a confident match for this song on Spotify — null
+    // either because auto-build hasn't run yet or because no match was
+    // found, and the two cases are deliberately not distinguished here:
+    // ship's response already tells the curator which titles came up
+    // empty at the moment it happens, and this column only needs to
+    // answer "is this song actually in the built playlist."
+    spotifyUri: text("spotify_uri"),
+    // Who sent it in, as free text. PRIVATE — never returned from a
+    // public query. Legacy: every pre-Listener-Pick submission (the old
+    // /submit anonymous-name flow, SMS text-in, room quick-add) wrote
+    // here; new rows keep writing it too where it still applies, but
+    // the real, public-attributable submitter of a Listener Pick is
+    // submittedByMemberId below, not this column.
+    submittedBy: text("submitted_by"),
+    // The curator who championed the track. PUBLIC. Null/empty means
+    // a subscriber submission nobody claimed credit for.
+    curatorCredit: text("curator_credit"),
+    // Same curator as curatorCredit, but a real FK — used for the room's
+    // per-curator columns (curatorCredit is just display text and isn't
+    // reliable to group/own by). Nullable: a subscriber submission pulled
+    // into the drop with no curator attached yet has no owner. Points at
+    // `members` (unified account model) — still named/scoped to "curator"
+    // since that's what this column means, just not its own table anymore.
+    curatorId: integer("curator_id").references(() => members.id, { onDelete: "set null" }),
+    // 'curator' (default, every pre-existing row) or 'listener'. Drives
+    // which public section (Curator Picks / Listener Picks) a song shows
+    // under on the release page — see DropDetail.tsx.
+    pickType: pickTypeEnum("pick_type").notNull().default("curator"),
+    // The real, public-attributable member behind a Listener Pick — set
+    // only when pickType = 'listener'. A curator can ALSO have their own
+    // personal Listener Pick on the same drop (a different row from any
+    // Curator Pick they own via curatorId) — the founder was explicit
+    // these are different roles/rows, never merged into one.
+    submittedByMemberId: integer("submitted_by_member_id").references(() => members.id, {
+      onDelete: "set null",
+    }),
+    // Display order within the drop's tracklist.
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    // "One Listener Pick per member per drop" — a real partial unique
+    // index (only applies to pickType = 'listener' rows) rather than a
+    // table-wide constraint, since a curator's own curatorId-owned
+    // Curator Picks are unrelated rows that must NOT be limited to one.
+    uniqueIndex("songs_one_listener_pick_per_drop")
+      .on(table.dropId, table.submittedByMemberId)
+      .where(sql`${table.pickType} = 'listener'`),
+  ]
+);
 
 export const submissions = pgTable("submissions", {
   id: serial("id").primaryKey(),
@@ -205,6 +247,10 @@ export const members = pgTable(
     // login instead (see src/lib/memberSession.ts). Generated once and
     // reused for the member's lifetime; see src/lib/memberToken.ts.
     memberToken: varchar("member_token", { length: 48 }).unique(),
+    // Short free-text profile blurb (2026-10 "next build" decision — see
+    // claude/next-build.md). Shown on /account; nullable since most
+    // existing members have never had a chance to write one.
+    bio: text("bio"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -333,6 +379,67 @@ export const songLikes = pgTable(
   (table) => [unique().on(table.songId, table.memberId)],
 );
 
+/**
+ * A member's 1-5 rating for a drop (2026-10 "next build" decision — see
+ * claude/next-build.md). One per member per drop, upsertable — the
+ * unique constraint is what makes "set my rating" a plain insert-or-
+ * update rather than needing an app-level race guard. 1-5 is enforced
+ * at the application layer (src/lib/ratings.ts); no DB CHECK constraint
+ * since every other range-like rule in this app (e.g. pick counts) is
+ * app-layer only and this matches that convention.
+ */
+export const dropRatings = pgTable(
+  "drop_ratings",
+  {
+    id: serial("id").primaryKey(),
+    dropId: integer("drop_id")
+      .notNull()
+      .references(() => drops.id, { onDelete: "cascade" }),
+    memberId: integer("member_id")
+      .notNull()
+      .references(() => members.id, { onDelete: "cascade" }),
+    rating: integer("rating").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [unique().on(table.dropId, table.memberId)],
+);
+
+/**
+ * A member's showcased "favorite drops" (2026-10 "next build" decision
+ * — see claude/next-build.md), up to 5, ordered by `position`. Replace-
+ * all-on-save (src/lib/favorites.ts deletes the member's existing rows
+ * and inserts the new ordered set in one transaction) is simpler than
+ * diffing a reorder, and this table is tiny per member so the cost is
+ * negligible. Two unique constraints: one slot used once per member
+ * (position), and one drop shown once per member (dropId) — a member
+ * can't list the same drop twice at two positions.
+ */
+export const memberFavorites = pgTable(
+  "member_favorites",
+  {
+    id: serial("id").primaryKey(),
+    memberId: integer("member_id")
+      .notNull()
+      .references(() => members.id, { onDelete: "cascade" }),
+    dropId: integer("drop_id")
+      .notNull()
+      .references(() => drops.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique().on(table.memberId, table.position),
+    unique().on(table.memberId, table.dropId),
+  ],
+);
+
 export type Club = typeof clubs.$inferSelect;
 export type NewClub = typeof clubs.$inferInsert;
 export type Drop = typeof drops.$inferSelect;
@@ -353,6 +460,10 @@ export type Top10Entry = typeof top10Entries.$inferSelect;
 export type NewTop10Entry = typeof top10Entries.$inferInsert;
 export type SongLike = typeof songLikes.$inferSelect;
 export type NewSongLike = typeof songLikes.$inferInsert;
+export type DropRating = typeof dropRatings.$inferSelect;
+export type NewDropRating = typeof dropRatings.$inferInsert;
+export type MemberFavorite = typeof memberFavorites.$inferSelect;
+export type NewMemberFavorite = typeof memberFavorites.$inferInsert;
 
 /** Public-safe song shape — never includes submittedBy. */
 export type PublicSong = Omit<Song, "submittedBy">;
