@@ -1,0 +1,1116 @@
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+@import "@fontsource/jetbrains-mono/700.css";
+@import "@fontsource/martian-mono/700.css";
+
+/*
+ * Design tokens — values are from the design handoff
+ * (claude/design-handoff.md), reproduced exactly. Light is the
+ * default; dark applies via `prefers-color-scheme` (the handoff calls
+ * for following system setting — no manual toggle is built).
+ */
+:root {
+  --bg: #fbfbf9;
+  --fg: #171612;
+  --mut: rgba(23, 22, 18, 0.62);
+  --ln: rgba(23, 22, 18, 0.16);
+  --fill: rgba(23, 22, 18, 0.035);
+  --err: oklch(0.55 0.17 25);
+  --accent: oklch(0.55 0.13 160);
+  --acc-soft: oklch(0.55 0.13 160 / 0.1);
+
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font-display: "Martian Mono", var(--font-mono);
+
+  --col: 460px;
+  --shell: 760px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131311;
+    --fg: #eceae4;
+    --mut: rgba(236, 234, 228, 0.6);
+    --ln: rgba(236, 234, 228, 0.16);
+    --fill: rgba(236, 234, 228, 0.045);
+    --err: oklch(0.7 0.15 25);
+    --accent: oklch(0.72 0.13 160);
+    --acc-soft: oklch(0.72 0.13 160 / 0.13);
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html {
+  height: 100%;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+body {
+  min-height: 100%;
+  color: var(--fg);
+  background: var(--bg);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-wrap: pretty;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+a:hover {
+  opacity: 0.65;
+}
+
+button,
+input {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- layout shells ---------- */
+
+.shell {
+  max-width: var(--shell);
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.col {
+  max-width: var(--col);
+  margin: 0 auto;
+  width: 100%;
+  padding: 0 22px;
+}
+
+/* padding-top/-bottom only — .page is combined with .col on the same
+   element in several places, and .col owns the horizontal padding.
+   Setting the `padding` shorthand here would silently clobber it. */
+.page {
+  padding-top: 48px;
+  padding-bottom: 64px;
+}
+
+/* ---------- type ---------- */
+
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.03em;
+}
+
+.label {
+  font-size: 10.5px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--mut);
+}
+
+.hairline {
+  border: none;
+  border-top: 1px solid var(--ln);
+  margin: 16px 0;
+}
+
+.numeral {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 60px;
+  line-height: 0.82;
+  letter-spacing: -0.07em;
+  color: var(--accent);
+}
+
+.mut {
+  color: var(--mut);
+}
+
+/* ---------- buttons ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 5px;
+  border: 1px solid var(--ln);
+  background: transparent;
+  color: var(--fg);
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+  text-align: center;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn-primary {
+  height: 52px;
+  width: 100%;
+  border: none;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 500;
+}
+
+.btn-outline {
+  height: 48px;
+  width: 100%;
+  border: 1px solid var(--ln);
+}
+
+/* Filled-accent at the 48px tap target — distinct from .btn-primary's
+   52px, used where a filled + outline pair share a row (e.g. /you's
+   Spotify/Apple Music buttons) rather than one full-width CTA. */
+.btn-accent {
+  height: 48px;
+  width: 100%;
+  border: none;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 500;
+}
+
+/* ---------- animations ---------- */
+
+@keyframes gz-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gz-pop {
+  0% {
+    transform: scale(0.7);
+  }
+  60% {
+    transform: scale(1.14);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes gz-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  75% {
+    transform: translateX(5px);
+  }
+}
+
+@keyframes gz-sheet {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.gz-up {
+  animation: gz-up 0.45s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+
+.gz-pop {
+  animation: gz-pop 0.4s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.gz-shake {
+  animation: gz-shake 0.4s ease both;
+}
+
+.gz-sheet {
+  animation: gz-sheet 0.4s cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gz-up,
+  .gz-pop,
+  .gz-shake,
+  .gz-sheet {
+    animation: none;
+  }
+}
+
+/* ---------- sign-up: drop-text preview + hero ---------- */
+
+.sms-bubble {
+  display: inline-block;
+  max-width: 300px;
+  padding: 14px 16px;
+  background: var(--fill);
+  border: 1px solid var(--ln);
+  border-radius: 16px 16px 16px 4px;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.signup-hero {
+  margin: 26px 0;
+}
+
+.signup-hero-row {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.signup-hero .numeral {
+  font-size: 60px;
+}
+
+.signup-hero-lines {
+  font-size: 11.5px;
+  color: var(--mut);
+  line-height: 1.6;
+}
+
+.signup-hero-count {
+  font-size: 11.5px;
+  margin-top: 8px;
+}
+
+/* ---------- sign-up: form reveal groups + success ---------- */
+
+.reveal-group {
+  padding-left: 14px;
+  border-left: 2px solid var(--acc-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--fg);
+  font-size: 11.5px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+}
+
+.signup-success {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.success-circle {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.success-headline {
+  font-size: 22px;
+  line-height: 1.4;
+  letter-spacing: -0.02em;
+}
+
+.signup-success .hairline {
+  width: 100%;
+  margin: 12px 0;
+}
+
+/* ---------- submit a song ---------- */
+
+.status-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid var(--ln);
+  border-bottom: 1px solid var(--ln);
+  font-size: 12px;
+  margin-bottom: 26px;
+}
+
+.acc-panel {
+  border: 1px solid var(--accent);
+  background: var(--acc-soft);
+  border-radius: 6px;
+  padding: 18px;
+}
+
+.duplicate-notice {
+  border: 1px solid var(--accent);
+  background: var(--acc-soft);
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+
+.submit-count {
+  font-size: 11.5px;
+  margin-bottom: 20px;
+}
+
+/* ---------- notices / forms (Phase 0 sign-up) ---------- */
+
+.notice {
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.notice.error {
+  color: var(--err);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.form fieldset {
+  border: 1px solid var(--ln);
+  border-radius: 6px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.form legend {
+  font-size: 13px;
+  color: var(--mut);
+  padding: 0 4px;
+}
+
+.form .checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.form input:not([type="checkbox"]) {
+  min-height: 48px;
+  border: 1px solid var(--ln);
+  border-radius: 5px;
+  padding: 0 14px;
+  background: var(--fill);
+  color: inherit;
+  font-size: 14px;
+}
+
+.form input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  accent-color: var(--accent);
+  border-radius: 4px;
+}
+
+.form button {
+  margin-top: 8px;
+}
+
+/* ---------- archive ---------- */
+
+.archive-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+  gap: 22px 16px;
+}
+
+.drop-card {
+  display: block;
+  min-width: 0;
+}
+
+.drop-card .info {
+  min-width: 0;
+  margin-top: 10px;
+}
+
+.drop-card .title {
+  font-size: 13px;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  margin-bottom: 3px;
+}
+
+.drop-card .meta {
+  font-size: 10.5px;
+  color: var(--mut);
+}
+
+.top10-badge {
+  display: inline-block;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  background: var(--acc-soft);
+  border-radius: 4px;
+  padding: 2px 7px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+/* The square number+artwork tile — reused on the Releases grid and at
+   the top of a drop's own page, so a drop always reads the same way
+   wherever it shows up. */
+.drop-tile {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--ln);
+  background: var(--fill);
+}
+
+.drop-tile-grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+}
+
+.drop-tile-quad {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.drop-tile-quad-empty {
+  background: var(--fill);
+}
+
+.drop-tile-num {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drop-tile-num::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.drop-tile-num span {
+  position: relative;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(22px, 8vw, 34px);
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+
+/* Large variant for the drop-detail header, where the tile stands
+   alone above the title rather than sitting in a grid of cards. */
+.drop-tile-hero {
+  max-width: 220px;
+  margin-bottom: 16px;
+}
+
+.empty-state {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--mut);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+/* ---------- drop detail (modal + standalone) ---------- */
+
+/* Same centered-card treatment at every width (previously a full-width
+   bottom sheet under 640px) — the card shrinks instead of stretching
+   edge-to-edge, so there's always visible space/margin around it,
+   matching the desktop look on phones too. */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 16px;
+}
+
+.modal-sheet {
+  background: var(--bg);
+  width: 100%;
+  max-width: 380px;
+  max-height: 88vh;
+  overflow-y: auto;
+  border-radius: 14px;
+  padding: 24px 20px 32px;
+}
+
+.drop-detail .top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 4px;
+}
+
+.drop-detail .close-btn {
+  background: none;
+  border: none;
+  color: var(--mut);
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px;
+}
+
+.drop-detail .drop-title {
+  font-size: 19px;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+
+.drop-detail .share-url {
+  font-size: 11px;
+  color: var(--mut);
+  margin-bottom: 20px;
+}
+
+.drop-detail .listen-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 26px;
+}
+
+.tracklist-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.track-row {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--ln);
+}
+
+.track-row:last-child {
+  border-bottom: none;
+}
+
+.track-row-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.track-row .track-info {
+  min-width: 0;
+}
+
+.track-row .track-title {
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.track-row .track-artist {
+  font-size: 11px;
+  color: var(--mut);
+}
+
+.track-row .track-credit {
+  font-size: 10px;
+  color: var(--mut);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Per-song embedded player — the iframe itself sets its own chrome, so
+   this just clips its corners to match the rest of the UI and keeps it
+   full-width within the track row. */
+.track-embed {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.track-embed iframe {
+  display: block;
+  width: 100%;
+  border: none;
+}
+
+.curator-notes {
+  margin-top: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.curator-note .curator-name {
+  font-size: 10.5px;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.curator-note .note-text {
+  font-size: 12.5px;
+  line-height: 1.8;
+}
+
+/* ---------- curator room ---------- */
+
+.room-header {
+  margin-bottom: 26px;
+}
+
+.room-header .top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.room-phase {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.room-time {
+  font-size: 11px;
+  color: var(--mut);
+  margin-bottom: 10px;
+}
+
+.room-blurb {
+  font-size: 12.5px;
+  color: var(--mut);
+  line-height: 1.6;
+}
+
+.room-add-pick-wrap {
+  margin-bottom: 28px;
+}
+
+.room-add-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.room-add-pick input {
+  flex: 1;
+  min-width: 200px;
+  min-height: 44px;
+  border: 1px solid var(--ln);
+  border-radius: 5px;
+  padding: 0 14px;
+  background: var(--fill);
+  font-size: 13px;
+}
+
+.room-add-pick button {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 18px;
+}
+
+.pill-tabs {
+  display: inline-flex;
+  border: 1px solid var(--ln);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+  margin-bottom: 24px;
+}
+
+.pill-tab {
+  border: none;
+  background: none;
+  color: var(--mut);
+  font-family: inherit;
+  font-size: 11.5px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.pill-tab.active {
+  background: var(--fill);
+  color: var(--fg);
+}
+
+.room-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 28px;
+  margin-bottom: 36px;
+}
+
+.room-column-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--ln);
+}
+
+.room-column-name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.room-column-meta {
+  font-size: 10.5px;
+  color: var(--mut);
+  white-space: nowrap;
+}
+
+.room-picks {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 14px;
+}
+
+.room-pick {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--ln);
+}
+
+.room-pick:last-child {
+  border-bottom: none;
+}
+
+.room-note {
+  padding-top: 12px;
+  border-top: 1px dashed var(--ln);
+}
+
+.room-note textarea {
+  width: 100%;
+  min-height: 64px;
+  border: 1px solid var(--ln);
+  border-radius: 5px;
+  padding: 8px 10px;
+  background: var(--fill);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.room-stream {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 36px;
+}
+
+.room-stream-item {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--ln);
+}
+
+.room-stream-item .room-stream-who {
+  font-size: 10.5px;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.comment-thread {
+  border-top: 1px solid var(--ln);
+  padding-top: 24px;
+}
+
+.comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.comment-row .comment-head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 3px;
+  font-size: 10.5px;
+  color: var(--mut);
+}
+
+.comment-row .comment-head .who {
+  color: var(--accent);
+}
+
+.comment-row .comment-text {
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.comment-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.comment-form textarea {
+  flex: 1;
+  min-width: 200px;
+  min-height: 44px;
+  border: 1px solid var(--ln);
+  border-radius: 5px;
+  padding: 10px 12px;
+  background: var(--fill);
+  font-family: inherit;
+  font-size: 12.5px;
+  resize: vertical;
+}
+
+.comment-form button {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 18px;
+}
+
+/* ---------- curator overview ---------- */
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 18px;
+  padding: 18px 0;
+  margin-bottom: 30px;
+  border-top: 1px solid var(--ln);
+  border-bottom: 1px solid var(--ln);
+}
+
+.stat-value {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: -0.03em;
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+
+.stat-label {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mut);
+}
+
+.pile-list {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 8px;
+}
+
+.pile-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ln);
+}
+
+.pile-row:last-child {
+  border-bottom: none;
+}
+
+.pile-info {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pile-meta {
+  font-size: 10.5px;
+  color: var(--mut);
+  margin-top: 4px;
+}
+
+.pile-action {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.pile-added {
+  font-size: 11px;
+  color: var(--accent);
+}
+
+.roster-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.roster-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--ln);
+}
+
+.roster-row:last-child {
+  border-bottom: none;
+}
+
+.roster-name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.roster-meta {
+  font-size: 10.5px;
+  color: var(--mut);
+}
+
+/* ---------- settings ---------- */
+
+.settings-section {
+  margin-bottom: 32px;
+}
+
+.settings-input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--ln);
+  border-radius: 5px;
+  padding: 0 12px;
+  background: var(--fill);
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.cycle-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+
+.cycle-pill {
+  border: 1px solid var(--ln);
+  background: transparent;
+  color: var(--mut);
+  font-family: inherit;
+  font-size: 11.5px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.cycle-pill:hover {
+  transform: translateY(-1px);
+}
+
+.cycle-pill.active {
+  background: var(--acc-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.join-code-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--ln);
+  border-radius: 6px;
+  background: var(--fill);
+}
+
+.join-code-value {
+  font-family: var(--font-display);
+  font-size: 13px;
+  letter-spacing: -0.01em;
+}
+
+/* ---------- Releases-page sign-up popup ---------- */
+
+.signup-popup-trigger {
+  width: auto;
+  height: 40px;
+  padding: 0 18px;
+  margin: 4px 0 28px;
+}
+
+.popup-close {
+  background: none;
+  border: none;
+  color: var(--mut);
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px;
+}
