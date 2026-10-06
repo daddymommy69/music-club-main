@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getSessionMember } from "@/lib/memberSession";
 import { getDefaultClub } from "@/lib/club";
 import { isCycleValue } from "@/lib/cycle";
+import { listCurators } from "@/lib/members";
 import CuratorNav from "@/app/_components/CuratorNav";
 import LogoutButton from "@/app/_components/LogoutButton";
 import SettingsBoard from "@/app/_components/SettingsBoard";
@@ -25,6 +26,12 @@ export default async function SettingsPage({
   // enum, so this should never actually miss.
   const cycle = isCycleValue(club.cycle) ? club.cycle : "manual";
   const { spotify: spotifyStatus } = await searchParams;
+  // Admin-only panel (2026-10-06 — see claude/next-build.md): granting
+  // curator status used to be curl-only (see
+  // /api/admin/members/curator's own comment). Only an admin's own
+  // session can even see this list — a plain curator gets everything
+  // above, nothing below.
+  const curators = curator.isAdmin ? await listCurators(club.id) : [];
 
   return (
     <main className="shell page">
@@ -43,6 +50,8 @@ export default async function SettingsPage({
         joinCode={club.joinCode}
         spotifyConnected={club.spotifyRefreshToken != null}
         spotifyCallbackStatus={spotifyStatus ?? null}
+        isAdmin={curator.isAdmin}
+        curators={curators.map((c) => ({ id: c.id, name: c.name, email: c.email }))}
       />
 
       <div style={{ marginTop: 28 }}>

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { CYCLE_OPTIONS, type CycleValue } from "@/lib/cycle";
 
+type CuratorRow = { id: number; name: string | null; email: string | null };
+
 type SettingsBoardProps = {
   clubName: string;
   cycle: CycleValue;
@@ -10,6 +12,8 @@ type SettingsBoardProps = {
   joinCode: string;
   spotifyConnected: boolean;
   spotifyCallbackStatus: string | null;
+  isAdmin: boolean;
+  curators: CuratorRow[];
 };
 
 export default function SettingsBoard({
@@ -19,6 +23,8 @@ export default function SettingsBoard({
   joinCode,
   spotifyConnected,
   spotifyCallbackStatus,
+  isAdmin,
+  curators,
 }: SettingsBoardProps) {
   return (
     <div className="gz-up">
@@ -26,6 +32,7 @@ export default function SettingsBoard({
       <CycleSection initialCycle={cycle} initialCustomDays={cycleCustomDays} />
       <JoinCodeSection joinCode={joinCode} />
       <SpotifySection initialConnected={spotifyConnected} callbackStatus={spotifyCallbackStatus} />
+      {isAdmin && <AdminSection initialCurators={curators} />}
     </div>
   );
 }
@@ -302,6 +309,136 @@ function SpotifySection({
           </a>
         </>
       )}
+      {error && (
+        <p className="notice error" style={{ marginTop: 10 }}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Admin-only (2026-10-06 — see claude/next-build.md): grant/revoke
+ * curator status by email, without curling /api/admin/members/curator
+ * by hand. That route still does the real enforcement (requires the
+ * caller's own session to be isAdmin, and only ever promotes an
+ * EXISTING member — it 404s on an email with no member row at all), so
+ * someone has to sign up as a member first (at /signup or /account)
+ * before they can be made a curator from here. The one exception —
+ * FOUNDER_EMAIL bootstrapping itself in with no prior signup — lives
+ * entirely in /api/curators/lookup, not here.
+ */
+function AdminSection({ initialCurators }: { initialCurators: CuratorRow[] }) {
+  const [curators, setCurators] = useState(initialCurators);
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function grant(e: React.FormEvent) {
+    e.preventDefault();
+    const target = email.trim();
+    if (!target) return;
+
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/members/curator", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: target, isCurator: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Something went wrong. Try again.");
+        return;
+      }
+      setCurators((prev) =>
+        prev.some((c) => c.id === data.id) ? prev : [...prev, { id: data.id, name: null, email: target }]
+      );
+      setEmail("");
+    } catch {
+      setError("Something went wrong. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revoke(curator: CuratorRow) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/members/curator", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: curator.email, isCurator: false }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Something went wrong. Try again.");
+        return;
+      }
+      setCurators((prev) => prev.filter((c) => c.id !== curator.id));
+    } catch {
+      setError("Something went wrong. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="settings-section">
+      <label className="label" style={{ display: "block", marginBottom: 8 }}>
+        Curators
+      </label>
+
+      {curators.length === 0 ? (
+        <p className="mut" style={{ fontSize: 11.5, marginBottom: 12 }}>
+          No curators yet.
+        </p>
+      ) : (
+        <div className="roster-list" style={{ marginBottom: 12 }}>
+          {curators.map((c) => (
+            <div className="roster-row" key={c.id}>
+              <span className="roster-name">{c.name?.trim() || c.email || "Unnamed"}</span>
+              <button
+                type="button"
+                className="link-btn"
+                style={{ fontSize: 11.5 }}
+                onClick={() => revoke(c)}
+                disabled={busy}
+              >
+                Revoke
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <form onSubmit={grant} style={{ display: "flex", gap: 8 }}>
+        <input
+          className="settings-input"
+          type="email"
+          placeholder="their@email.com"
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            setError(null);
+          }}
+        />
+        <button
+          type="submit"
+          className="btn"
+          style={{ width: "auto", minHeight: 36, height: 36, padding: "0 14px", fontSize: 12 }}
+          disabled={busy || !email.trim()}
+        >
+          {busy ? "Saving…" : "Grant"}
+        </button>
+      </form>
+      <p className="mut" style={{ fontSize: 11, marginTop: 8 }}>
+        They need to have signed up as a member first (at /signup or /account) — this only
+        promotes an existing member to curator, it doesn&rsquo;t create one.
+      </p>
       {error && (
         <p className="notice error" style={{ marginTop: 10 }}>
           {error}
