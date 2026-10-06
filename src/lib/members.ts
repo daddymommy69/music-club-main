@@ -140,8 +140,34 @@ export async function issueLoginCode(member: Member): Promise<void> {
   }
 }
 
-/** Verifies and consumes a code. Returns true exactly once per valid code. */
-export async function verifyLoginCode(memberId: number, code: string): Promise<boolean> {
+export type VerifyCodeResult =
+  | { ok: true }
+  | { ok: false; reason: "no-code-issued" | "no-match" | "already-used" | "expired" };
+
+const VERIFY_FAILURE_MESSAGES: Record<Exclude<VerifyCodeResult, { ok: true }>["reason"], string> = {
+  "no-code-issued": "No code was ever sent for this login — go back and request one.",
+  "no-match": "That code isn't right — double-check the 6 digits.",
+  "already-used": "That code was already used — send yourself a new one.",
+  expired: "That code expired — send yourself a new one.",
+};
+
+/** The client-facing message for a VerifyCodeResult's failure reason — shared so every verify route says the same thing for the same cause. */
+export function verifyCodeFailureMessage(reason: Exclude<VerifyCodeResult, { ok: true }>["reason"]): string {
+  return VERIFY_FAILURE_MESSAGES[reason];
+}
+
+/**
+ * Verifies and consumes a code. Returns a specific failure reason
+ * instead of a bare boolean (2026-10-06 QA sweep follow-up — see
+ * claude/next-build.md): the generic "that code isn't right" used to
+ * cover a typo, an already-used code, and an expired one all the same
+ * way, which made it impossible for someone staring at the screen (or
+ * the founder debugging over chat) to tell which actually happened.
+ * The diagnostic console.warn logging added the same session this was
+ * first investigated stays — this just also hands the same
+ * classification back to the caller instead of only logging it.
+ */
+export async function verifyLoginCode(memberId: number, code: string): Promise<VerifyCodeResult> {
   const db = getDb();
   const [match] = await db
     .select()
@@ -158,44 +184,49 @@ export async function verifyLoginCode(memberId: number, code: string): Promise<b
     .limit(1);
 
   if (!match) {
-    // 2026-10-06: diagnostic-only, see claude/next-build.md's "login
-    // code verify failing" note. Finds the row the strict query above
-    // couldn't, ignoring the consumed/expired/code filters one at a
-    // time, so the server log says exactly why this failed instead of
-    // just "false" — never silently guessed at again. Cheap: only runs
-    // on the failure path, and only a handful of rows exist per member.
+    // Finds the row the strict query above couldn't, ignoring the
+    // consumed/expired/code filters one at a time, so both the server
+    // log and the person on the other end of the screen get the real
+    // reason instead of a blanket "false." Cheap: only runs on the
+    // failure path, and only a handful of rows exist per member.
     const candidates = await db
       .select()
       .from(loginCodes)
       .where(eq(loginCodes.memberId, memberId))
       .orderBy(desc(loginCodes.createdAt))
       .limit(5);
+
     if (candidates.length === 0) {
       console.warn(`[login] verify failed for member ${memberId}: no codes ever issued`);
-    } else {
-      const exact = candidates.find((c) => c.code === code);
-      if (!exact) {
-        console.warn(
-          `[login] verify failed for member ${memberId}: typed "${code}" doesn't match any recent code (most recent issued: "${candidates[0].code}")`
-        );
-      } else if (exact.consumedAt) {
-        console.warn(
-          `[login] verify failed for member ${memberId}: code "${code}" was already used at ${exact.consumedAt.toISOString()}`
-        );
-      } else if (exact.expiresAt <= new Date()) {
-        console.warn(
-          `[login] verify failed for member ${memberId}: code "${code}" expired at ${exact.expiresAt.toISOString()} (now ${new Date().toISOString()})`
-        );
-      } else {
-        console.warn(`[login] verify failed for member ${memberId}: code "${code}" found valid but query still missed it — investigate`);
-      }
+      return { ok: false, reason: "no-code-issued" };
     }
-    return false;
+
+    const exact = candidates.find((c) => c.code === code);
+    if (!exact) {
+      console.warn(
+        `[login] verify failed for member ${memberId}: typed "${code}" doesn't match any recent code (most recent issued: "${candidates[0].code}")`
+      );
+      return { ok: false, reason: "no-match" };
+    }
+    if (exact.consumedAt) {
+      console.warn(
+        `[login] verify failed for member ${memberId}: code "${code}" was already used at ${exact.consumedAt.toISOString()}`
+      );
+      return { ok: false, reason: "already-used" };
+    }
+    if (exact.expiresAt <= new Date()) {
+      console.warn(
+        `[login] verify failed for member ${memberId}: code "${code}" expired at ${exact.expiresAt.toISOString()} (now ${new Date().toISOString()})`
+      );
+      return { ok: false, reason: "expired" };
+    }
+    console.warn(`[login] verify failed for member ${memberId}: code "${code}" found valid but query still missed it — investigate`);
+    return { ok: false, reason: "no-match" };
   }
 
   await db.update(loginCodes).set({ consumedAt: new Date() }).where(eq(loginCodes.id, match.id));
 
-  return true;
+  return { ok: true };
 }
 
 /**
