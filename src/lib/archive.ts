@@ -6,6 +6,7 @@ import { getTop10Phase } from "./top10";
 import { getTop10Summary } from "./top10Data";
 import { getLikeCounts } from "./songLikes";
 import { getDropRatingSummary } from "./ratings";
+import { getDropLikeCounts } from "./dropLikes";
 
 // Aliased so a Listener Pick's submittedByMemberId -> members join
 // (for its public listenerCredit name) can't collide with the
@@ -37,6 +38,11 @@ export type ArchiveDropSummary = {
    * vote — drives the small badge on its archive card. A closed window
    * with zero votes shows no badge (nothing to see). */
   hasTop10: boolean;
+  /** How many Listener Picks this cycle has — drives the secondary
+   * "Listener Pick playlist" card on the archive page (2026-10
+   * release-page redesign — see claude/next-build.md). Zero means no
+   * card is shown for this cycle at all. */
+  listenerPickCount: number;
 };
 
 export async function getPublishedDrops(clubId: number): Promise<ArchiveDropSummary[]> {
@@ -62,6 +68,7 @@ export async function getPublishedDrops(clubId: number): Promise<ArchiveDropSumm
         dropId: songs.dropId,
         artworkUrl: songs.artworkUrl,
         position: songs.position,
+        pickType: songs.pickType,
       })
       .from(songs)
       .where(inArray(songs.dropId, dropIds))
@@ -74,12 +81,16 @@ export async function getPublishedDrops(clubId: number): Promise<ArchiveDropSumm
 
   const countByDropId = new Map<number, number>();
   const artworkByDropId = new Map<number, string[]>();
+  const listenerPickCountByDropId = new Map<number, number>();
   for (const row of songRows) {
     countByDropId.set(row.dropId, (countByDropId.get(row.dropId) ?? 0) + 1);
     if (row.artworkUrl) {
       const list = artworkByDropId.get(row.dropId) ?? [];
       if (list.length < 4) list.push(row.artworkUrl);
       artworkByDropId.set(row.dropId, list);
+    }
+    if (row.pickType === "listener") {
+      listenerPickCountByDropId.set(row.dropId, (listenerPickCountByDropId.get(row.dropId) ?? 0) + 1);
     }
   }
   const dropIdsWithVotes = new Set(top10Rows.map((row) => row.dropId));
@@ -93,6 +104,7 @@ export async function getPublishedDrops(clubId: number): Promise<ArchiveDropSumm
     songCount: countByDropId.get(d.id) ?? 0,
     artworkUrls: artworkByDropId.get(d.id) ?? [],
     hasTop10: dropIdsWithVotes.has(d.id) && getTop10Phase({ publishedAt: d.publishedAt }) === "closed",
+    listenerPickCount: listenerPickCountByDropId.get(d.id) ?? 0,
   }));
 }
 
@@ -160,6 +172,17 @@ export type PublicDropDetail = {
    * when nobody's rated this drop yet; the release page hides the line
    * entirely in that case rather than showing "0". */
   rating: { average: number | null; count: number };
+  /** Whole-drop like count (2026-10 release-page redesign — see
+   * claude/next-build.md). Public, same spirit as song likes — whether
+   * the CURRENT viewer has liked/saved this drop is fetched separately
+   * (src/lib/dropLikes.ts / dropSaves.ts), same pattern as viewerRating
+   * in src/app/drop/[num]/page.tsx, since that's viewer-specific and
+   * this type is viewer-independent public data. */
+  dropLikeCount: number;
+  /** The on-demand Listener Pick playlist, if a curator has built one —
+   * null/null until then. Never auto-built, never sent out. */
+  listenerPlaylistUrl: string | null;
+  listenerPlaylistBuiltAt: Date | null;
 };
 
 export async function getPublicDrop(
@@ -198,9 +221,10 @@ export async function getPublicDrop(
     .where(eq(songs.dropId, drop.id))
     .orderBy(asc(songs.position));
 
-  const [likeCounts, ratingSummary] = await Promise.all([
+  const [likeCounts, ratingSummary, dropLikeCounts] = await Promise.all([
     getLikeCounts(songRows.map((s) => s.id)),
     getDropRatingSummary(drop.id),
+    getDropLikeCounts([drop.id]),
   ]);
 
   const publicSongs: PublicSongRow[] = songRows.map((s) => ({
@@ -255,6 +279,91 @@ export async function getPublicDrop(
     notes: noteRows,
     top10,
     rating: ratingSummary,
+    dropLikeCount: dropLikeCounts.get(drop.id) ?? 0,
+    listenerPlaylistUrl: drop.listenerPlaylistUrl,
+    listenerPlaylistBuiltAt: drop.listenerPlaylistBuiltAt,
+  };
+}
+
+export type PublicListenerPick = {
+  id: number;
+  title: string;
+  artist: string;
+  sourceUrl: string | null;
+  artworkUrl: string | null;
+  spotifyUri: string | null;
+  /** The real submitting member's name, public (2026-10 policy — see
+   * the pickType comment on the songs table in schema.ts). Falls back
+   * to a plain label on the rare row where the member has since been
+   * deleted (submittedByMemberId -> set null) rather than showing
+   * nothing. */
+  credit: string;
+  creditIsCurator: boolean;
+};
+
+export type ListenerPicksForDrop = {
+  dropId: number;
+  dropNum: number;
+  title: string | null;
+  publishedAt: Date;
+  songs: PublicListenerPick[];
+  listenerPlaylistUrl: string | null;
+  listenerPlaylistBuiltAt: Date | null;
+};
+
+/** A published drop's Listener Picks (2026-10 release-page redesign —
+ * see claude/next-build.md), for the dedicated /drop/[num]/listener-
+ * picks page this round added. Null if the drop doesn't exist, isn't
+ * published yet, or has no Listener Picks at all — the page 404s on
+ * any of those rather than rendering an empty shell. */
+export async function getListenerPicksForDrop(
+  clubId: number,
+  num: number
+): Promise<ListenerPicksForDrop | null> {
+  const db = getDb();
+
+  const [drop] = await db
+    .select()
+    .from(drops)
+    .where(and(eq(drops.clubId, clubId), eq(drops.num, num), isNotNull(drops.publishedAt)))
+    .limit(1);
+  if (!drop) return null;
+
+  const rows = await db
+    .select({
+      id: songs.id,
+      title: songs.title,
+      artist: songs.artist,
+      sourceUrl: songs.sourceUrl,
+      artworkUrl: songs.artworkUrl,
+      spotifyUri: songs.spotifyUri,
+      memberName: membersListener.name,
+      memberIsCurator: membersListener.isCurator,
+    })
+    .from(songs)
+    .leftJoin(membersListener, eq(songs.submittedByMemberId, membersListener.id))
+    .where(and(eq(songs.dropId, drop.id), eq(songs.pickType, "listener")))
+    .orderBy(asc(songs.position));
+
+  if (rows.length === 0) return null;
+
+  return {
+    dropId: drop.id,
+    dropNum: drop.num,
+    title: drop.title,
+    publishedAt: drop.publishedAt as Date,
+    songs: rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      artist: r.artist,
+      sourceUrl: r.sourceUrl,
+      artworkUrl: r.artworkUrl,
+      spotifyUri: r.spotifyUri,
+      credit: r.memberName ?? "a listener",
+      creditIsCurator: r.memberIsCurator ?? false,
+    })),
+    listenerPlaylistUrl: drop.listenerPlaylistUrl,
+    listenerPlaylistBuiltAt: drop.listenerPlaylistBuiltAt,
   };
 }
 

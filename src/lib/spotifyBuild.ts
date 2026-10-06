@@ -60,18 +60,30 @@ export async function buildSpotifyPlaylistForDrop(
 
   // Persist per-song matches only once the playlist genuinely has them —
   // keeps this column meaning "actually in the live playlist," not
-  // "we once found a candidate."
+  // "we once found a candidate." Also backfills artworkUrl from the same
+  // Spotify search result, but only where a song doesn't already have
+  // one (2026-10 decision: Odesli, the old artwork source, is dead, so
+  // this is the real fix — never overwrites an existing value, since a
+  // song could already have artwork from a source other than Spotify).
   const db = getDb();
   await Promise.all(
     songList.map((song, i) => {
       const match = matches[i];
       if (!match) return Promise.resolve();
-      return db.update(songs).set({ spotifyUri: match.uri }).where(eq(songs.id, song.id));
+      const patch: Partial<Song> = { spotifyUri: match.uri };
+      if (!song.artworkUrl && match.artworkUrl) {
+        patch.artworkUrl = match.artworkUrl;
+      }
+      return db.update(songs).set(patch).where(eq(songs.id, song.id));
     })
   );
 
   // Cover art is purely cosmetic — never let it block or fail the build.
-  const artworkUrls = songList.slice(0, 4).map((s) => s.artworkUrl);
+  // Use the freshly-backfilled artwork too (not just whatever the song
+  // already had), so the cover benefits from the same Spotify lookup.
+  const artworkUrls = songList
+    .slice(0, 4)
+    .map((s, i) => s.artworkUrl ?? matches[i]?.artworkUrl ?? null);
   const cover = await buildDropCoverJpegBase64(artworkUrls, dropNum);
   if (cover) {
     await uploadPlaylistCover(accessToken, playlist.id, cover);

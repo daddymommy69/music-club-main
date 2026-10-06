@@ -142,12 +142,19 @@ export async function getSpotifyAccessToken(club: Club): Promise<string | null> 
   }
 }
 
-export type SpotifyTrackMatch = { uri: string; id: string };
+export type SpotifyTrackMatch = { uri: string; id: string; artworkUrl: string | null };
 
 /** Best-effort title+artist search, taking the top result. No fuzzy
  * scoring beyond what Spotify's own search relevance gives us — good
  * enough at this app's scale (a handful of curator-picked songs per
- * cycle, checked by a human before the playlist goes out). */
+ * cycle, checked by a human before the playlist goes out).
+ *
+ * Also returns the matched track's album artwork (2026-10 release-page
+ * redesign — see claude/next-build.md): Odesli, this app's previous
+ * artwork source, has been dead since 2026-07-31, so Spotify's own
+ * search response is now the only artwork source for songs that don't
+ * already have one. Takes the largest image Spotify returns (images are
+ * sorted largest-first); null if the track has none. */
 export async function searchSpotifyTrack(
   accessToken: string,
   title: string,
@@ -162,11 +169,18 @@ export async function searchSpotifyTrack(
     });
     if (!res.ok) return null;
     const data = (await res.json()) as {
-      tracks?: { items?: { uri: string; id: string }[] };
+      tracks?: {
+        items?: {
+          uri: string;
+          id: string;
+          album?: { images?: { url: string }[] };
+        }[];
+      };
     };
     const track = data.tracks?.items?.[0];
     if (!track) return null;
-    return { uri: track.uri, id: track.id };
+    const artworkUrl = track.album?.images?.[0]?.url ?? null;
+    return { uri: track.uri, id: track.id, artworkUrl };
   } catch {
     return null;
   }
