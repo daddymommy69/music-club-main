@@ -175,6 +175,58 @@ export async function setCuratorStatus(memberId: number, isCurator: boolean): Pr
   await db.update(members).set({ isCurator }).where(eq(members.id, memberId));
 }
 
+/** Every curator on the club, for the admin panel's roster — see
+ * SettingsBoard.tsx's AdminSection. */
+export async function listCurators(clubId: number): Promise<Member[]> {
+  const db = getDb();
+  return db
+    .select()
+    .from(members)
+    .where(and(eq(members.clubId, clubId), eq(members.isCurator, true)));
+}
+
+/**
+ * The bootstrap-admin problem (2026-10-06 — see claude/next-build.md):
+ * every curator grant up to now required an existing admin to already
+ * be logged in to make it, which has no answer for "there are zero
+ * admins yet" without a hand-run SQL UPDATE in Supabase. `FOUNDER_EMAIL`
+ * is the one standing exception — set it once in Vercel, and that email
+ * always gets curator+admin the moment it tries to log in at
+ * `/curators`, signed up yet or not. This does NOT weaken the real
+ * access gate: isFounderEmail() only ever affects whether a login CODE
+ * gets sent, same as any other curator — the actual 6-digit code still
+ * goes to that address's real inbox and still has to be typed in before
+ * a session exists, so a stranger who merely types this address in gets
+ * exactly as far as they would with anyone else's email (nowhere).
+ * Every curator added *after* the founder goes through the normal admin
+ * panel grant below instead, which only ever promotes an existing
+ * member — this bootstrap path is deliberately the only one that can
+ * create a brand-new member out of nothing.
+ */
+export function isFounderEmail(email: string): boolean {
+  const founder = process.env.FOUNDER_EMAIL;
+  if (!founder) return false;
+  return normalizeEmail(email) === normalizeEmail(founder);
+}
+
+/** Idempotent — safe to call on every login attempt from the founder
+ * email. Creates the member if this is genuinely its first time (no
+ * name available yet, since /curators only ever collects an email; see
+ * ProfileCard's own "You" fallback for the display-name gap this
+ * leaves), then makes sure isCurator/isAdmin are both set. */
+export async function ensureFounderAccess(club: Club, email: string): Promise<Member> {
+  const member = await findOrCreateMember(club, { email });
+  if (member.isCurator && member.isAdmin) return member;
+
+  const db = getDb();
+  const [updated] = await db
+    .update(members)
+    .set({ isCurator: true, isAdmin: true })
+    .where(eq(members.id, member.id))
+    .returning();
+  return updated;
+}
+
 // Re-exported here so callers that only touch members.ts don't also
 // need to import from memberToken.ts for the common case of "create a
 // member, give it a token."
