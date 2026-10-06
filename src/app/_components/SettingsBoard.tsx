@@ -9,7 +9,6 @@ type SettingsBoardProps = {
   clubName: string;
   cycle: CycleValue;
   cycleCustomDays: number | null;
-  joinCode: string;
   spotifyConnected: boolean;
   spotifyCallbackStatus: string | null;
   isAdmin: boolean;
@@ -20,7 +19,6 @@ export default function SettingsBoard({
   clubName,
   cycle,
   cycleCustomDays,
-  joinCode,
   spotifyConnected,
   spotifyCallbackStatus,
   isAdmin,
@@ -30,7 +28,6 @@ export default function SettingsBoard({
     <div className="gz-up">
       <ClubNameSection initialName={clubName} />
       <CycleSection initialCycle={cycle} initialCustomDays={cycleCustomDays} />
-      <JoinCodeSection joinCode={joinCode} />
       <SpotifySection initialConnected={spotifyConnected} callbackStatus={spotifyCallbackStatus} />
       {isAdmin && <AdminSection initialCurators={curators} />}
     </div>
@@ -448,39 +445,8 @@ function AdminSection({ initialCurators }: { initialCurators: CuratorRow[] }) {
   );
 }
 
-function JoinCodeSection({ joinCode }: { joinCode: string }) {
-  const [copied, setCopied] = useState(false);
-
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(joinCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
-    } catch {
-      // Clipboard access can fail (permissions, insecure context) — the
-      // code is still right there on screen to copy by hand.
-    }
-  }
-
-  return (
-    <div className="settings-section">
-      <label className="label" style={{ display: "block", marginBottom: 8 }}>
-        Join code
-      </label>
-      <div className="join-code-row">
-        <span className="join-code-value">{joinCode}</span>
-        <button
-          type="button"
-          className="btn"
-          style={{ width: "auto", minHeight: 36, height: 36, padding: "0 14px", fontSize: 12 }}
-          onClick={copy}
-        >
-          {copied ? "Copied!" : "Copy"}
-        </button>
-      </div>
-      <p className="mut" style={{ fontSize: 11, marginTop: 8 }}>
-        New curators enter this to join.
-      </p>
-    </div>
-  );
-}
+// JoinCodeSection removed (2026-10-06 QA sweep — see claude/next-build.md):
+// curator login hasn't used a join code since it moved to email +
+// emailed code, so this card was showing a code that does nothing if
+// typed anywhere — actively misleading, not just unused. club.joinCode
+// itself is untouched in the schema/DB; only this dead UI is gone.

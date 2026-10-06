@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -11,17 +12,17 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * and has to look like a real address (just a spam/typo deterrent,
  * same spirit as the old sign-up form's validation — not an identity
  * check; see /api/submit's own comment for what the email actually
- * does and doesn't prove). Posts straight to /api/submit, which
- * creates-or-edits this cycle's pick for whatever member that email
- * belongs to.
+ * does and doesn't prove). Posts straight to /api/submit, which signs
+ * up a brand-new email on the spot.
  *
- * Deliberately does NOT try to pre-fill a returning member's existing
- * pick — that would mean either exposing "what did email X submit"
- * to anyone who types that email (a real privacy leak), or requiring
- * a real login first (which defeats the point of this simple form).
- * Resubmitting the same email + a new link just overwrites the old
- * pick; `/account` (behind the emailed code) is where someone manages
- * their existing submission with full context instead.
+ * Tightened again the same day (2026-10-06 QA sweep): this used to let
+ * ANY already-registered email silently overwrite that member's real,
+ * publicly-credited pick — no proof required, just typing their
+ * address. /api/submit now refuses outright for an existing email
+ * instead (see its own comment), and this form surfaces that refusal
+ * as a link to /account rather than a dead-end error, since that's
+ * genuinely where managing an existing pick belongs — behind the real
+ * emailed code, which actually proves who's asking.
  */
 export default function PublicSubmitForm({ dropNum }: { dropNum: number }) {
   const [name, setName] = useState("");
@@ -31,12 +32,14 @@ export default function PublicSubmitForm({ dropNum }: { dropNum: number }) {
   const [artist, setArtist] = useState("");
   const [needsManual, setNeedsManual] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
   const [shakeGen, setShakeGen] = useState(0);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ mode: "created" | "edited"; title: string; artist: string } | null>(null);
 
-  function fail(message: string) {
+  function fail(message: string, alreadyReg = false) {
     setError(message);
+    setAlreadyRegistered(alreadyReg);
     setShakeGen((g) => g + 1);
   }
 
@@ -62,7 +65,7 @@ export default function PublicSubmitForm({ dropNum }: { dropNum: number }) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (data.needsManualMetadata) setNeedsManual(true);
-        fail(data.error ?? "Something went wrong. Try again.");
+        fail(data.error ?? "Something went wrong. Try again.", !!data.alreadyRegistered);
         return;
       }
       setResult({ mode: data.mode, title: data.song.title, artist: data.song.artist });
@@ -103,8 +106,12 @@ export default function PublicSubmitForm({ dropNum }: { dropNum: number }) {
   return (
     <form onSubmit={submit} className="form gz-up" noValidate>
       <p className="mut" style={{ fontSize: 12.5, lineHeight: 1.6 }}>
-        One pick for drop {dropNum}. Just needs a real email so we know who it&rsquo;s from —
-        submitting again with the same address updates your pick instead of adding a second one.
+        One pick for drop {dropNum}. First time? Just add your email and you&rsquo;re set. Already
+        have an account here? Manage your pick at{" "}
+        <Link href="/account" className="link-btn" style={{ fontSize: "inherit" }}>
+          /account
+        </Link>{" "}
+        instead.
       </p>
       <label>
         Name
@@ -118,6 +125,7 @@ export default function PublicSubmitForm({ dropNum }: { dropNum: number }) {
           onChange={(e) => {
             setEmail(e.target.value);
             setError(null);
+            setAlreadyRegistered(false);
           }}
           placeholder="you@example.com"
         />
@@ -131,6 +139,7 @@ export default function PublicSubmitForm({ dropNum }: { dropNum: number }) {
           onChange={(e) => {
             setLink(e.target.value);
             setError(null);
+            setAlreadyRegistered(false);
           }}
         />
       </label>
@@ -148,7 +157,17 @@ export default function PublicSubmitForm({ dropNum }: { dropNum: number }) {
       )}
       {error && (
         <p key={`e-${shakeGen}`} className="notice error gz-shake">
-          {error}
+          {alreadyRegistered ? (
+            <>
+              That email already has an account here —{" "}
+              <Link href="/account" className="link-btn" style={{ fontSize: "inherit" }}>
+                log in at /account
+              </Link>{" "}
+              to add or change your pick.
+            </>
+          ) : (
+            error
+          )}
         </p>
       )}
       <button type="submit" className="btn btn-primary" disabled={busy}>

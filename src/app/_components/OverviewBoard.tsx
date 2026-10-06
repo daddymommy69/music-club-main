@@ -65,6 +65,8 @@ export default function OverviewBoard({
         <Stat label="Submissions" value={String(pile.length)} />
       </div>
 
+      {!hasOpenDrop && <StartDropCard dropNum={dropNum} onStarted={() => router.refresh()} />}
+
       <p className="label" style={{ marginBottom: 14 }}>
         Submission pile
       </p>
@@ -94,6 +96,77 @@ export default function OverviewBoard({
         ))}
       </div>
     </>
+  );
+}
+
+/**
+ * Shown whenever there's no open drop (2026-10-06 QA sweep fix — see
+ * claude/next-build.md): starting one used to be curl-only, so /submit
+ * and quick-add below went dark with no way back in short of a
+ * terminal command. Title is optional and can always be changed later
+ * at ship time (see ShipDropCard) — this just needs to exist so picks
+ * have somewhere to land.
+ */
+function StartDropCard({ dropNum, onStarted }: { dropNum: number; onStarted: () => void }) {
+  const [title, setTitle] = useState("");
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function start(e: React.FormEvent) {
+    e.preventDefault();
+    setStarting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/overview/start-drop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: title.trim() || undefined }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Something went wrong. Try again.");
+        return;
+      }
+      onStarted();
+    } catch {
+      setError("Something went wrong. Try again.");
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={start} className="acc-panel gz-up" style={{ marginBottom: 28 }}>
+      <p className="label" style={{ marginBottom: 10 }}>
+        Start drop {dropNum}
+      </p>
+      <p className="mut" style={{ fontSize: 12.5, lineHeight: 1.6, marginBottom: 12 }}>
+        Nothing&rsquo;s open right now — /submit and quick-add below stay off until a drop
+        exists to pick into.
+      </p>
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <input
+          className="settings-input"
+          style={{ flex: 1 }}
+          placeholder="Title (optional, changeable later)"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <button
+          type="submit"
+          className="btn btn-primary"
+          style={{ width: "auto", padding: "0 16px" }}
+          disabled={starting}
+        >
+          {starting ? "Starting…" : `Start drop ${dropNum}`}
+        </button>
+      </div>
+      {error && (
+        <p className="notice error" style={{ marginTop: 10 }}>
+          {error}
+        </p>
+      )}
+    </form>
   );
 }
 

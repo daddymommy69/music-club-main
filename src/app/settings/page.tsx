@@ -47,7 +47,6 @@ export default async function SettingsPage({
         clubName={club.name}
         cycle={cycle}
         cycleCustomDays={club.cycleCustomDays}
-        joinCode={club.joinCode}
         spotifyConnected={club.spotifyRefreshToken != null}
         spotifyCallbackStatus={spotifyStatus ?? null}
         isAdmin={curator.isAdmin}
