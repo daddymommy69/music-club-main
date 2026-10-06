@@ -157,7 +157,41 @@ export async function verifyLoginCode(memberId: number, code: string): Promise<b
     .orderBy(desc(loginCodes.createdAt))
     .limit(1);
 
-  if (!match) return false;
+  if (!match) {
+    // 2026-10-06: diagnostic-only, see claude/next-build.md's "login
+    // code verify failing" note. Finds the row the strict query above
+    // couldn't, ignoring the consumed/expired/code filters one at a
+    // time, so the server log says exactly why this failed instead of
+    // just "false" — never silently guessed at again. Cheap: only runs
+    // on the failure path, and only a handful of rows exist per member.
+    const candidates = await db
+      .select()
+      .from(loginCodes)
+      .where(eq(loginCodes.memberId, memberId))
+      .orderBy(desc(loginCodes.createdAt))
+      .limit(5);
+    if (candidates.length === 0) {
+      console.warn(`[login] verify failed for member ${memberId}: no codes ever issued`);
+    } else {
+      const exact = candidates.find((c) => c.code === code);
+      if (!exact) {
+        console.warn(
+          `[login] verify failed for member ${memberId}: typed "${code}" doesn't match any recent code (most recent issued: "${candidates[0].code}")`
+        );
+      } else if (exact.consumedAt) {
+        console.warn(
+          `[login] verify failed for member ${memberId}: code "${code}" was already used at ${exact.consumedAt.toISOString()}`
+        );
+      } else if (exact.expiresAt <= new Date()) {
+        console.warn(
+          `[login] verify failed for member ${memberId}: code "${code}" expired at ${exact.expiresAt.toISOString()} (now ${new Date().toISOString()})`
+        );
+      } else {
+        console.warn(`[login] verify failed for member ${memberId}: code "${code}" found valid but query still missed it — investigate`);
+      }
+    }
+    return false;
+  }
 
   await db.update(loginCodes).set({ consumedAt: new Date() }).where(eq(loginCodes.id, match.id));
 
