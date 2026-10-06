@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 type Step =
   | { kind: "entry" }
-  | { kind: "code"; memberId: number; masked: string };
+  | { kind: "code"; memberId: number; masked: string; email: string };
 
 /**
  * /account's combined signup-or-login card. Modeled closely on
@@ -19,10 +19,31 @@ export default function AccountAuth() {
   const [error, setError] = useState<string | null>(null);
   const [shakeGen, setShakeGen] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [resent, setResent] = useState(false);
 
   function fail(message: string) {
     setError(message);
     setShakeGen((g) => g + 1);
+  }
+
+  async function lookup(email: string, name?: string): Promise<boolean> {
+    const res = await fetch("/api/members/lookup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, name }),
+    });
+    const result = await res.json();
+    if (!res.ok) {
+      fail(result.error ?? "Something went wrong. Try again.");
+      return false;
+    }
+    if (result.mode === "created") {
+      // Brand-new member — signed up and logged in in one step, no code.
+      router.refresh();
+      return true;
+    }
+    setStep({ kind: "code", memberId: result.memberId, masked: result.masked, email });
+    return true;
   }
 
   async function handleEntrySubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -38,22 +59,31 @@ export default function AccountAuth() {
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch("/api/members/lookup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, name }),
-      });
-      const result = await res.json();
-      if (!res.ok) {
-        fail(result.error ?? "Something went wrong. Try again.");
-        return;
+      await lookup(email, name);
+    } catch {
+      fail("Something went wrong. Try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // Same resend-in-place as CuratorLogin.tsx — a fresh code for the same
+  // email without going back to re-type it. A member who's already a
+  // member (the only case that lands on the code step at all, per
+  // /api/members/lookup) always gets the "code" branch back from
+  // lookup(), never "created" again, so this can't loop into a surprise
+  // second signup.
+  async function resendCode() {
+    if (step.kind !== "code") return;
+    setError(null);
+    setResent(false);
+    setSubmitting(true);
+    try {
+      const ok = await lookup(step.email);
+      if (ok) {
+        setResent(true);
+        setTimeout(() => setResent(false), 4000);
       }
-      if (result.mode === "created") {
-        // Brand-new member — signed up and logged in in one step, no code.
-        router.refresh();
-        return;
-      }
-      setStep({ kind: "code", memberId: result.memberId, masked: result.masked });
     } catch {
       fail("Something went wrong. Try again.");
     } finally {
@@ -129,6 +159,11 @@ export default function AccountAuth() {
         6-digit code
         <input name="code" inputMode="numeric" maxLength={6} placeholder="000000" autoFocus />
       </label>
+      {resent && (
+        <p className="notice" style={{ fontSize: 12 }}>
+          New code sent to {step.masked}.
+        </p>
+      )}
       {error && (
         <p key={`c-${shakeGen}`} className="notice error gz-shake">
           {error}
@@ -137,8 +172,16 @@ export default function AccountAuth() {
       <button type="submit" className="btn btn-primary" disabled={submitting}>
         {submitting ? "Verifying…" : "Verify"}
       </button>
-      <button type="button" className="link-btn" onClick={() => setStep({ kind: "entry" })}>
-        ← That&rsquo;s not right
+      <button type="button" className="link-btn" onClick={resendCode} disabled={submitting}>
+        Send a new code
+      </button>
+      <button
+        type="button"
+        className="link-btn"
+        onClick={() => setStep({ kind: "entry" })}
+        disabled={submitting}
+      >
+        ← Use a different email
       </button>
     </form>
   );
