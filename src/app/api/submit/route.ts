@@ -4,8 +4,7 @@ import { findMemberByEmail, findOrCreateMember } from "@/lib/members";
 import { setMemberSession } from "@/lib/memberSession";
 import { getOpenDrop } from "@/lib/room";
 import { isValidMusicLink } from "@/lib/musicLink";
-import { resolveSongMetadata } from "@/lib/odesli";
-import { getListenerPick, submitListenerPick, editListenerPick } from "@/lib/listenerPicks";
+import { resolveAndSubmitListenerPick } from "@/lib/songSubmission";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -73,34 +72,23 @@ export async function POST(request: Request) {
   const member = await findOrCreateMember(club, { name: parsed?.name, email });
   await setMemberSession(member.id);
 
-  const metadata = await resolveSongMetadata(link);
-  const title = metadata?.title ?? parsed?.title?.trim() ?? "";
-  const artist = metadata?.artist ?? parsed?.artist?.trim() ?? "";
-  if (!title || !artist) {
+  // member is always a brand-new row by this point (the existing-member
+  // case returned above already) — resolveAndSubmitListenerPick's own
+  // "edited" branch below only ever matches if a concurrent request for
+  // the same new email raced this one and already created a pick in the
+  // moment between the two.
+  const result = await resolveAndSubmitListenerPick({
+    dropId: drop.id,
+    memberId: member.id,
+    link,
+    title: parsed?.title,
+    artist: parsed?.artist,
+  });
+  if (!result.ok) {
     return NextResponse.json(
-      {
-        error:
-          "We couldn't read that link automatically — add the title and artist yourself so we know what it is.",
-        needsManualMetadata: true,
-      },
-      { status: 400 }
+      { error: result.error, ...(result.needsManualMetadata ? { needsManualMetadata: true } : {}) },
+      { status: result.status }
     );
   }
-  const artworkUrl = metadata?.artworkUrl ?? null;
-
-  // member is always a brand-new row by this point (the existing-member
-  // case returned above already) — this only ever matches if a
-  // concurrent request for the same new email raced this one and
-  // already created a pick in the moment between the two.
-  const existingPick = await getListenerPick(drop.id, member.id);
-  if (existingPick) {
-    const updated = await editListenerPick(drop.id, member.id, { link, title, artist, artworkUrl });
-    return NextResponse.json({ ok: true, mode: "edited", song: updated, loggedIn: true });
-  }
-
-  const result = await submitListenerPick({ dropId: drop.id, memberId: member.id, link, title, artist, artworkUrl });
-  if (!result.ok) {
-    return NextResponse.json({ error: "You've already got a pick in for this drop." }, { status: 409 });
-  }
-  return NextResponse.json({ ok: true, mode: "created", song: result.song, loggedIn: true });
+  return NextResponse.json({ ok: true, mode: result.mode, song: result.song, loggedIn: true });
 }

@@ -3,13 +3,8 @@ import { requireMemberSession } from "@/lib/memberSession";
 import { getDefaultClub } from "@/lib/club";
 import { getOpenDrop } from "@/lib/room";
 import { isValidMusicLink } from "@/lib/musicLink";
-import { resolveSongMetadata } from "@/lib/odesli";
-import {
-  getListenerPick,
-  submitListenerPick,
-  editListenerPick,
-  withdrawListenerPick,
-} from "@/lib/listenerPicks";
+import { withdrawListenerPick } from "@/lib/listenerPicks";
+import { resolveAndSubmitListenerPick } from "@/lib/songSubmission";
 
 /**
  * Submit-or-edit a Listener Pick for whatever drop is currently open.
@@ -55,32 +50,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "There's no drop open for submissions right now." }, { status: 400 });
   }
 
-  const metadata = await resolveSongMetadata(link);
-  const title = metadata?.title ?? parsed?.title?.trim() ?? "";
-  const artist = metadata?.artist ?? parsed?.artist?.trim() ?? "";
-  if (!title || !artist) {
+  const result = await resolveAndSubmitListenerPick({
+    dropId: drop.id,
+    memberId: member.id,
+    link,
+    title: parsed?.title,
+    artist: parsed?.artist,
+  });
+  if (!result.ok) {
     return NextResponse.json(
-      {
-        error:
-          "We couldn't read that link automatically — add the title and artist yourself so we know what it is.",
-        needsManualMetadata: true,
-      },
-      { status: 400 }
+      { error: result.error, ...(result.needsManualMetadata ? { needsManualMetadata: true } : {}) },
+      { status: result.status }
     );
   }
-  const artworkUrl = metadata?.artworkUrl ?? null;
-
-  const existing = await getListenerPick(drop.id, member.id);
-  if (existing) {
-    const updated = await editListenerPick(drop.id, member.id, { link, title, artist, artworkUrl });
-    return NextResponse.json({ ok: true, mode: "edited", song: updated });
-  }
-
-  const result = await submitListenerPick({ dropId: drop.id, memberId: member.id, link, title, artist, artworkUrl });
-  if (!result.ok) {
-    return NextResponse.json({ error: "You've already got a pick in for this drop." }, { status: 409 });
-  }
-  return NextResponse.json({ ok: true, mode: "created", song: result.song });
+  return NextResponse.json({ ok: true, mode: result.mode, song: result.song });
 }
 
 /** Withdraws the member's Listener Pick for the currently open drop. */

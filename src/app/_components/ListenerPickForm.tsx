@@ -64,6 +64,7 @@ export default function ListenerPickForm({
 
   async function withdraw() {
     setBusy(true);
+    setError(null);
     try {
       const res = await fetch("/api/account/listener-pick", { method: "DELETE" });
       if (res.ok) {
@@ -71,7 +72,12 @@ export default function ListenerPickForm({
         setLink("");
         setTitle("");
         setArtist("");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Couldn't withdraw your pick. Try again.");
       }
+    } catch {
+      setError("Couldn't withdraw your pick. Try again.");
     } finally {
       setBusy(false);
     }
@@ -96,6 +102,7 @@ export default function ListenerPickForm({
             {busy ? "…" : "Withdraw"}
           </button>
         </div>
+        {error && <p className="notice error" style={{ marginTop: 8 }}>{error}</p>}
       </div>
     );
   }

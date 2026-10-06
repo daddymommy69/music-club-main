@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { isValidMusicLink } from "@/lib/musicLink";
 import { formatRelativeTime } from "@/lib/relativeTime";
+import { useDirtyField } from "@/lib/useDirtyField";
 import LogoutButton from "./LogoutButton";
 
 type RoomPick = { id: number; title: string; artist: string; sourceUrl: string | null };
@@ -268,19 +269,28 @@ function ColumnsView({
 }
 
 function NoteEditor({ initialText, onSaved }: { initialText: string; onSaved: () => void }) {
-  const [text, setText] = useState(initialText);
+  const { value: text, setValue: setText, setSaved, dirty } = useDirtyField(initialText);
   const [saving, setSaving] = useState(false);
-  const dirty = text !== initialText;
+  const [error, setError] = useState<string | null>(null);
 
   async function save() {
     setSaving(true);
+    setError(null);
     try {
-      await fetch("/api/room/note", {
+      const res = await fetch("/api/room/note", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Couldn't save your note. Try again.");
+        return;
+      }
+      setSaved(text);
       onSaved();
+    } catch {
+      setError("Couldn't save your note. Try again.");
     } finally {
       setSaving(false);
     }
@@ -289,10 +299,19 @@ function NoteEditor({ initialText, onSaved }: { initialText: string; onSaved: ()
   return (
     <div>
       <textarea
+        aria-label="Your note for this drop"
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          setText(e.target.value);
+          setError(null);
+        }}
         placeholder="Your note for this drop…"
       />
+      {error && (
+        <p className="notice error" style={{ marginTop: 6, fontSize: 11.5 }}>
+          {error}
+        </p>
+      )}
       {dirty && (
         <button
           type="button"
@@ -389,6 +408,7 @@ function CommentThread({
       )}
       <form onSubmit={handleSubmit} className="comment-form" noValidate>
         <textarea
+          aria-label="Comment to the other curators"
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Say something to the other curators…"

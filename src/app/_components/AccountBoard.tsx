@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import RoleName from "./RoleName";
 import ListenerPickForm from "./ListenerPickForm";
+import RateDropControl from "./RateDropControl";
 import { formatDropMonth } from "@/lib/format";
+import { useDirtyField } from "@/lib/useDirtyField";
 
 type Member = { id: number; name: string | null; bio: string | null; isCurator: boolean };
 type OpenDrop = { num: number; title: string | null } | null;
@@ -126,20 +128,27 @@ function Section({ label, children }: { label: string; children: React.ReactNode
 
 /** Name (role-colored) + an inline-editable bio, same dirty-state Save pattern as /room's curator note and /settings' club rename. */
 function ProfileCard({ member }: { member: Member }) {
-  const [bio, setBio] = useState(member.bio ?? "");
-  const [saved, setSaved] = useState(member.bio ?? "");
+  const { value: bio, setValue: setBio, setSaved, dirty } = useDirtyField(member.bio ?? "");
   const [saving, setSaving] = useState(false);
-  const dirty = bio !== saved;
+  const [error, setError] = useState<string | null>(null);
 
   async function save() {
     setSaving(true);
+    setError(null);
     try {
       const res = await fetch("/api/account/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bio }),
       });
-      if (res.ok) setSaved(bio);
+      if (res.ok) {
+        setSaved(bio);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Couldn't save your bio. Try again.");
+      }
+    } catch {
+      setError("Couldn't save your bio. Try again.");
     } finally {
       setSaving(false);
     }
@@ -159,9 +168,17 @@ function ProfileCard({ member }: { member: Member }) {
           style={{ minHeight: 72, resize: "vertical", padding: "10px 12px", lineHeight: 1.6 }}
           placeholder="A short line about you"
           value={bio}
-          onChange={(e) => setBio(e.target.value)}
+          onChange={(e) => {
+            setBio(e.target.value);
+            setError(null);
+          }}
         />
       </label>
+      {error && (
+        <p className="notice error" style={{ marginTop: 8 }}>
+          {error}
+        </p>
+      )}
       {dirty && (
         <button
           type="button"
@@ -299,26 +316,13 @@ function FavoritesPicker({ drops, initialFavoriteIds }: { drops: PublishedDrop[]
   );
 }
 
+// Reuses RateDropControl (the same widget the release page uses)
+// instead of its own star-row — this used to reimplement the same
+// 1-5 rating UI against the identical /api/account/rating endpoint
+// with its own, less complete version of the logic (no real error
+// handling), a second copy to keep in sync for no reason (2026-10-06
+// QA sweep finding).
 function RatingsList({ drops, myRatings }: { drops: PublishedDrop[]; myRatings: Record<number, number> }) {
-  const [ratings, setRatings] = useState(myRatings);
-  const [busyId, setBusyId] = useState<number | null>(null);
-
-  async function rate(dropId: number, rating: number) {
-    setBusyId(dropId);
-    try {
-      const res = await fetch("/api/account/rating", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dropId, rating }),
-      });
-      if (res.ok) {
-        setRatings((prev) => ({ ...prev, [dropId]: rating }));
-      }
-    } finally {
-      setBusyId(null);
-    }
-  }
-
   if (drops.length === 0) {
     return <p className="mut" style={{ fontSize: 12.5 }}>No shipped drops to rate yet.</p>;
   }
@@ -328,25 +332,7 @@ function RatingsList({ drops, myRatings }: { drops: PublishedDrop[]; myRatings: 
       {drops.map((drop) => (
         <div className="roster-row" key={drop.id}>
           <span className="roster-name">{drop.title ?? `Drop ${drop.num}`}</span>
-          <span style={{ display: "flex", gap: 4 }}>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <button
-                key={n}
-                type="button"
-                disabled={busyId === drop.id}
-                onClick={() => rate(drop.id, n)}
-                className="link-btn"
-                style={{
-                  fontSize: 13,
-                  textDecoration: "none",
-                  color: (ratings[drop.id] ?? 0) >= n ? "var(--accent)" : "var(--ln)",
-                }}
-                aria-label={`Rate ${n} star${n === 1 ? "" : "s"}`}
-              >
-                ★
-              </button>
-            ))}
-          </span>
+          <RateDropControl dropId={drop.id} initialRating={myRatings[drop.id] ?? null} />
         </div>
       ))}
     </div>

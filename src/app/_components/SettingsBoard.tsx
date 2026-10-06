@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CYCLE_OPTIONS, type CycleValue } from "@/lib/cycle";
+import { useDirtyField } from "@/lib/useDirtyField";
 
 type CuratorRow = { id: number; name: string | null; email: string | null };
 
@@ -46,11 +47,14 @@ async function saveClub(body: Record<string, unknown>) {
 }
 
 function ClubNameSection({ initialName }: { initialName: string }) {
-  const [name, setName] = useState(initialName);
-  const [saved, setSaved] = useState(initialName);
+  const {
+    value: name,
+    setValue: setName,
+    setSaved,
+    dirty,
+  } = useDirtyField(initialName, (a, b) => a.trim() === b);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const dirty = name.trim() !== saved;
 
   async function save() {
     setSaving(true);
@@ -351,7 +355,9 @@ function AdminSection({ initialCurators }: { initialCurators: CuratorRow[] }) {
         return;
       }
       setCurators((prev) =>
-        prev.some((c) => c.id === data.id) ? prev : [...prev, { id: data.id, name: null, email: target }]
+        prev.some((c) => c.id === data.id)
+          ? prev
+          : [...prev, { id: data.id, name: data.name ?? null, email: target }]
       );
       setEmail("");
     } catch {

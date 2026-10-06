@@ -55,16 +55,25 @@ export default function YouPage({
 }: YouPageProps) {
   const [optedOut, setOptedOut] = useState(initialOptedOut);
   const [stopping, setStopping] = useState(false);
+  const [stopError, setStopError] = useState<string | null>(null);
 
   async function stopTexting() {
     setStopping(true);
+    setStopError(null);
     try {
       const res = await fetch("/api/you/stop", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token }),
       });
-      if (res.ok) setOptedOut(true);
+      if (res.ok) {
+        setOptedOut(true);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setStopError(data.error ?? "Couldn't update that. Try again.");
+      }
+    } catch {
+      setStopError("Couldn't update that. Try again.");
     } finally {
       setStopping(false);
     }
@@ -194,6 +203,11 @@ export default function YouPage({
           </>
         )}
       </div>
+      {stopError && (
+        <p className="notice error" style={{ marginTop: 8 }}>
+          {stopError}
+        </p>
+      )}
 
       <hr className="hairline" style={{ marginTop: 30 }} />
       <p className="mut" style={{ fontSize: 11, lineHeight: 1.6 }}>

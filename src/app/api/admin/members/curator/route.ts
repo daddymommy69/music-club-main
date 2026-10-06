@@ -41,5 +41,5 @@ export async function POST(request: Request) {
 
   await setCuratorStatus(member.id, isCurator);
 
-  return NextResponse.json({ ok: true, id: member.id, isCurator });
+  return NextResponse.json({ ok: true, id: member.id, name: member.name, isCurator });
 }

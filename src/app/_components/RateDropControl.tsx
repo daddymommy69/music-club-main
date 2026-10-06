@@ -20,10 +20,12 @@ export default function RateDropControl({
   const [rating, setRating] = useState(initialRating ?? 0);
   const [busy, setBusy] = useState(false);
   const [needsLogin, setNeedsLogin] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function rate(n: number) {
     setBusy(true);
     setNeedsLogin(false);
+    setError(null);
     try {
       const res = await fetch("/api/account/rating", {
         method: "POST",
@@ -34,7 +36,14 @@ export default function RateDropControl({
         setNeedsLogin(true);
         return;
       }
-      if (res.ok) setRating(n);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Couldn't save your rating. Try again.");
+        return;
+      }
+      setRating(n);
+    } catch {
+      setError("Couldn't save your rating. Try again.");
     } finally {
       setBusy(false);
     }
@@ -58,6 +67,11 @@ export default function RateDropControl({
         <Link href="/account" className="mut" style={{ fontSize: 11, alignSelf: "center" }}>
           Log in to rate →
         </Link>
+      )}
+      {error && (
+        <span className="mut" style={{ fontSize: 11, alignSelf: "center" }}>
+          {error}
+        </span>
       )}
     </div>
   );
