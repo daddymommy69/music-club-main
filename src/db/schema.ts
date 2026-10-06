@@ -85,6 +85,15 @@ export const drops = pgTable(
     // Null below the 10-song threshold; there's no playlist to build.
     top10SpotifyUrl: text("top10_spotify_url"),
     top10AppleUrl: text("top10_apple_url"),
+    // On-demand Listener Pick playlist (2026-10 release-page redesign — see
+    // claude/next-build.md). Unlike the curator playlist, this is never
+    // auto-built at ship time and never sent out — a curator builds it
+    // whenever they want from the drop's Listener Picks, same Spotify
+    // account/flow as src/lib/spotifyBuild.ts. Both null until that happens;
+    // listenerPlaylistBuiltAt is purely informational ("built 3 days ago"),
+    // nothing reads it to decide behavior.
+    listenerPlaylistUrl: text("listener_playlist_url"),
+    listenerPlaylistBuiltAt: timestamp("listener_playlist_built_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -380,6 +389,55 @@ export const songLikes = pgTable(
 );
 
 /**
+ * Whole-drop likes (2026-10 release-page redesign — see
+ * claude/next-build.md). Separate from songLikes above: this is "I liked
+ * this drop overall," shown as a count on the drop's controls row, not
+ * tied to any one song. Same one-per-member-per-drop unique-constraint
+ * pattern as songLikes/dropRatings.
+ */
+export const dropLikes = pgTable(
+  "drop_likes",
+  {
+    id: serial("id").primaryKey(),
+    dropId: integer("drop_id")
+      .notNull()
+      .references(() => drops.id, { onDelete: "cascade" }),
+    memberId: integer("member_id")
+      .notNull()
+      .references(() => members.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [unique().on(table.dropId, table.memberId)],
+);
+
+/**
+ * Whole-drop saves (2026-10 release-page redesign — see
+ * claude/next-build.md). "Save" on the drop's controls row — a private
+ * bookmark onto the member's own /account (distinct from the public
+ * dropLikes count above, and distinct from the "+Spotify" link-out, which
+ * doesn't touch this table at all since there's no visitor-side Spotify
+ * OAuth to actually save into their library).
+ */
+export const dropSaves = pgTable(
+  "drop_saves",
+  {
+    id: serial("id").primaryKey(),
+    dropId: integer("drop_id")
+      .notNull()
+      .references(() => drops.id, { onDelete: "cascade" }),
+    memberId: integer("member_id")
+      .notNull()
+      .references(() => members.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [unique().on(table.dropId, table.memberId)],
+);
+
+/**
  * A member's 1-5 rating for a drop (2026-10 "next build" decision — see
  * claude/next-build.md). One per member per drop, upsertable — the
  * unique constraint is what makes "set my rating" a plain insert-or-
@@ -460,6 +518,10 @@ export type Top10Entry = typeof top10Entries.$inferSelect;
 export type NewTop10Entry = typeof top10Entries.$inferInsert;
 export type SongLike = typeof songLikes.$inferSelect;
 export type NewSongLike = typeof songLikes.$inferInsert;
+export type DropLike = typeof dropLikes.$inferSelect;
+export type NewDropLike = typeof dropLikes.$inferInsert;
+export type DropSave = typeof dropSaves.$inferSelect;
+export type NewDropSave = typeof dropSaves.$inferInsert;
 export type DropRating = typeof dropRatings.$inferSelect;
 export type NewDropRating = typeof dropRatings.$inferInsert;
 export type MemberFavorite = typeof memberFavorites.$inferSelect;
