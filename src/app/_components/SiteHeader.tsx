@@ -10,7 +10,6 @@ const NAV_ITEMS = [
   { href: "/releases", label: "Releases" },
   { href: "/submit", label: "Submit a song" },
   { href: "/account", label: "Account" },
-  { href: "/signup", label: "Sign up" },
 ];
 
 export default function SiteHeader() {

@@ -38,9 +38,11 @@ export async function POST(request: Request) {
     smsOptIn?: boolean;
   };
 
-  // Name is optional per the design handoff — mirrors the client-side
-  // validation in SignupForm exactly, since this is the backstop for
-  // a request that skips the form (or a client with JS errors).
+  // Name is optional per the design handoff. This whole route predates
+  // the unified-account /account page (AccountAuth posts to
+  // /api/members/lookup + /api/members/verify instead) and is kept only
+  // for the SMS text-in path (src/lib/smsSubmit.ts) — see
+  // claude/next-build.md's 2026-10 release-page redesign notes.
   if (!wantsText && !wantsEmail) {
     return NextResponse.json({ error: "Pick text, email, or both" }, { status: 400 });
   }
@@ -84,8 +86,7 @@ export async function POST(request: Request) {
 
   // Unified account model: a Member's identity key is email
   // (findOrCreateMember/findMemberByEmail in members.ts only dedupe by
-  // email — it's the login identity now). SignupForm.tsx only ever
-  // submits email, so this is the path every real signup takes.
+  // email — it's the login identity now).
   if (wantsEmail && email && email.trim()) {
     const existing = await findMemberByEmail(club, email);
     if (existing) {
@@ -138,9 +139,9 @@ export async function POST(request: Request) {
 
   // Phone-only (no email) signup. findOrCreateMember requires an email —
   // by design, it's the member's unified-account login identity — so
-  // this legacy text-only path (no longer reachable from SignupForm.tsx,
-  // which dropped the phone option entirely) talks to `members` directly,
-  // same phoneKey dedupe-and-insert the old subscribers-table code did.
+  // this legacy text-only path (SMS text-in only; /account's web signup
+  // has no phone option) talks to `members` directly, same phoneKey
+  // dedupe-and-insert the old subscribers-table code did.
   const phoneKey = normalizePhone(phone as string);
   const existingByPhone = await findMemberByPhone(club.id, phoneKey);
   if (existingByPhone) {

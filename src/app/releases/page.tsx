@@ -4,7 +4,6 @@ import SignupPopup from "@/app/_components/SignupPopup";
 import DropTile from "@/app/_components/DropTile";
 import { getDefaultClub } from "@/lib/club";
 import { getPublishedDrops } from "@/lib/archive";
-import { getSignupContext } from "@/lib/signup";
 import { formatDropMeta } from "@/lib/format";
 
 // Drops change whenever curators ship a new one — never freeze this
@@ -15,17 +14,16 @@ export const dynamic = "force-dynamic";
 // just redirects here. Lived at /archive until 2026-10, when the URL
 // (only — everything else, including this component's internals and
 // the shared getPublishedDrops()/archive.ts naming, is unchanged) was
-// renamed to /releases to match the nav label it already carried. The
-// sign-up popup lives on this page only: it shows itself once per
-// visitor (tracked client-side in SignupPopup) and stays reachable
-// after that through its own "Join the club" button. The dedicated
-// /signup page is still there too.
+// renamed to /releases to match the nav label it already carried.
+//
+// The "Join the club" entry point (SignupPopup, despite its name — see
+// that component) just links to /account now, same as the nav's
+// Account item — /signup folded into /account in the 2026-10
+// release-page redesign (see claude/next-build.md), so this page no
+// longer needs its own copy of getSignupContext/the popup form.
 export default async function ReleasesPage() {
   const club = await getDefaultClub();
-  const [dropList, signupCtx] = await Promise.all([
-    getPublishedDrops(club.id),
-    getSignupContext(club),
-  ]);
+  const dropList = await getPublishedDrops(club.id);
 
   return (
     <>
@@ -35,11 +33,7 @@ export default async function ReleasesPage() {
           Every drop so far
         </h1>
 
-        <SignupPopup
-          nextDropNum={signupCtx.nextDropNum}
-          daysUntilNext={signupCtx.daysUntilNext}
-          isManual={signupCtx.isManual}
-        />
+        <SignupPopup />
 
         {dropList.length === 0 ? (
           <p className="empty-state">
@@ -48,16 +42,32 @@ export default async function ReleasesPage() {
         ) : (
           <div className="archive-grid">
             {dropList.map((drop) => (
-              <Link key={drop.num} href={`/drop/${drop.num}`} className="drop-card">
-                <DropTile num={drop.num} artworkUrls={drop.artworkUrls} />
-                <div className="info">
-                  <div className="title">
-                    {drop.title ?? `Drop ${drop.num}`}
-                    {drop.hasTop10 && <span className="top10-badge">Top 10 ↗</span>}
+              <div key={drop.num} className="drop-card-wrap">
+                <Link href={`/drop/${drop.num}`} className="drop-card">
+                  <DropTile num={drop.num} artworkUrls={drop.artworkUrls} />
+                  <div className="info">
+                    <div className="title">
+                      {drop.title ?? `Drop ${drop.num}`}
+                      {drop.hasTop10 && <span className="top10-badge">Top 10 ↗</span>}
+                    </div>
+                    <div className="meta">{formatDropMeta(drop.publishedAt, drop.songCount)}</div>
                   </div>
-                  <div className="meta">{formatDropMeta(drop.publishedAt, drop.songCount)}</div>
-                </div>
-              </Link>
+                </Link>
+
+                {/* Secondary "Listener Pick playlist" indicator (2026-10
+                    release-page redesign — founder's chosen placement:
+                    "i like how it shows in the archive page better",
+                    adapted here to fit this page's compact tile grid
+                    rather than the wider single-column card the mockup
+                    assumed). Only a count lives here — never auto-built,
+                    never sent out, built whenever a curator wants from
+                    the dedicated listener-picks page this links to. */}
+                {drop.listenerPickCount > 0 && (
+                  <Link href={`/drop/${drop.num}/listener-picks`} className="listener-pick-pill">
+                    ♫ Listener Pick ({drop.listenerPickCount}) →
+                  </Link>
+                )}
+              </div>
             ))}
           </div>
         )}

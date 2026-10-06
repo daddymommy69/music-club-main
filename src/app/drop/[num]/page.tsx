@@ -7,6 +7,8 @@ import { siteDisplayPath } from "@/lib/site";
 import { getSessionMember } from "@/lib/memberSession";
 import { getMemberLikedSongIds } from "@/lib/songLikes";
 import { getMemberDropRating } from "@/lib/ratings";
+import { getMemberLikedDropIds } from "@/lib/dropLikes";
+import { getMemberSavedDropIds } from "@/lib/dropSaves";
 
 export const dynamic = "force-dynamic";
 
@@ -20,16 +22,19 @@ export default async function DropPage({
   const drop = await getPublicDrop(club.id, Number(num));
   if (!drop) notFound();
 
-  // Logged-out viewers get no liked/rated state — LikeButton and
-  // RateDropControl both still work for them, see their own comments.
+  // Logged-out viewers get no liked/rated/saved state — LikeButton,
+  // RateDropControl, DropLikeButton, and DropSaveButton all still work
+  // for them, see their own comments.
   const viewer = await getSessionMember();
   const songIds = drop.songs.map((s) => s.id);
-  const [likedSongIds, viewerRating] = viewer
+  const [likedSongIds, viewerRating, viewerDropLiked, viewerDropSaved] = viewer
     ? await Promise.all([
         getMemberLikedSongIds(viewer.id, songIds).then((set) => [...set]),
         getMemberDropRating(drop.id, viewer.id),
+        getMemberLikedDropIds(viewer.id, [drop.id]).then((set) => set.has(drop.id)),
+        getMemberSavedDropIds(viewer.id, [drop.id]).then((set) => set.has(drop.id)),
       ])
-    : [[], null];
+    : [[], null, false, false];
 
   return (
     <>
@@ -40,6 +45,8 @@ export default async function DropPage({
           shareUrl={siteDisplayPath(`/drop/${drop.num}`)}
           likedSongIds={likedSongIds}
           viewerRating={viewerRating}
+          viewerDropLiked={viewerDropLiked}
+          viewerDropSaved={viewerDropSaved}
         />
       </main>
     </>

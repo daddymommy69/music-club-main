@@ -1,47 +1,14 @@
-import SiteHeader from "../_components/SiteHeader";
-import DropTextPreview from "../_components/DropTextPreview";
-import SignupHero from "../_components/SignupHero";
-import SignupForm from "../_components/SignupForm";
-import { getDefaultClub } from "@/lib/club";
-import { getSignupContext } from "@/lib/signup";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-// The dedicated sign-up page (moved here from "/" — the site now opens
-// on Releases, see /releases and the popup rendered there). Kept as its
-// own standalone page rather than only living in the popup, since the
-// popup only shows once per visitor.
-export default async function SignupPage() {
-  const club = await getDefaultClub();
-  const ctx = await getSignupContext(club);
-
-  return (
-    <>
-      <SiteHeader />
-      <main className="col page">
-        <DropTextPreview
-          latestPublishedDrop={ctx.latestPublishedDrop}
-          isManual={ctx.isManual}
-          cycleDays={ctx.cycleDays}
-        />
-
-        <SignupHero
-          nextDropNum={ctx.nextDropNum}
-          daysUntilNext={ctx.daysUntilNext}
-          isManual={ctx.isManual}
-          subscriberCount={ctx.subscriberCount}
-        />
-
-        <p className="mut" style={{ fontSize: 13, lineHeight: 1.8, marginBottom: 26 }}>
-          A shared playlist, sent to your inbox. Sign up once, that&rsquo;s it.
-        </p>
-
-        <SignupForm
-          nextDropNum={ctx.nextDropNum}
-          daysUntilNext={ctx.daysUntilNext}
-          isManual={ctx.isManual}
-        />
-      </main>
-    </>
-  );
+// /signup folds into /account (2026-10 release-page redesign — see
+// claude/next-build.md): the founder's explicit call after seeing the
+// consolidated mockup ("ok no sign up but lets fine tune the account
+// page") — one entry point instead of three, no separate pitch/
+// explainer page. AccountAuth (rendered on /account) is the same
+// combined signup-or-login card this page used to show via SignupForm,
+// just without the pitch copy around it. This route is kept (rather
+// than deleted outright) so any bookmarked/shared /signup link still
+// lands somewhere real instead of 404ing.
+export default function SignupPage() {
+  redirect("/account");
 }

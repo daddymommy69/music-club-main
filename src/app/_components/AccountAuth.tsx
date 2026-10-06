@@ -37,10 +37,6 @@ export default function AccountAuth() {
   if (step.kind === "entry") {
     return (
       <form key="entry" onSubmit={handleEntrySubmit} className="form gz-up" noValidate>
-        <p className="mut" style={{ fontSize: 12.5, lineHeight: 1.6 }}>
-          New here? Just enter your name and email — that&rsquo;s your account, no
-          password. Already signed up? Enter your email and we&rsquo;ll send you a code.
-        </p>
         <label>
           Name
           <input name="name" placeholder="So we know what to call you" autoFocus />

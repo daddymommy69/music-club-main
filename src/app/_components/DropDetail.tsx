@@ -4,6 +4,8 @@ import CloseButton from "./CloseButton";
 import DropTile from "./DropTile";
 import SongEmbed from "./SongEmbed";
 import LikeButton from "./LikeButton";
+import DropLikeButton from "./DropLikeButton";
+import DropSaveButton from "./DropSaveButton";
 import RateDropControl from "./RateDropControl";
 import RoleName from "./RoleName";
 
@@ -13,6 +15,8 @@ export default function DropDetail({
   shareUrl,
   likedSongIds,
   viewerRating,
+  viewerDropLiked,
+  viewerDropSaved,
 }: {
   drop: PublicDropDetail;
   closable?: boolean;
@@ -24,6 +28,11 @@ export default function DropDetail({
    * haven't rated it (or aren't logged in — RateDropControl handles
    * that case itself on click). */
   viewerRating?: number | null;
+  /** Whether the current viewer has liked/saved this whole drop — false
+   * for a logged-out visitor, same spirit as likedSongIds above
+   * (DropLikeButton/DropSaveButton still work for them). */
+  viewerDropLiked?: boolean;
+  viewerDropSaved?: boolean;
 }) {
   const artworkUrls = drop.songs
     .map((s) => s.artworkUrl)
@@ -32,13 +41,15 @@ export default function DropDetail({
 
   const likedSet = new Set(likedSongIds ?? []);
 
-  // Only split into headed Curator Picks / Listener Picks sections once
-  // there's actually a Listener Pick to show — an all-curator drop (every
-  // drop shipped before this feature, and any drop with no listener
-  // submissions) keeps the single, unheaded tracklist it's always had.
+  // Listener Picks no longer show on this page at all (2026-10
+  // release-page redesign — see claude/next-build.md): they moved to
+  // their own dedicated /drop/[num]/listener-picks page, reached from
+  // the /releases archive card. This tracklist is always just the
+  // Curator Picks now, same single unheaded list every drop had before
+  // Listener Picks existed — drop.songs itself is unchanged (still
+  // every song, both pick types) since other callers of getPublicDrop
+  // (e.g. the listener-picks page) need the full set.
   const curatorSongs = drop.songs.filter((s) => s.pickType === "curator");
-  const listenerSongs = drop.songs.filter((s) => s.pickType === "listener");
-  const hasListenerPicks = listenerSongs.length > 0;
 
   return (
     <div className="drop-detail">
@@ -48,8 +59,8 @@ export default function DropDetail({
       </div>
       <div className="drop-title">{drop.title ?? `Drop ${drop.num}`}</div>
       <div className="mut" style={{ fontSize: 11 }}>
-        {formatDropMonth(drop.publishedAt)} · {drop.songs.length}{" "}
-        {drop.songs.length === 1 ? "song" : "songs"}
+        {formatDropMonth(drop.publishedAt)} · {curatorSongs.length}{" "}
+        {curatorSongs.length === 1 ? "song" : "songs"}
       </div>
       <div className="share-url">{shareUrl}</div>
 
@@ -60,6 +71,18 @@ export default function DropDetail({
         </div>
       )}
       <RateDropControl dropId={drop.id} initialRating={viewerRating ?? null} />
+
+      {/* Whole-drop Save/Like controls (2026-10 release-page redesign —
+          see claude/next-build.md) — distinct from the Spotify/Apple
+          Music "open the real playlist" links right below. */}
+      <div className="drop-controls-row">
+        <DropSaveButton dropId={drop.id} initialSaved={viewerDropSaved ?? false} />
+        <DropLikeButton
+          dropId={drop.id}
+          initialLiked={viewerDropLiked ?? false}
+          initialCount={drop.dropLikeCount}
+        />
+      </div>
 
       <div className="listen-row">
         {drop.spotifyUrl && (
@@ -84,21 +107,7 @@ export default function DropDetail({
         )}
       </div>
 
-      {hasListenerPicks ? (
-        <>
-          <div className="label" style={{ marginBottom: 12 }}>
-            Curator Picks
-          </div>
-          <Tracklist songs={curatorSongs} likedSet={likedSet} />
-
-          <div className="label" style={{ marginTop: 30, marginBottom: 12 }}>
-            Listener Picks
-          </div>
-          <Tracklist songs={listenerSongs} likedSet={likedSet} />
-        </>
-      ) : (
-        <Tracklist songs={drop.songs} likedSet={likedSet} />
-      )}
+      <Tracklist songs={curatorSongs} likedSet={likedSet} />
 
       {drop.notes.length > 0 && (
         <>
@@ -169,19 +178,29 @@ function Tracklist({ songs, likedSet }: { songs: PublicSongRow[]; likedSet: Set<
       </div>
       <hr className="hairline" style={{ margin: "0 0 4px" }} />
       <div>
-        {songs.map((song) => (
+        {songs.map((song, i) => (
           <div className="track-row" key={song.id}>
-            <div className="track-row-meta">
-              <div className="track-info">
-                <div className="track-title">{song.title}</div>
-                <div className="track-artist">{song.artist}</div>
-              </div>
-              <div className="track-credit">
-                {song.pickType === "curator"
-                  ? song.curatorCredit && <RoleName name={song.curatorCredit} isCurator />
-                  : song.listenerCredit && (
-                      <RoleName name={song.listenerCredit} isCurator={song.listenerIsCurator} />
-                    )}
+            {/* Numbered rows + per-song artwork swatch (2026-10
+                release-page redesign — a playlist-like feel, see
+                claude/next-build.md) — falls back to a plain gradient
+                swatch when a song has no artwork, same spirit as
+                DropTile's own empty-quadrant fallback. */}
+            <div className="track-row-top">
+              <div className="track-row-num">{String(i + 1).padStart(2, "0")}</div>
+              {song.artworkUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={song.artworkUrl} alt="" className="track-row-art" />
+              ) : (
+                <div className="track-row-art track-row-art-empty" aria-hidden="true" />
+              )}
+              <div className="track-row-body">
+                <div className="track-info">
+                  <div className="track-title">{song.title}</div>
+                  <div className="track-artist">{song.artist}</div>
+                </div>
+                <div className="track-credit">
+                  {song.curatorCredit && <RoleName name={song.curatorCredit} isCurator />}
+                </div>
               </div>
             </div>
             <div style={{ marginBottom: 8 }}>
