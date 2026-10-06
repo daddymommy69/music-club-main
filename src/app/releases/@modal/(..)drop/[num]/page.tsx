@@ -7,6 +7,8 @@ import { siteDisplayPath } from "@/lib/site";
 import { getSessionMember } from "@/lib/memberSession";
 import { getMemberLikedSongIds } from "@/lib/songLikes";
 import { getMemberDropRating } from "@/lib/ratings";
+import { getMemberLikedDropIds } from "@/lib/dropLikes";
+import { getMemberSavedDropIds } from "@/lib/dropSaves";
 
 export const dynamic = "force-dynamic";
 
@@ -22,12 +24,14 @@ export default async function InterceptedDropModal({
 
   const viewer = await getSessionMember();
   const songIds = drop.songs.map((s) => s.id);
-  const [likedSongIds, viewerRating] = viewer
+  const [likedSongIds, viewerRating, viewerDropLiked, viewerDropSaved] = viewer
     ? await Promise.all([
         getMemberLikedSongIds(viewer.id, songIds).then((set) => [...set]),
         getMemberDropRating(drop.id, viewer.id),
+        getMemberLikedDropIds(viewer.id, [drop.id]).then((set) => set.has(drop.id)),
+        getMemberSavedDropIds(viewer.id, [drop.id]).then((set) => set.has(drop.id)),
       ])
-    : [[], null];
+    : [[], null, false, false];
 
   return (
     <DropModalShell>
@@ -37,6 +41,8 @@ export default async function InterceptedDropModal({
         shareUrl={siteDisplayPath(`/drop/${drop.num}`)}
         likedSongIds={likedSongIds}
         viewerRating={viewerRating}
+        viewerDropLiked={viewerDropLiked}
+        viewerDropSaved={viewerDropSaved}
       />
     </DropModalShell>
   );
