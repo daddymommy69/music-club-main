@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 type Step =
   | { kind: "destination" }
-  | { kind: "code"; memberId: number; masked: string };
+  | { kind: "code"; memberId: number; masked: string; email: string };
 
 export default function CuratorLogin() {
   const router = useRouter();
@@ -13,10 +13,26 @@ export default function CuratorLogin() {
   const [error, setError] = useState<string | null>(null);
   const [shakeGen, setShakeGen] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [resent, setResent] = useState(false);
 
   function fail(message: string) {
     setError(message);
     setShakeGen((g) => g + 1);
+  }
+
+  async function lookup(email: string) {
+    const res = await fetch("/api/curators/lookup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      fail(data.error ?? "Something went wrong. Try again.");
+      return false;
+    }
+    setStep({ kind: "code", memberId: data.memberId, masked: data.masked, email });
+    return true;
   }
 
   async function handleDestinationSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -30,17 +46,30 @@ export default function CuratorLogin() {
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch("/api/curators/lookup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        fail(data.error ?? "Something went wrong. Try again.");
-        return;
+      await lookup(email);
+    } catch {
+      fail("Something went wrong. Try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // A fresh code for the same email, without going back to re-type it —
+  // same /api/curators/lookup call the first request made, which always
+  // issues a brand-new code (see issueLoginCode). Doesn't invalidate the
+  // old one; it just stops mattering once this new one is what's in the
+  // founder/curator's inbox.
+  async function resendCode() {
+    if (step.kind !== "code") return;
+    setError(null);
+    setResent(false);
+    setSubmitting(true);
+    try {
+      const ok = await lookup(step.email);
+      if (ok) {
+        setResent(true);
+        setTimeout(() => setResent(false), 4000);
       }
-      setStep({ kind: "code", memberId: data.memberId, masked: data.masked });
     } catch {
       fail("Something went wrong. Try again.");
     } finally {
@@ -114,6 +143,11 @@ export default function CuratorLogin() {
           autoFocus
         />
       </label>
+      {resent && (
+        <p className="notice" style={{ fontSize: 12 }}>
+          New code sent to {step.masked}.
+        </p>
+      )}
       {error && (
         <p key={`c-${shakeGen}`} className="notice error gz-shake">
           {error}
@@ -122,12 +156,16 @@ export default function CuratorLogin() {
       <button type="submit" className="btn btn-primary" disabled={submitting}>
         {submitting ? "Verifying…" : "Verify"}
       </button>
+      <button type="button" className="link-btn" onClick={resendCode} disabled={submitting}>
+        Send a new code
+      </button>
       <button
         type="button"
         className="link-btn"
         onClick={() => setStep({ kind: "destination" })}
+        disabled={submitting}
       >
-        ← That&rsquo;s not right
+        ← Use a different email
       </button>
     </form>
   );
