@@ -1,7 +1,6 @@
 import SiteHeader from "@/app/_components/SiteHeader";
 import AccountAuth from "@/app/_components/AccountAuth";
 import AccountBoard from "@/app/_components/AccountBoard";
-import RoleName from "@/app/_components/RoleName";
 import { getDefaultClub } from "@/lib/club";
 import { getSessionMember } from "@/lib/memberSession";
 import { getOpenDrop } from "@/lib/room";
@@ -13,6 +12,13 @@ import { getMemberFavorites } from "@/lib/favorites";
 import { getMemberDropRatings } from "@/lib/ratings";
 
 export const dynamic = "force-dynamic";
+
+// A stand-in for the real `member` row AccountBoard expects, used only
+// for the logged-out render below — id 0 never matches a real member,
+// and every write action it can trigger (bio save, favorites, ratings,
+// a listener pick) requires its own real session server-side regardless
+// of what this placeholder says, so there's nothing this id could do.
+const PREVIEW_MEMBER = { id: 0, name: null, bio: null, isCurator: false };
 
 /**
  * /account (2026-10 "next build" — see claude/next-build.md): the
@@ -28,12 +34,27 @@ export default async function AccountPage() {
   const member = await getSessionMember();
 
   if (!member) {
-    // Public, no-session preview (added 2026-10-06, per the founder's
-    // "show what can be on the account page" ask) — the leaderboard
-    // doesn't need a login to read (see leaderboard.ts's own comment:
-    // "Public to everyone, not curator-only"), so a logged-out visitor
-    // gets a real look at it rather than just a blank sign-up box.
-    const leaderboard = await getLeaderboard(club.id);
+    // Full-layout, logged-out preview (revised 2026-10-06, per the
+    // founder's "show the real page, not a description" ask — he wants
+    // to see what each section actually looks like before logging in,
+    // to judge the page's look while iterating on it). Renders the
+    // exact same AccountBoard a signed-in member sees, fed real public
+    // data where it exists (the open drop, the shipped-drops list, the
+    // leaderboard — none of that is private) and empty-state data for
+    // everything that's genuinely per-member (no pick, no submission
+    // history, no favorites marked, no ratings) since there's no real
+    // member to show those for. AccountBoard's own sections already
+    // render a plain "nothing yet" message for each empty case, so this
+    // naturally looks like a fresh account rather than a broken one.
+    // The write actions inside it (save bio, mark a favorite, rate a
+    // drop, submit a pick) still each call their own API route, and
+    // every one of those requires its own real session — so clicking
+    // around here can't actually change anything; it just won't persist.
+    const [openDrop, leaderboard, publishedDrops] = await Promise.all([
+      getOpenDrop(club),
+      getLeaderboard(club.id),
+      getPublishedDrops(club.id),
+    ]);
 
     return (
       <>
@@ -42,33 +63,25 @@ export default async function AccountPage() {
           <h1 style={{ fontSize: 19, letterSpacing: "-0.02em", marginBottom: 20 }}>
             Your account
           </h1>
-          <p className="mut" style={{ fontSize: 12.5, lineHeight: 1.65, marginBottom: 20 }}>
-            One account for everything: a bio on your profile, this cycle&rsquo;s Listener Pick,
-            your full submission history, a favorites showcase of up to 5 past drops, your drop
-            ratings, and the leaderboard below.
-          </p>
           <AccountAuth />
 
-          {leaderboard.length > 0 && (
-            <div style={{ marginTop: 36 }}>
-              <div className="label" style={{ marginBottom: 12 }}>
-                Leaderboard
-              </div>
-              <hr className="hairline" style={{ margin: "0 0 4px" }} />
-              <div>
-                {leaderboard.slice(0, 10).map((row) => (
-                  <div key={row.memberId} className="roster-row">
-                    <span className="roster-name">
-                      <RoleName name={row.name || "Someone"} isCurator={row.isCurator} />
-                    </span>
-                    <span className="roster-meta">
-                      {row.pickCount} pick{row.pickCount === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <div style={{ marginTop: 36 }}>
+            <AccountBoard
+              member={PREVIEW_MEMBER}
+              openDrop={openDrop ? { num: openDrop.num, title: openDrop.title } : null}
+              listenerPick={null}
+              submissionHistory={[]}
+              leaderboard={leaderboard}
+              publishedDrops={publishedDrops.map((d) => ({
+                id: d.id,
+                num: d.num,
+                title: d.title,
+                publishedAt: d.publishedAt.toISOString(),
+              }))}
+              favoriteDropIds={[]}
+              myRatings={{}}
+            />
+          </div>
         </main>
       </>
     );
