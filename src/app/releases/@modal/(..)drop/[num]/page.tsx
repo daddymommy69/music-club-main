@@ -7,6 +7,7 @@ import { siteDisplayPath } from "@/lib/site";
 import { getSessionMember } from "@/lib/memberSession";
 import { getMemberLikedSongIds } from "@/lib/songLikes";
 import { getMemberDropRating } from "@/lib/ratings";
+import { getMemberSongRatings } from "@/lib/songRatings";
 import { getMemberLikedDropIds } from "@/lib/dropLikes";
 import { getMemberSavedDropIds } from "@/lib/dropSaves";
 
@@ -24,14 +25,15 @@ export default async function InterceptedDropModal({
 
   const viewer = await getSessionMember();
   const songIds = drop.songs.map((s) => s.id);
-  const [likedSongIds, viewerRating, viewerDropLiked, viewerDropSaved] = viewer
+  const [likedSongIds, viewerRating, viewerDropLiked, viewerDropSaved, viewerSongRatings] = viewer
     ? await Promise.all([
         getMemberLikedSongIds(viewer.id, songIds).then((set) => [...set]),
         getMemberDropRating(drop.id, viewer.id),
         getMemberLikedDropIds(viewer.id, [drop.id]).then((set) => set.has(drop.id)),
         getMemberSavedDropIds(viewer.id, [drop.id]).then((set) => set.has(drop.id)),
+        getMemberSongRatings(viewer.id, songIds).then((map) => Object.fromEntries(map)),
       ])
-    : [[], null, false, false];
+    : [[], null, false, false, {}];
 
   return (
     <DropModalShell>
@@ -43,6 +45,7 @@ export default async function InterceptedDropModal({
         viewerRating={viewerRating}
         viewerDropLiked={viewerDropLiked}
         viewerDropSaved={viewerDropSaved}
+        viewerSongRatings={viewerSongRatings}
       />
     </DropModalShell>
   );
