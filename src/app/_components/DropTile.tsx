@@ -17,6 +17,7 @@ export default function DropTile({
   artworkUrls,
   quadrantArtists,
   hero,
+  framed = true,
 }: {
   num: number;
   artworkUrls: string[];
@@ -29,11 +30,16 @@ export default function DropTile({
   quadrantArtists?: string[];
   /** Larger standalone variant for the drop-detail header. */
   hero?: boolean;
+  /** The bordered-card look (2026-10-07, round 3 — the founder's own
+   * call: keep it on /releases, the component's original home, but
+   * not on the other two places this tile gets reused). Defaults to
+   * true so /releases' own usage doesn't need to pass anything. */
+  framed?: boolean;
 }) {
   const quads = Array.from({ length: 4 }, (_, i) => artworkUrls[i] ?? null);
 
   return (
-    <div className={`drop-tile${hero ? " drop-tile-hero" : ""}`}>
+    <div className={`drop-tile${hero ? " drop-tile-hero" : ""}${framed ? " drop-tile-framed" : ""}`}>
       <div className="drop-tile-grid">
         {quads.map((url, i) => {
           const art = url ? (

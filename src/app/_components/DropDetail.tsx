@@ -4,6 +4,7 @@ import { formatDropMonth } from "@/lib/format";
 import { artistHref } from "@/lib/artistLink";
 import CloseButton from "./CloseButton";
 import DropTile from "./DropTile";
+import FallbackImg from "./FallbackImg";
 import LikeButton from "./LikeButton";
 import SongRatingControl from "./SongRatingControl";
 import DropLikeButton from "./DropLikeButton";
@@ -66,7 +67,13 @@ export default function DropDetail({
   return (
     <div className="drop-detail">
       <div className="top-row">
-        <DropTile num={drop.num} artworkUrls={artworkUrls} quadrantArtists={quadrantArtists} hero />
+        <DropTile
+          num={drop.num}
+          artworkUrls={artworkUrls}
+          quadrantArtists={quadrantArtists}
+          hero
+          framed={false}
+        />
         {closable && <CloseButton />}
       </div>
       <div className="drop-title">{drop.title ?? `Drop ${drop.num}`}</div>
@@ -214,8 +221,11 @@ function Tracklist({
               <div className="track-row-num">{String(i + 1).padStart(2, "0")}</div>
               <Link href={artistHref(song.artist)} className="track-row-art-link">
                 {song.artworkUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={song.artworkUrl} alt="" className="track-row-art" />
+                  <FallbackImg
+                    src={song.artworkUrl}
+                    className="track-row-art"
+                    fallbackClassName="track-row-art track-row-art-empty"
+                  />
                 ) : (
                   <div className="track-row-art track-row-art-empty" aria-hidden="true" />
                 )}

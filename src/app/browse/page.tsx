@@ -1,6 +1,7 @@
 import Link from "next/link";
 import SiteHeader from "@/app/_components/SiteHeader";
 import BrowseSearch from "@/app/_components/BrowseSearch";
+import FallbackImg from "@/app/_components/FallbackImg";
 import { getDefaultClub } from "@/lib/club";
 import { getOpenDrop } from "@/lib/room";
 import { getSessionMember } from "@/lib/memberSession";
@@ -73,8 +74,7 @@ export default async function BrowsePage() {
                 title={`${song.title} — ${song.artist}`}
               >
                 {song.artworkUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={song.artworkUrl} alt="" loading="lazy" />
+                  <FallbackImg src={song.artworkUrl} className="" fallbackClassName="song-tile-empty" />
                 ) : (
                   <div className="song-tile-empty" aria-hidden="true" />
                 )}
@@ -101,8 +101,7 @@ async function ArtistTile({
       <Link href={artistHref(artist.displayName)} className="drop-card">
         <div className="song-tile">
           {photoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={photoUrl} alt="" loading="lazy" />
+            <FallbackImg src={photoUrl} className="" fallbackClassName="song-tile-empty" />
           ) : (
             <div className="song-tile-empty" aria-hidden="true" />
           )}

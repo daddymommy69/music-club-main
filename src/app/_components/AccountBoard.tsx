@@ -8,6 +8,7 @@ import RoleName from "./RoleName";
 import ListenerPickForm from "./ListenerPickForm";
 import RateDropControl from "./RateDropControl";
 import DropTile from "./DropTile";
+import FallbackImg from "./FallbackImg";
 import CuratorToolsPanel, { type CuratorToolsPanelProps } from "./CuratorToolsPanel";
 
 type Member = { id: number; name: string | null; bio: string | null; isCurator: boolean };
@@ -317,10 +318,7 @@ function LikedSongsGrid({ songs }: { songs: LikedSong[] }) {
           title={`${song.title} — ${song.artist}`}
         >
           {song.artworkUrl ? (
-            // External Apple/Spotify CDN art — not worth configuring
-            // next/image's remotePatterns for, same call as DropTile.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={song.artworkUrl} alt="" loading="lazy" />
+            <FallbackImg src={song.artworkUrl} className="" fallbackClassName="song-tile-empty" />
           ) : (
             <div className="song-tile-empty" aria-hidden="true" />
           )}
@@ -418,7 +416,7 @@ function TopsGrid({
           return (
             <div key={drop.id} className="drop-card-wrap">
               <Link href={`/drop/${drop.num}`} className="drop-card">
-                <DropTile num={drop.num} artworkUrls={drop.artworkUrls} />
+                <DropTile num={drop.num} artworkUrls={drop.artworkUrls} framed={false} />
               </Link>
               <div className="tops-tile-title">{drop.title ?? `Drop ${drop.num}`}</div>
               <RateDropControl dropId={drop.id} initialRating={myRatings[drop.id] ?? null} />

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import SiteHeader from "@/app/_components/SiteHeader";
 import RoleName from "@/app/_components/RoleName";
+import FallbackImg from "@/app/_components/FallbackImg";
 import { getDefaultClub } from "@/lib/club";
 import { getSessionMember } from "@/lib/memberSession";
 import { getArtistPageData } from "@/lib/artists";
@@ -36,8 +37,7 @@ export default async function ArtistPage({ params }: { params: Promise<{ name: s
       <main className="col page gz-up">
         <div className="song-tile" style={{ maxWidth: 160, marginBottom: 16 }}>
           {artist.photoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={artist.photoUrl} alt="" />
+            <FallbackImg src={artist.photoUrl} className="" fallbackClassName="song-tile-empty" />
           ) : (
             <div className="song-tile-empty" aria-hidden="true" />
           )}

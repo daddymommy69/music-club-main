@@ -578,6 +578,14 @@ input {
   width: 100%;
   border-radius: 10px;
   overflow: hidden;
+}
+
+/* The bordered-card look stays ONLY on /releases' main grid (2026-10-07
+   — the founder's own call: it "looks great" there, but reads as an
+   extra frame everywhere else DropTile is reused — the drop-detail
+   hero and the account page's "Your tops" grid pass framed={false}
+   and skip this entirely). */
+.drop-tile-framed {
   border: 1px solid var(--ln);
   background: var(--fill);
 }
@@ -732,21 +740,26 @@ input {
    on phone. Taller target, bigger icon/text, and a solid accent fill
    once active (not just a soft tint) so "I already liked/saved this"
    reads at a glance instead of blending into the unselected state. */
+/* Revamped (2026-10-07, round 3): shorter (was 50px — "too tall"),
+   no border, and a soft translucent tint instead of the previous
+   solid-accent-fill active state ("too bright green") — still a real
+   button with its own fill so it reads as tappable, just much
+   quieter. */
 .drop-action-btn {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
-  height: 50px;
-  padding: 0 20px;
-  border-radius: 7px;
-  border: 1px solid var(--ln);
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: none;
   background: var(--fill);
   color: var(--fg);
   font-family: inherit;
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 500;
   cursor: pointer;
-  transition: transform 0.15s ease;
+  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 
 .drop-action-btn:hover {
@@ -758,9 +771,8 @@ input {
 }
 
 .drop-action-btn.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--bg);
+  background: var(--acc-soft);
+  color: var(--accent);
 }
 
 .tracklist-header {
@@ -770,7 +782,7 @@ input {
 }
 
 .track-row {
-  padding: 10px 0;
+  padding: 6px 0;
   border-bottom: 1px solid var(--ln);
 }
 
@@ -864,7 +876,7 @@ input {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: 3px;
   flex-shrink: 0;
 }
 
