@@ -770,7 +770,7 @@ input {
 }
 
 .track-row {
-  padding: 14px 0;
+  padding: 10px 0;
   border-bottom: 1px solid var(--ln);
 }
 
@@ -779,13 +779,15 @@ input {
 }
 
 /* The numbered-row + artwork-swatch treatment (2026-10 release-page
-   redesign — see claude/next-build.md) — a horizontal line above the
-   title/credit/like-button meta row and the per-song embed below it. */
+   redesign — see claude/next-build.md). No bottom margin (2026-10-07
+   — tightened up now that the per-song embed that used to sit below
+   this row is gone and the like/rating controls lost their border;
+   this is the row's only content now, so .track-row's own padding is
+   all the vertical spacing it needs). */
 .track-row-top {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-bottom: 8px;
 }
 
 .track-row-num {
@@ -868,17 +870,17 @@ input {
 
 /* Same plain, borderless treatment as .like-btn (2026-10-07 — see
    that rule's own comment), just with 5 small stars instead of a
-   heart, so the two controls still genuinely match stacked on top of
-   each other. */
+   heart, sized up the same notch so the two controls still genuinely
+   match stacked on top of each other. */
 .song-rate-control {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  height: 22px;
+  height: 24px;
   padding: 0;
   background: none;
   border: none;
-  font-size: 12px;
+  font-size: 14px;
   color: var(--ln);
 }
 
@@ -887,7 +889,7 @@ input {
   border: none;
   padding: 0;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1;
   color: inherit;
 }
@@ -898,7 +900,7 @@ input {
 
 .song-rate-avg {
   margin-left: 4px;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--mut);
 }
 
@@ -1342,18 +1344,20 @@ input {
    call: the bordered-oval treatment looked bad stacked next to the
    star rating, drop it and keep just the icon + count). Still a real
    tappable control, just plain — color alone carries the liked
-   state. */
+   state. Sized up a notch from its first borderless pass (2026-10-07
+   round 2 — "make likes/stars a little bigger" now that the tighter
+   track rows have the room for it). */
 .like-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 22px;
+  height: 24px;
   padding: 0;
   background: none;
   border: none;
   cursor: pointer;
   font-family: inherit;
-  font-size: 11.5px;
+  font-size: 13px;
   color: var(--mut);
 }
 
