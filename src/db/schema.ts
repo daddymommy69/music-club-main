@@ -498,6 +498,62 @@ export const memberFavorites = pgTable(
   ],
 );
 
+/**
+ * A member's 1-5 rating for a single song (2026-10-07 "Browse" round —
+ * see claude/next-build.md). Same upsertable one-per-member-per-row
+ * shape as dropRatings above, just scoped to a song instead of a whole
+ * drop — the founder wants a song's own rating to show "everywhere"
+ * (track rows, Browse), not just the whole-drop rating.
+ */
+export const songRatings = pgTable(
+  "song_ratings",
+  {
+    id: serial("id").primaryKey(),
+    songId: integer("song_id")
+      .notNull()
+      .references(() => songs.id, { onDelete: "cascade" }),
+    memberId: integer("member_id")
+      .notNull()
+      .references(() => members.id, { onDelete: "cascade" }),
+    rating: integer("rating").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [unique().on(table.songId, table.memberId)],
+);
+
+/**
+ * Best-effort cache of "this free-text artist name -> this real Spotify
+ * artist" (2026-10-07 "Browse" round — see claude/next-build.md).
+ * Deliberately NOT club-scoped, unlike almost everything else in this
+ * file (see this file's own header comment on that being normally
+ * non-negotiable): a real-world artist is the same artist regardless of
+ * which club's songs reference them, so caching by name alone is
+ * correct and lets a future second club reuse the same lookup instead
+ * of re-querying Spotify for an identical name. Best-effort / no
+ * override tooling yet (founder's own call, 2026-10-07): if a free-text
+ * name happens to collide with a different real-world artist of the
+ * same name, this just caches whichever one Spotify's search ranks
+ * first — fixable later by deleting the row to force a re-fetch, not
+ * by any UI yet.
+ */
+export const artistSpotifyCache = pgTable("artist_spotify_cache", {
+  id: serial("id").primaryKey(),
+  // Trimmed + lowercased (src/lib/normalize.ts's normalizeArtistName) —
+  // the same free-text matching key used everywhere else an artist is
+  // grouped, since songs.artist has no real FK/entity behind it.
+  normalizedName: text("normalized_name").notNull().unique(),
+  spotifyArtistId: text("spotify_artist_id"),
+  photoUrl: text("photo_url"),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export type Club = typeof clubs.$inferSelect;
 export type NewClub = typeof clubs.$inferInsert;
 export type Drop = typeof drops.$inferSelect;
@@ -526,6 +582,10 @@ export type DropRating = typeof dropRatings.$inferSelect;
 export type NewDropRating = typeof dropRatings.$inferInsert;
 export type MemberFavorite = typeof memberFavorites.$inferSelect;
 export type NewMemberFavorite = typeof memberFavorites.$inferInsert;
+export type SongRating = typeof songRatings.$inferSelect;
+export type NewSongRating = typeof songRatings.$inferInsert;
+export type ArtistSpotifyCache = typeof artistSpotifyCache.$inferSelect;
+export type NewArtistSpotifyCache = typeof artistSpotifyCache.$inferInsert;
 
 /** Public-safe song shape — never includes submittedBy. */
 export type PublicSong = Omit<Song, "submittedBy">;
