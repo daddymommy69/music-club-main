@@ -13,6 +13,25 @@ export type OdesliMetadata = {
   artworkUrl: string | null;
 };
 
+/**
+ * The actual bug behind every "artwork still has a white frame" report
+ * this round (2026-10-07 — see claude/next-build.md): for an Apple
+ * Music entity, Odesli's thumbnailUrl is sometimes mzstatic's 1200x630
+ * "wp" link-preview crop (the wide image Apple generates for social/
+ * link-preview cards), not the square album cover — a genuinely
+ * non-square source image that no amount of CSS (object-fit: cover
+ * included) can turn square without cropping content away. mzstatic
+ * URLs end with their size/crop directive as its own path segment
+ * (".../hash/track.jpg/1200x630wp-60.jpg"), and that segment can be
+ * swapped for a square one to re-request the SAME underlying image,
+ * just cropped square instead — a safe no-op on any URL that doesn't
+ * match this exact shape (Spotify's i.scdn.co URLs, square mzstatic
+ * "bb" URLs already, etc.).
+ */
+function squareArtworkUrl(url: string): string {
+  return url.replace(/\/\d+x\d+(?:bb|wp)(?:-\d+)?\.(jpg|png)$/i, "/600x600bb.$1");
+}
+
 export async function resolveSongMetadata(url: string): Promise<OdesliMetadata | null> {
   try {
     const res = await fetch(
@@ -38,7 +57,7 @@ export async function resolveSongMetadata(url: string): Promise<OdesliMetadata |
     return {
       title: entity.title,
       artist: entity.artistName,
-      artworkUrl: entity.thumbnailUrl ?? null,
+      artworkUrl: entity.thumbnailUrl ? squareArtworkUrl(entity.thumbnailUrl) : null,
     };
   } catch {
     return null;

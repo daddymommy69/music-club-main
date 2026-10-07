@@ -31,8 +31,12 @@ export async function resolveAndSubmitListenerPick(params: {
    * claude/next-build.md): a song picked from Browse's live Spotify
    * search already has real artwork from that search result, so there's
    * no need to wait on Odesli (dead) or the ship-time auto-build backfill
-   * to fill it in later. Ignored when Odesli does resolve metadata (rare,
-   * but its artwork would be at least as fresh). */
+   * to fill it in later. Preferred OVER Odesli's own artwork when both
+   * are available (2026-10-07, round 4 — the actual "artwork still has
+   * a frame" bug: Odesli's Apple Music thumbnailUrl is sometimes a
+   * 1200x630 wide link-preview crop, not the square cover — square-crop
+   * it in odesli.ts too, but a known-square Spotify-search result
+   * should win outright rather than risk that whenever both exist). */
   artworkUrl?: string | null;
 }): Promise<ResolveListenerPickResult> {
   const metadata = await resolveSongMetadata(params.link);
@@ -47,7 +51,7 @@ export async function resolveAndSubmitListenerPick(params: {
       needsManualMetadata: true,
     };
   }
-  const artworkUrl = metadata?.artworkUrl ?? params.artworkUrl ?? null;
+  const artworkUrl = params.artworkUrl ?? metadata?.artworkUrl ?? null;
 
   const existing = await getListenerPick(params.dropId, params.memberId);
   if (existing) {
