@@ -38,7 +38,7 @@ export default async function SettingsPage({
 
   return (
     <main className="shell page">
-      <Link href="/" className="wordmark" style={{ display: "block", marginBottom: 4 }}>
+      <Link href="/releases" className="wordmark" style={{ display: "block", marginBottom: 4 }}>
         {club.name}
       </Link>
       <p className="mut" style={{ fontSize: 11.5, marginBottom: 16 }}>

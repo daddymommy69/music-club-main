@@ -1,14 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import RoleName from "./RoleName";
 import ListenerPickForm from "./ListenerPickForm";
 import RateDropControl from "./RateDropControl";
+import DropTile from "./DropTile";
 import CuratorToolsPanel, { type CuratorToolsPanelProps } from "./CuratorToolsPanel";
-import { formatDropMonth } from "@/lib/format";
-import { formatRelativeTime } from "@/lib/relativeTime";
-import { useDirtyField } from "@/lib/useDirtyField";
 
 type Member = { id: number; name: string | null; bio: string | null; isCurator: boolean };
 type OpenDrop = { num: number; title: string | null } | null;
@@ -25,19 +24,22 @@ type SubmissionRow = {
 };
 
 type LeaderboardRow = { memberId: number; name: string; isCurator: boolean; pickCount: number };
-type PublishedDrop = { id: number; num: number; title: string | null; publishedAt: string };
+type PublishedDrop = { id: number; num: number; title: string | null; publishedAt: string; artworkUrls: string[] };
 
-type ActivityRow =
-  | { kind: "song-like"; at: string; songId: number; title: string; artist: string; dropNum: number }
-  | { kind: "drop-like"; at: string; dropId: number; dropNum: number; dropTitle: string | null }
-  | { kind: "drop-save"; at: string; dropId: number; dropNum: number; dropTitle: string | null };
+type LikedSong = {
+  songId: number;
+  title: string;
+  artist: string;
+  artworkUrl: string | null;
+  dropNum: number;
+};
 
 type AccountBoardProps = {
   member: Member;
   openDrop: OpenDrop;
   listenerPick: ListenerPick;
   submissionHistory: SubmissionRow[];
-  activity: ActivityRow[];
+  likedSongs: LikedSong[];
   leaderboard: LeaderboardRow[];
   publishedDrops: PublishedDrop[];
   favoriteDropIds: number[];
@@ -50,7 +52,7 @@ export default function AccountBoard({
   openDrop,
   listenerPick,
   submissionHistory,
-  activity,
+  likedSongs,
   leaderboard,
   publishedDrops,
   favoriteDropIds,
@@ -82,20 +84,16 @@ export default function AccountBoard({
         <SubmissionHistory rows={submissionHistory} />
       </Section>
 
-      <Section label="Your activity">
-        <ActivityList rows={activity} />
+      <Section label="Liked songs">
+        <LikedSongsGrid songs={likedSongs} />
       </Section>
 
       <Section label="Leaderboard">
         <Leaderboard rows={leaderboard} />
       </Section>
 
-      <Section label="Favorite drops">
-        <FavoritesPicker drops={publishedDrops} initialFavoriteIds={favoriteDropIds} />
-      </Section>
-
-      <Section label="Your ratings">
-        <RatingsList drops={publishedDrops} myRatings={myRatings} />
+      <Section label="Your tops">
+        <TopsGrid drops={publishedDrops} initialFavoriteIds={favoriteDropIds} myRatings={myRatings} />
       </Section>
 
       {/* Moved here from the standalone /room + /overview pages
@@ -126,11 +124,37 @@ function Section({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-/** Name (role-colored) + an inline-editable bio, same dirty-state Save pattern as /room's curator note and /settings' club rename. */
+/**
+ * Instagram-style profile editor (2026-10-07 — see claude/next-build.md):
+ * static name + bio by default, a small "Edit" trigger opens both
+ * fields inline together with Save/Cancel. Name is real-editable here
+ * for the first time — it previously had no edit path anywhere, only
+ * ever set once at signup. No validation on either field, per the
+ * founder's explicit "no guardrails" call.
+ */
 function ProfileCard({ member }: { member: Member }) {
-  const { value: bio, setValue: setBio, setSaved, dirty } = useDirtyField(member.bio ?? "");
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(member.name ?? "");
+  const [bio, setBio] = useState(member.bio ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const bioRef = useRef<HTMLTextAreaElement>(null);
+
+  function startEditing() {
+    setName(member.name ?? "");
+    setBio(member.bio ?? "");
+    setError(null);
+    setEditing(true);
+    // Auto-grow the bio box to whatever's already in it, not just
+    // whatever gets typed next.
+    requestAnimationFrame(() => autoGrow(bioRef.current));
+  }
+
+  function autoGrow(el: HTMLTextAreaElement | null) {
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }
 
   async function save() {
     setSaving(true);
@@ -139,49 +163,79 @@ function ProfileCard({ member }: { member: Member }) {
       const res = await fetch("/api/account/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bio }),
+        body: JSON.stringify({ name, bio }),
       });
       if (res.ok) {
-        setSaved(bio);
+        member.name = name.trim() || null;
+        member.bio = bio.trim() || null;
+        setEditing(false);
       } else {
         const data = await res.json().catch(() => ({}));
-        setError(data.error ?? "Couldn't save your bio. Try again.");
+        setError(data.error ?? "Couldn't save your profile. Try again.");
       }
     } catch {
-      setError("Couldn't save your bio. Try again.");
+      setError("Couldn't save your profile. Try again.");
     } finally {
       setSaving(false);
     }
   }
 
-  return (
-    <div style={{ marginBottom: 30 }}>
-      <div style={{ fontSize: 15, marginBottom: 10 }}>
-        {/* Bug fix (2026-10 account consolidation, flagged by the founder
-            as "weird wording" — see claude/next-build.md): this used to
-            fall back to the literal word "You", run through RoleName,
-            which colors it gold/teal exactly like a real curator/member
-            name — so a member who hadn't set a name saw what looked like
-            someone actually named "You". Falling back to plain, uncolored
-            copy instead makes clear it's a placeholder, not a name. */}
-        {member.name?.trim() ? (
-          <RoleName name={member.name.trim()} isCurator={member.isCurator} />
-        ) : (
-          <span className="mut">You haven&rsquo;t set a name yet</span>
-        )}
+  if (!editing) {
+    return (
+      <div style={{ marginBottom: 30, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14 }}>
+        <div>
+          <div style={{ fontSize: 15, marginBottom: 6 }}>
+            {/* Bug fix (2026-10 account consolidation, flagged by the
+                founder as "weird wording"): this used to fall back to
+                the literal word "You", run through RoleName, which
+                colors it gold/teal exactly like a real curator/member
+                name. Falling back to plain, uncolored copy instead
+                makes clear it's a placeholder, not a name. */}
+            {member.name?.trim() ? (
+              <RoleName name={member.name.trim()} isCurator={member.isCurator} />
+            ) : (
+              <span className="mut">You haven&rsquo;t set a name yet</span>
+            )}
+          </div>
+          <p className="mut" style={{ fontSize: 12.5, lineHeight: 1.6 }}>
+            {member.bio?.trim() || "No bio yet."}
+          </p>
+        </div>
+        <button type="button" className="link-btn" style={{ flexShrink: 0 }} onClick={startEditing}>
+          Edit
+        </button>
       </div>
+    );
+  }
+
+  return (
+    <div style={{ marginBottom: 30 }} className="gz-up">
+      <label style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
+        <span className="mut" style={{ fontSize: 11.5 }}>
+          Name
+        </span>
+        <input
+          type="text"
+          className="settings-input"
+          placeholder="Your name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+      </label>
       <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <span className="mut" style={{ fontSize: 11.5 }}>
           Bio
         </span>
         <textarea
+          ref={bioRef}
           className="settings-input"
-          style={{ minHeight: 72, resize: "vertical", padding: "10px 12px", lineHeight: 1.6 }}
+          style={{ resize: "none", overflow: "hidden", padding: "10px 12px", lineHeight: 1.6, minHeight: 44 }}
           placeholder="A short line about you"
           value={bio}
           onChange={(e) => {
             setBio(e.target.value);
             setError(null);
+            autoGrow(e.target);
           }}
         />
       </label>
@@ -190,17 +244,28 @@ function ProfileCard({ member }: { member: Member }) {
           {error}
         </p>
       )}
-      {dirty && (
+      <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
         <button
           type="button"
           className="btn"
-          style={{ width: "auto", minHeight: 36, height: 36, padding: "0 14px", fontSize: 12, marginTop: 10 }}
+          style={{ width: "auto", minHeight: 36, height: 36, padding: "0 14px", fontSize: 12 }}
           disabled={saving}
           onClick={save}
         >
           {saving ? "Saving…" : "Save"}
         </button>
-      )}
+        <button
+          type="button"
+          className="link-btn"
+          disabled={saving}
+          onClick={() => {
+            setError(null);
+            setEditing(false);
+          }}
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }
@@ -227,42 +292,34 @@ function SubmissionHistory({ rows }: { rows: SubmissionRow[] }) {
 }
 
 /**
- * "Your activity" (2026-10 account consolidation — see
- * claude/next-build.md): the founder's own report that liking/saving
- * stuff didn't show up anywhere on /account. Merges three previously-
- * invisible actions (song likes, whole-drop likes, whole-drop saves —
- * src/lib/activity.ts) into one reverse-chronological list, same
- * `formatRelativeTime` labels /room already uses for its stream view.
+ * "Liked songs" (2026-10-07 — see claude/next-build.md): replaces the
+ * old "Your activity" text feed, which the founder decided against —
+ * he wants just the songs he's liked, shown as artwork, art only, no
+ * captions (explicitly confirmed). Same grid rhythm as /releases'
+ * .archive-grid so the two artwork grids on this page read as one
+ * visual language. Not clickable yet — a future "artist page" link is
+ * a separate, not-yet-built feature (see claude/next-build.md).
  */
-function ActivityList({ rows }: { rows: ActivityRow[] }) {
-  if (rows.length === 0) {
+function LikedSongsGrid({ songs }: { songs: LikedSong[] }) {
+  if (songs.length === 0) {
     return (
       <p className="mut" style={{ fontSize: 12.5 }}>
-        Nothing yet — liked songs and saved or liked drops will show up here.
+        Nothing liked yet — songs you like will show up here as artwork.
       </p>
     );
   }
   return (
-    <div className="roster-list">
-      {rows.map((row) => (
-        <div
-          className="roster-row"
-          key={`${row.kind}-${row.kind === "song-like" ? row.songId : row.dropId}`}
-        >
-          <span className="roster-name">
-            {row.kind === "song-like" && (
-              <>
-                You liked &ldquo;{row.title}&rdquo; — {row.artist}
-              </>
-            )}
-            {row.kind === "drop-like" && (
-              <>You liked {row.dropTitle ?? `drop ${row.dropNum}`}</>
-            )}
-            {row.kind === "drop-save" && (
-              <>You saved {row.dropTitle ?? `drop ${row.dropNum}`}</>
-            )}
-          </span>
-          <span className="roster-meta">{formatRelativeTime(new Date(row.at))}</span>
+    <div className="archive-grid">
+      {songs.map((song) => (
+        <div key={song.songId} className="song-tile" title={`${song.title} — ${song.artist}`}>
+          {song.artworkUrl ? (
+            // External Apple/Spotify CDN art — not worth configuring
+            // next/image's remotePatterns for, same call as DropTile.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={song.artworkUrl} alt="" loading="lazy" />
+          ) : (
+            <div className="song-tile-empty" aria-hidden="true" />
+          )}
         </div>
       ))}
     </div>
@@ -291,15 +348,31 @@ function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
 
 const MAX_FAVORITES = 5;
 
-/** Click a drop to add it to your showcase (in click order), click again to remove — settable, not drag-reorderable, per the build's "reorderable or at least settable" allowance. */
-function FavoritesPicker({ drops, initialFavoriteIds }: { drops: PublishedDrop[]; initialFavoriteIds: number[] }) {
+/**
+ * "Your tops" (2026-10-07 — see claude/next-build.md): merges what
+ * used to be two separate sections ("Favorite drops" picker and "Your
+ * ratings" list) into one artwork grid — the founder's own call after
+ * seeing them side by side ("i dont need an activity feed... but i do
+ * [want] the account page to show your likes and ratings like star
+ * systems, and show your tops like that"). Each tile is the same
+ * DropTile used on /releases, clickable through to the drop itself,
+ * with the star rating and the showcase toggle inline underneath so
+ * both actions live on the one tile instead of two separate lists.
+ */
+function TopsGrid({
+  drops,
+  initialFavoriteIds,
+  myRatings,
+}: {
+  drops: PublishedDrop[];
+  initialFavoriteIds: number[];
+  myRatings: Record<number, number>;
+}) {
   const [favoriteIds, setFavoriteIds] = useState(initialFavoriteIds);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function save(next: number[]) {
+  async function saveFavorites(next: number[]) {
     setFavoriteIds(next);
-    setSaving(true);
     setError(null);
     try {
       const res = await fetch("/api/account/favorites", {
@@ -311,84 +384,51 @@ function FavoritesPicker({ drops, initialFavoriteIds }: { drops: PublishedDrop[]
         const data = await res.json().catch(() => ({}));
         setError(data.error ?? "Couldn't save your favorites.");
       }
-    } finally {
-      setSaving(false);
+    } catch {
+      setError("Couldn't save your favorites.");
     }
   }
 
-  function toggle(dropId: number) {
+  function toggleFavorite(dropId: number) {
     if (favoriteIds.includes(dropId)) {
-      save(favoriteIds.filter((id) => id !== dropId));
+      saveFavorites(favoriteIds.filter((id) => id !== dropId));
       return;
     }
     if (favoriteIds.length >= MAX_FAVORITES) {
       setError(`You can only showcase ${MAX_FAVORITES} drops — remove one first.`);
       return;
     }
-    save([...favoriteIds, dropId]);
+    saveFavorites([...favoriteIds, dropId]);
   }
 
   if (drops.length === 0) {
-    return <p className="mut" style={{ fontSize: 12.5 }}>No shipped drops to pick from yet.</p>;
+    return <p className="mut" style={{ fontSize: 12.5 }}>No shipped drops yet.</p>;
   }
 
   return (
     <div>
-      <p className="mut" style={{ fontSize: 11.5, marginBottom: 10 }}>
-        Pick up to {MAX_FAVORITES}. {saving && "Saving…"}
-      </p>
       {error && <p className="notice error" style={{ marginBottom: 10 }}>{error}</p>}
-      <div className="roster-list">
+      <div className="archive-grid">
         {drops.map((drop) => {
-          const slot = favoriteIds.indexOf(drop.id);
-          const isFavorite = slot !== -1;
+          const isFavorite = favoriteIds.includes(drop.id);
           return (
-            <button
-              key={drop.id}
-              type="button"
-              onClick={() => toggle(drop.id)}
-              className="roster-row"
-              style={{
-                width: "100%",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                textAlign: "left",
-                color: isFavorite ? "var(--accent)" : "inherit",
-              }}
-            >
-              <span className="roster-name">
-                {isFavorite ? `${slot + 1}. ` : ""}
-                {drop.title ?? `Drop ${drop.num}`}
-              </span>
-              <span className="roster-meta">{formatDropMonth(new Date(drop.publishedAt))}</span>
-            </button>
+            <div key={drop.id} className="drop-card-wrap">
+              <Link href={`/drop/${drop.num}`} className="drop-card">
+                <DropTile num={drop.num} artworkUrls={drop.artworkUrls} />
+              </Link>
+              <div className="tops-tile-title">{drop.title ?? `Drop ${drop.num}`}</div>
+              <RateDropControl dropId={drop.id} initialRating={myRatings[drop.id] ?? null} />
+              <button
+                type="button"
+                className={`tops-fav-toggle${isFavorite ? " active" : ""}`}
+                onClick={() => toggleFavorite(drop.id)}
+              >
+                {isFavorite ? "✓ Showcased" : "+ Showcase"}
+              </button>
+            </div>
           );
         })}
       </div>
-    </div>
-  );
-}
-
-// Reuses RateDropControl (the same widget the release page uses)
-// instead of its own star-row — this used to reimplement the same
-// 1-5 rating UI against the identical /api/account/rating endpoint
-// with its own, less complete version of the logic (no real error
-// handling), a second copy to keep in sync for no reason (2026-10-06
-// QA sweep finding).
-function RatingsList({ drops, myRatings }: { drops: PublishedDrop[]; myRatings: Record<number, number> }) {
-  if (drops.length === 0) {
-    return <p className="mut" style={{ fontSize: 12.5 }}>No shipped drops to rate yet.</p>;
-  }
-
-  return (
-    <div className="roster-list">
-      {drops.map((drop) => (
-        <div className="roster-row" key={drop.id}>
-          <span className="roster-name">{drop.title ?? `Drop ${drop.num}`}</span>
-          <RateDropControl dropId={drop.id} initialRating={myRatings[drop.id] ?? null} />
-        </div>
-      ))}
     </div>
   );
 }

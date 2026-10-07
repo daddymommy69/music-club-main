@@ -18,7 +18,13 @@ export default function SiteHeader() {
   return (
     <header style={{ padding: "28px 0 0" }}>
       <div className="col" style={{ padding: 0 }}>
-        <div className="wordmark">project music club</div>
+        {/* Clickable (2026-10-07 — see claude/next-build.md): the
+            founder's own "it should link back to releases from
+            everywhere" ask. Always /releases, not "/", since "/" is
+            just a redirect to it anyway. */}
+        <Link href="/releases" className="wordmark">
+          project music club
+        </Link>
         <p className="mut" style={{ fontSize: 11.5, marginTop: 4 }}>
           A shared playlist, sent to you.
         </p>

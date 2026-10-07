@@ -9,14 +9,14 @@ import { getOverviewData } from "@/lib/overview";
 import { getTargetDropForTop10, getTop10Summary } from "@/lib/top10Data";
 import { getListenerPick } from "@/lib/listenerPicks";
 import { getMemberSubmissionHistory } from "@/lib/memberProfile";
-import { getMemberActivity } from "@/lib/activity";
+import { getMemberLikedSongs } from "@/lib/songLikes";
 import { getLeaderboard } from "@/lib/leaderboard";
 import { getPublishedDrops } from "@/lib/archive";
 import { getMemberFavorites } from "@/lib/favorites";
 import { getMemberDropRatings } from "@/lib/ratings";
 import type { Club, Drop } from "@/db/schema";
 
-const ACTIVITY_LIMIT = 20;
+const LIKED_SONGS_LIMIT = 20;
 
 /**
  * Everything the embedded curator workspace (CuratorToolsPanel) needs,
@@ -176,13 +176,14 @@ export default async function AccountPage() {
               openDrop={openDrop ? { num: openDrop.num, title: openDrop.title } : null}
               listenerPick={null}
               submissionHistory={[]}
-              activity={[]}
+              likedSongs={[]}
               leaderboard={leaderboard}
               publishedDrops={publishedDrops.map((d) => ({
                 id: d.id,
                 num: d.num,
                 title: d.title,
                 publishedAt: d.publishedAt.toISOString(),
+                artworkUrls: d.artworkUrls,
               }))}
               favoriteDropIds={[]}
               myRatings={{}}
@@ -197,11 +198,11 @@ export default async function AccountPage() {
   const openDrop = await getOpenDrop(club);
   const publishedDrops = await getPublishedDrops(club.id);
 
-  const [listenerPick, submissionHistory, activity, leaderboard, favorites, myRatings, curatorTools] =
+  const [listenerPick, submissionHistory, likedSongs, leaderboard, favorites, myRatings, curatorTools] =
     await Promise.all([
       openDrop ? getListenerPick(openDrop.id, member.id) : Promise.resolve(null),
       getMemberSubmissionHistory(member.id),
-      getMemberActivity(member.id, ACTIVITY_LIMIT),
+      getMemberLikedSongs(member.id, LIKED_SONGS_LIMIT),
       getLeaderboard(club.id),
       getMemberFavorites(member.id),
       getMemberDropRatings(member.id, publishedDrops.map((d) => d.id)),
@@ -240,30 +241,20 @@ export default async function AccountPage() {
             dropTitle: row.dropTitle,
             publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
           }))}
-          activity={activity.map((row) =>
-            row.kind === "song-like"
-              ? {
-                  kind: "song-like" as const,
-                  at: row.at.toISOString(),
-                  songId: row.songId,
-                  title: row.title,
-                  artist: row.artist,
-                  dropNum: row.dropNum,
-                }
-              : {
-                  kind: row.kind,
-                  at: row.at.toISOString(),
-                  dropId: row.dropId,
-                  dropNum: row.dropNum,
-                  dropTitle: row.dropTitle,
-                }
-          )}
+          likedSongs={likedSongs.map((song) => ({
+            songId: song.songId,
+            title: song.title,
+            artist: song.artist,
+            artworkUrl: song.artworkUrl,
+            dropNum: song.dropNum,
+          }))}
           leaderboard={leaderboard}
           publishedDrops={publishedDrops.map((d) => ({
             id: d.id,
             num: d.num,
             title: d.title,
             publishedAt: d.publishedAt.toISOString(),
+            artworkUrls: d.artworkUrls,
           }))}
           favoriteDropIds={favorites.map((f) => f.dropId)}
           myRatings={Object.fromEntries(myRatings)}

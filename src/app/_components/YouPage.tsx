@@ -84,7 +84,11 @@ export default function YouPage({
 
   return (
     <div className="gz-up">
-      <div className="wordmark">{clubName}</div>
+      {/* Clickable (2026-10-07 — see claude/next-build.md), same as
+          every other wordmark on the site — always goes to /releases. */}
+      <Link href="/releases" className="wordmark">
+        {clubName}
+      </Link>
       <p className="mut" style={{ fontSize: 11.5, marginTop: 4, marginBottom: 24 }}>
         for {name?.trim() || "you"} · sent by {channel}
       </p>

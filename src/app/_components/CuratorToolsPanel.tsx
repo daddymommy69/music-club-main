@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { isValidMusicLink } from "@/lib/musicLink";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import { useDirtyField } from "@/lib/useDirtyField";
@@ -110,23 +110,42 @@ export default function CuratorToolsPanel({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"columns" | "stream">("columns");
+  const panelRef = useRef<HTMLDivElement>(null);
 
   function refresh() {
     router.refresh();
   }
 
+  // Fixes the founder's "opens in different positions, closes weird"
+  // report (2026-10-07 — see claude/next-build.md): toggling used to
+  // just snap the content in/out with no animation and no regard for
+  // where the panel ended up on screen afterward. Now both directions
+  // anchor the scroll position back to this panel's own header, so
+  // opening never leaves you staring at the wrong part of the page and
+  // closing never strands you somewhere the now-shorter page doesn't
+  // make sense from.
+  function toggle() {
+    setOpen((o) => !o);
+    requestAnimationFrame(() => {
+      panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
   return (
-    <div className="acc-panel" style={{ marginBottom: 30 }}>
+    <div className="acc-panel" style={{ marginBottom: 30 }} ref={panelRef}>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="link-btn"
+        onClick={toggle}
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           width: "100%",
           padding: 0,
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          fontFamily: "inherit",
         }}
         aria-expanded={open}
       >
@@ -139,7 +158,7 @@ export default function CuratorToolsPanel({
       </button>
 
       {open && (
-        <div style={{ marginTop: 18 }}>
+        <div className="gz-up" style={{ marginTop: 18 }}>
           <div className="stat-row gz-up">
             <Stat label="Drop" value={String(dropNum)} />
             <Stat label="Remaining" value={timeLabel(isManual, daysUntilNext)} />

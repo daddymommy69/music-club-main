@@ -129,6 +129,12 @@ input {
   font-weight: 700;
   font-size: 15px;
   letter-spacing: -0.03em;
+  /* Clickable everywhere it appears (2026-10-07 fix — see
+     claude/next-build.md): every usage now wraps this in a <Link>, so
+     it needs its own block display rather than relying on the <div>
+     it used to always be. `a { color: inherit; text-decoration: none }`
+     already covers the rest — no visual change, just real navigation. */
+  display: block;
 }
 
 .label {
@@ -1276,6 +1282,68 @@ input {
 .like-btn.liked {
   background: var(--acc-soft);
   border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ---------- /account grids: liked songs, your tops ---------- */
+
+/* A square song-art tile for the "Liked songs" grid (2026-10-07 — see
+   claude/next-build.md). Same box treatment as .drop-tile (radius,
+   border, aspect-ratio) so the two grids on this page read as one
+   visual language, just a single image fill instead of a 2x2 collage
+   — these are individual songs, not drops. */
+.song-tile {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--ln);
+  background: var(--fill);
+}
+
+.song-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Same gradient formula as .track-row-art-empty, so a liked song with
+   no artwork fills in with exactly the fallback the rest of the app
+   already uses, not a new one. */
+.song-tile-empty {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--accent) 45%, transparent),
+    color-mix(in oklab, var(--accent) 12%, transparent)
+  );
+}
+
+/* "Your tops" grid tile: a drop's artwork (via DropTile) plus its
+   title and the two controls underneath — click to rate, and a small
+   separate toggle to showcase it in your top 5 favorites. */
+.tops-tile-title {
+  font-size: 12px;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  margin: 10px 0 8px;
+}
+
+.tops-fav-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--mut);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.tops-fav-toggle.active {
   color: var(--accent);
 }
 

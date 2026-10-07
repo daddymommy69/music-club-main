@@ -2,13 +2,25 @@ import { and, desc, eq, or } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { songs, drops, members } from "@/db/schema";
 
-/** /account's profile-bio edit (2026-10 "next build" decision — see claude/next-build.md). Blank clears it back to null rather than storing an empty string. */
-export async function updateMemberBio(memberId: number, bio: string): Promise<void> {
+/**
+ * /account's profile editor (2026-10 "next build" decision; extended
+ * 2026-10-07 to also cover the member's own name — see
+ * claude/next-build.md: name had no edit path anywhere before this,
+ * it was only ever set once at signup). Blank clears either field back
+ * to null rather than storing an empty string, same as bio always did.
+ * No validation beyond trimming — the founder explicitly asked for no
+ * guardrails here.
+ */
+export async function updateMemberProfile(
+  memberId: number,
+  changes: { name?: string; bio?: string }
+): Promise<void> {
   const db = getDb();
-  await db
-    .update(members)
-    .set({ bio: bio.trim() || null })
-    .where(eq(members.id, memberId));
+  const set: { name?: string | null; bio?: string | null } = {};
+  if (changes.name !== undefined) set.name = changes.name.trim() || null;
+  if (changes.bio !== undefined) set.bio = changes.bio.trim() || null;
+  if (Object.keys(set).length === 0) return;
+  await db.update(members).set(set).where(eq(members.id, memberId));
 }
 
 export type MemberSubmissionHistoryRow = {

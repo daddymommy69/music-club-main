@@ -1,6 +1,6 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { songLikes } from "@/db/schema";
+import { songLikes, songs, drops } from "@/db/schema";
 import { isUniqueViolation } from "./normalize";
 
 /**
@@ -64,4 +64,40 @@ export async function getMemberLikedSongIds(memberId: number, songIds: number[])
     .from(songLikes)
     .where(and(eq(songLikes.memberId, memberId), inArray(songLikes.songId, songIds)));
   return new Set(rows.map((r) => r.songId));
+}
+
+export type MemberLikedSong = {
+  songId: number;
+  title: string;
+  artist: string;
+  artworkUrl: string | null;
+  dropNum: number;
+  likedAt: Date;
+};
+
+/**
+ * A member's own liked songs, newest-liked first (2026-10-07 "Liked
+ * songs" grid — see claude/next-build.md). Replaces the earlier
+ * combined "Your activity" feed, which the founder decided against —
+ * he wants just this, shown as artwork, not a text log of every like/
+ * save action.
+ */
+export async function getMemberLikedSongs(memberId: number, limit: number): Promise<MemberLikedSong[]> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      songId: songs.id,
+      title: songs.title,
+      artist: songs.artist,
+      artworkUrl: songs.artworkUrl,
+      dropNum: drops.num,
+      likedAt: songLikes.createdAt,
+    })
+    .from(songLikes)
+    .innerJoin(songs, eq(songLikes.songId, songs.id))
+    .innerJoin(drops, eq(songs.dropId, drops.id))
+    .where(eq(songLikes.memberId, memberId))
+    .orderBy(desc(songLikes.createdAt))
+    .limit(limit);
+  return rows;
 }

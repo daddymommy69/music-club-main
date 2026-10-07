@@ -72,18 +72,10 @@ export default function DropDetail({
       )}
       <RateDropControl dropId={drop.id} initialRating={viewerRating ?? null} />
 
-      {/* Whole-drop Save/Like controls (2026-10 release-page redesign —
-          see claude/next-build.md) — distinct from the Spotify/Apple
-          Music "open the real playlist" links right below. */}
-      <div className="drop-controls-row">
-        <DropSaveButton dropId={drop.id} initialSaved={viewerDropSaved ?? false} />
-        <DropLikeButton
-          dropId={drop.id}
-          initialLiked={viewerDropLiked ?? false}
-          initialCount={drop.dropLikeCount}
-        />
-      </div>
-
+      {/* Listen links moved above the Save/Like row (2026-10-07 — see
+          claude/next-build.md): "open the real playlist" is the more
+          important first action on a drop page, so it leads; Save/Like
+          follow right under it rather than ahead of it. */}
       <div className="listen-row">
         {drop.spotifyUrl && (
           <a
@@ -105,6 +97,15 @@ export default function DropDetail({
             Apple Music ↗
           </a>
         )}
+      </div>
+
+      <div className="drop-controls-row">
+        <DropSaveButton dropId={drop.id} initialSaved={viewerDropSaved ?? false} />
+        <DropLikeButton
+          dropId={drop.id}
+          initialLiked={viewerDropLiked ?? false}
+          initialCount={drop.dropLikeCount}
+        />
       </div>
 
       <Tracklist songs={curatorSongs} likedSet={likedSet} />
