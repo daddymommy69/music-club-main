@@ -505,6 +505,15 @@ input {
   gap: 22px 16px;
 }
 
+/* "Liked songs" on /account only (2026-10-07 — the founder's own call:
+   about 25% smaller than the standard archive-grid cell). Same gap —
+   he said to leave the spacing as-is. */
+.archive-grid-sm {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 22px 16px;
+}
+
 .drop-card {
   display: block;
   min-width: 0;
@@ -586,6 +595,17 @@ input {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* Wraps each quadrant so a clickable-to-artist one (the hero tile only
+   — see DropTile.tsx) stays the exact same size as a plain one; the
+   `a` inside needs the same block/100% treatment since a link is
+   inline by default. */
+.drop-tile-quad-slot,
+.drop-tile-quad-slot a {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .drop-tile-quad-empty {
@@ -776,6 +796,19 @@ input {
   text-align: right;
 }
 
+/* Wraps the artwork so it links to the song's artist page (2026-10-07
+   — see claude/next-build.md) without changing its size — a link is
+   inline by default, so this needs the same block/40px/clip treatment
+   .track-row-art itself used to carry alone. */
+.track-row-art-link {
+  display: block;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
 .track-row-art {
   width: 40px;
   height: 40px;
@@ -820,6 +853,53 @@ input {
   color: var(--mut);
   flex-shrink: 0;
   white-space: nowrap;
+}
+
+/* Like + star rating, stacked and matching in size, right next to the
+   track's title/artist (2026-10-07 — replaces the below-row like
+   button + embedded player; see claude/next-build.md). */
+.track-row-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Same bordered-chip treatment as .like-btn, just with 5 small stars
+   instead of a heart, so the two controls genuinely match stacked on
+   top of each other. */
+.song-rate-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  padding: 0 10px;
+  background: transparent;
+  border: 1px solid var(--ln);
+  border-radius: 16px;
+  font-size: 12px;
+  color: var(--ln);
+}
+
+.song-rate-control button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  color: inherit;
+}
+
+.song-rate-control button.filled {
+  color: var(--accent);
+}
+
+.song-rate-avg {
+  margin-left: 4px;
+  font-size: 10px;
+  color: var(--mut);
 }
 
 /* Per-song embedded player — the iframe itself sets its own chrome, so
@@ -1287,19 +1367,18 @@ input {
 
 /* ---------- /account grids: liked songs, your tops ---------- */
 
-/* A square song-art tile for the "Liked songs" grid (2026-10-07 — see
-   claude/next-build.md). Same box treatment as .drop-tile (radius,
-   border, aspect-ratio) so the two grids on this page read as one
-   visual language, just a single image fill instead of a 2x2 collage
-   — these are individual songs, not drops. */
+/* A square song-art tile — "Liked songs" on /account, and the Songs
+   grid on /browse. No border or background fill (2026-10-07 — the
+   founder's own call: "just the artwork," no frame around it) — just
+   rounded corners, same radius as every other artwork tile, so it
+   still reads as one visual language without a box around it. */
 .song-tile {
+  display: block;
   position: relative;
   aspect-ratio: 1 / 1;
   width: 100%;
   border-radius: 10px;
   overflow: hidden;
-  border: 1px solid var(--ln);
-  background: var(--fill);
 }
 
 .song-tile img {

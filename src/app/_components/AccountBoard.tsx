@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { artistHref } from "@/lib/artistLink";
 import RoleName from "./RoleName";
 import ListenerPickForm from "./ListenerPickForm";
 import RateDropControl from "./RateDropControl";
@@ -293,12 +294,10 @@ function SubmissionHistory({ rows }: { rows: SubmissionRow[] }) {
 
 /**
  * "Liked songs" (2026-10-07 — see claude/next-build.md): replaces the
- * old "Your activity" text feed, which the founder decided against —
- * he wants just the songs he's liked, shown as artwork, art only, no
- * captions (explicitly confirmed). Same grid rhythm as /releases'
- * .archive-grid so the two artwork grids on this page read as one
- * visual language. Not clickable yet — a future "artist page" link is
- * a separate, not-yet-built feature (see claude/next-build.md).
+ * old "Your activity" text feed. Art only, no captions, no border/
+ * background box (founder's own call), smaller cells than the standard
+ * archive grid (.archive-grid-sm — about 25% smaller). Each tile links
+ * to that song's artist page now that Browse/artist pages exist.
  */
 function LikedSongsGrid({ songs }: { songs: LikedSong[] }) {
   if (songs.length === 0) {
@@ -309,9 +308,14 @@ function LikedSongsGrid({ songs }: { songs: LikedSong[] }) {
     );
   }
   return (
-    <div className="archive-grid">
+    <div className="archive-grid-sm">
       {songs.map((song) => (
-        <div key={song.songId} className="song-tile" title={`${song.title} — ${song.artist}`}>
+        <Link
+          key={song.songId}
+          href={artistHref(song.artist)}
+          className="song-tile"
+          title={`${song.title} — ${song.artist}`}
+        >
           {song.artworkUrl ? (
             // External Apple/Spotify CDN art — not worth configuring
             // next/image's remotePatterns for, same call as DropTile.
@@ -320,7 +324,7 @@ function LikedSongsGrid({ songs }: { songs: LikedSong[] }) {
           ) : (
             <div className="song-tile-empty" aria-hidden="true" />
           )}
-        </div>
+        </Link>
       ))}
     </div>
   );

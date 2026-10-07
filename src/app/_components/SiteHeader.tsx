@@ -8,7 +8,7 @@ import { usePathname } from "next/navigation";
 // needs to match real routes.
 const NAV_ITEMS = [
   { href: "/releases", label: "Releases" },
-  { href: "/submit", label: "Submit a song" },
+  { href: "/browse", label: "Browse" },
   { href: "/account", label: "Account" },
 ];
 

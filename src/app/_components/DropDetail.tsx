@@ -1,9 +1,11 @@
+import Link from "next/link";
 import type { PublicDropDetail, PublicSongRow } from "@/lib/archive";
 import { formatDropMonth } from "@/lib/format";
+import { artistHref } from "@/lib/artistLink";
 import CloseButton from "./CloseButton";
 import DropTile from "./DropTile";
-import SongEmbed from "./SongEmbed";
 import LikeButton from "./LikeButton";
+import SongRatingControl from "./SongRatingControl";
 import DropLikeButton from "./DropLikeButton";
 import DropSaveButton from "./DropSaveButton";
 import RateDropControl from "./RateDropControl";
@@ -17,6 +19,7 @@ export default function DropDetail({
   viewerRating,
   viewerDropLiked,
   viewerDropSaved,
+  viewerSongRatings,
 }: {
   drop: PublicDropDetail;
   closable?: boolean;
@@ -33,13 +36,22 @@ export default function DropDetail({
    * (DropLikeButton/DropSaveButton still work for them). */
   viewerDropLiked?: boolean;
   viewerDropSaved?: boolean;
+  /** The current viewer's own per-song ratings, keyed by songId — empty
+   * for a logged-out visitor, same spirit as likedSongIds above
+   * (SongRatingControl still works for them; see its own comment). */
+  viewerSongRatings?: Record<number, number>;
 }) {
-  const artworkUrls = drop.songs
-    .map((s) => s.artworkUrl)
-    .filter((url): url is string => !!url)
-    .slice(0, 4);
+  // Same "skip songs with no artwork rather than leave a gap" selection
+  // as the archive tile's artworkUrls (src/lib/archive.ts) — carrying
+  // each quadrant's artist along too now, so the hero tile's quadrants
+  // can each link to their own artist page (2026-10-07 — see
+  // claude/next-build.md).
+  const heroSongs = drop.songs.filter((s) => s.artworkUrl).slice(0, 4);
+  const artworkUrls = heroSongs.map((s) => s.artworkUrl as string);
+  const quadrantArtists = heroSongs.map((s) => s.artist);
 
   const likedSet = new Set(likedSongIds ?? []);
+  const songRatings = viewerSongRatings ?? {};
 
   // Listener Picks no longer show on this page at all (2026-10
   // release-page redesign — see claude/next-build.md): they moved to
@@ -54,7 +66,7 @@ export default function DropDetail({
   return (
     <div className="drop-detail">
       <div className="top-row">
-        <DropTile num={drop.num} artworkUrls={artworkUrls} hero />
+        <DropTile num={drop.num} artworkUrls={artworkUrls} quadrantArtists={quadrantArtists} hero />
         {closable && <CloseButton />}
       </div>
       <div className="drop-title">{drop.title ?? `Drop ${drop.num}`}</div>
@@ -108,7 +120,7 @@ export default function DropDetail({
         />
       </div>
 
-      <Tracklist songs={curatorSongs} likedSet={likedSet} />
+      <Tracklist songs={curatorSongs} likedSet={likedSet} songRatings={songRatings} />
 
       {drop.notes.length > 0 && (
         <>
@@ -170,7 +182,15 @@ export default function DropDetail({
   );
 }
 
-function Tracklist({ songs, likedSet }: { songs: PublicSongRow[]; likedSet: Set<number> }) {
+function Tracklist({
+  songs,
+  likedSet,
+  songRatings,
+}: {
+  songs: PublicSongRow[];
+  likedSet: Set<number>;
+  songRatings: Record<number, number>;
+}) {
   return (
     <>
       <div className="tracklist-header">
@@ -185,15 +205,21 @@ function Tracklist({ songs, likedSet }: { songs: PublicSongRow[]; likedSet: Set<
                 release-page redesign — a playlist-like feel, see
                 claude/next-build.md) — falls back to a plain gradient
                 swatch when a song has no artwork, same spirit as
-                DropTile's own empty-quadrant fallback. */}
+                DropTile's own empty-quadrant fallback. The embedded
+                player that used to sit below this row is gone (2026-
+                10-07 — see claude/next-build.md): the artwork itself is
+                now the clickable thing, linking to this song's artist
+                page instead. */}
             <div className="track-row-top">
               <div className="track-row-num">{String(i + 1).padStart(2, "0")}</div>
-              {song.artworkUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={song.artworkUrl} alt="" className="track-row-art" />
-              ) : (
-                <div className="track-row-art track-row-art-empty" aria-hidden="true" />
-              )}
+              <Link href={artistHref(song.artist)} className="track-row-art-link">
+                {song.artworkUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={song.artworkUrl} alt="" className="track-row-art" />
+                ) : (
+                  <div className="track-row-art track-row-art-empty" aria-hidden="true" />
+                )}
+              </Link>
               <div className="track-row-body">
                 <div className="track-info">
                   <div className="track-title">{song.title}</div>
@@ -203,11 +229,19 @@ function Tracklist({ songs, likedSet }: { songs: PublicSongRow[]; likedSet: Set<
                   {song.curatorCredit && <RoleName name={song.curatorCredit} isCurator />}
                 </div>
               </div>
+              {/* Like + star rating, stacked and the same size, right
+                  next to the title/artist (2026-10-07 — see
+                  claude/next-build.md). */}
+              <div className="track-row-controls">
+                <LikeButton songId={song.id} initialLiked={likedSet.has(song.id)} initialCount={song.likeCount} />
+                <SongRatingControl
+                  songId={song.id}
+                  initialRating={songRatings[song.id] ?? null}
+                  initialAverage={song.rating.average}
+                  initialCount={song.rating.count}
+                />
+              </div>
             </div>
-            <div style={{ marginBottom: 8 }}>
-              <LikeButton songId={song.id} initialLiked={likedSet.has(song.id)} initialCount={song.likeCount} />
-            </div>
-            <SongEmbed sourceUrl={song.sourceUrl} />
           </div>
         ))}
       </div>

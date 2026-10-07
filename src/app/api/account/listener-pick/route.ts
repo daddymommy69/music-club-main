@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => null);
-  const parsed = body as { link?: string; title?: string; artist?: string } | null;
+  const parsed = body as { link?: string; title?: string; artist?: string; artworkUrl?: string } | null;
   const link = parsed?.link?.trim();
   if (!link || !isValidMusicLink(link)) {
     return NextResponse.json(
@@ -56,6 +56,7 @@ export async function POST(request: Request) {
     link,
     title: parsed?.title,
     artist: parsed?.artist,
+    artworkUrl: parsed?.artworkUrl,
   });
   if (!result.ok) {
     return NextResponse.json(

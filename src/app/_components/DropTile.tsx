@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { artistHref } from "@/lib/artistLink";
+
 /**
  * The square number+artwork tile (design decision, 2026-10): a 2x2
  * collage of the first 4 songs' cover art with the drop number
@@ -12,10 +15,18 @@
 export default function DropTile({
   num,
   artworkUrls,
+  quadrantArtists,
   hero,
 }: {
   num: number;
   artworkUrls: string[];
+  /** Each quadrant's own artist, same order as artworkUrls (2026-10-07
+   * — see claude/next-build.md) — when given, every quadrant links to
+   * that artist's page instead of being plain decoration. Only passed
+   * by the drop-detail hero tile: the archive/account grid usages wrap
+   * the whole tile in a Link to the drop itself already, and a nested
+   * link inside that would be invalid. */
+  quadrantArtists?: string[];
   /** Larger standalone variant for the drop-detail header. */
   hero?: boolean;
 }) {
@@ -24,16 +35,22 @@ export default function DropTile({
   return (
     <div className={`drop-tile${hero ? " drop-tile-hero" : ""}`}>
       <div className="drop-tile-grid">
-        {quads.map((url, i) =>
-          url ? (
+        {quads.map((url, i) => {
+          const art = url ? (
             // External Apple/Spotify CDN art — not worth configuring
             // next/image's remotePatterns for.
             // eslint-disable-next-line @next/next/no-img-element
-            <img key={i} src={url} alt="" className="drop-tile-quad" loading="lazy" />
+            <img src={url} alt="" className="drop-tile-quad" loading="lazy" />
           ) : (
-            <div key={i} className="drop-tile-quad drop-tile-quad-empty" aria-hidden="true" />
-          )
-        )}
+            <div className="drop-tile-quad drop-tile-quad-empty" aria-hidden="true" />
+          );
+          const artist = quadrantArtists?.[i];
+          return (
+            <div key={i} className="drop-tile-quad-slot">
+              {artist ? <Link href={artistHref(artist)}>{art}</Link> : art}
+            </div>
+          );
+        })}
       </div>
       <div className="drop-tile-num">
         <span>{String(num).padStart(2, "0")}</span>
