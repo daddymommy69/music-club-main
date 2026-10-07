@@ -866,18 +866,18 @@ input {
   flex-shrink: 0;
 }
 
-/* Same bordered-chip treatment as .like-btn, just with 5 small stars
-   instead of a heart, so the two controls genuinely match stacked on
-   top of each other. */
+/* Same plain, borderless treatment as .like-btn (2026-10-07 — see
+   that rule's own comment), just with 5 small stars instead of a
+   heart, so the two controls still genuinely match stacked on top of
+   each other. */
 .song-rate-control {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  height: 32px;
-  padding: 0 10px;
-  background: transparent;
-  border: 1px solid var(--ln);
-  border-radius: 16px;
+  height: 22px;
+  padding: 0;
+  background: none;
+  border: none;
   font-size: 12px;
   color: var(--ln);
 }
@@ -1338,21 +1338,19 @@ input {
 }
 
 /* A song's like button + count, next to its track row on the release
-   page. Redesigned as a bordered, tappable chip (2026-10-07 "make it
-   easier to like and interact with stuff" fix — see
-   claude/next-build.md): the previous version was bare, borderless
-   11px text that the founder flagged as too small/easy to miss — this
-   is still secondary to the track row's title/artist/credit, but is
-   now an actual visible control rather than ambient text. */
+   page. No border/background chip (2026-10-07 — the founder's own
+   call: the bordered-oval treatment looked bad stacked next to the
+   star rating, drop it and keep just the icon + count). Still a real
+   tappable control, just plain — color alone carries the liked
+   state. */
 .like-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 32px;
-  padding: 0 12px;
-  background: transparent;
-  border: 1px solid var(--ln);
-  border-radius: 16px;
+  height: 22px;
+  padding: 0;
+  background: none;
+  border: none;
   cursor: pointer;
   font-family: inherit;
   font-size: 11.5px;
@@ -1360,8 +1358,6 @@ input {
 }
 
 .like-btn.liked {
-  background: var(--acc-soft);
-  border-color: var(--accent);
   color: var(--accent);
 }
 
