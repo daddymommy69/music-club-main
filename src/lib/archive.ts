@@ -6,6 +6,7 @@ import { getTop10Phase } from "./top10";
 import { getTop10Summary } from "./top10Data";
 import { getLikeCounts } from "./songLikes";
 import { getDropRatingSummary } from "./ratings";
+import { getSongRatingSummaries, type SongRatingSummary } from "./songRatings";
 import { getDropLikeCounts } from "./dropLikes";
 
 // Aliased so a Listener Pick's submittedByMemberId -> members join
@@ -134,6 +135,10 @@ export type PublicSongRow = {
    * is null. */
   listenerIsCurator: boolean;
   likeCount: number;
+  /** Public average + count for this one song (2026-10-07 "Browse"
+   * round — see claude/next-build.md) — same null-means-nobody's-rated-
+   * it-yet contract as the whole-drop rating above. */
+  rating: SongRatingSummary;
 };
 
 export type PublicCuratorNote = {
@@ -221,10 +226,11 @@ export async function getPublicDrop(
     .where(eq(songs.dropId, drop.id))
     .orderBy(asc(songs.position));
 
-  const [likeCounts, ratingSummary, dropLikeCounts] = await Promise.all([
+  const [likeCounts, ratingSummary, dropLikeCounts, songRatingSummaries] = await Promise.all([
     getLikeCounts(songRows.map((s) => s.id)),
     getDropRatingSummary(drop.id),
     getDropLikeCounts([drop.id]),
+    getSongRatingSummaries(songRows.map((s) => s.id)),
   ]);
 
   const publicSongs: PublicSongRow[] = songRows.map((s) => ({
@@ -238,6 +244,7 @@ export async function getPublicDrop(
     listenerCredit: s.pickType === "listener" ? s.listenerName ?? null : null,
     listenerIsCurator: s.pickType === "listener" ? s.listenerIsCurator ?? false : false,
     likeCount: likeCounts.get(s.id) ?? 0,
+    rating: songRatingSummaries.get(s.id) ?? { average: null, count: 0 },
   }));
 
   // members.name is nullable (unlike the old curators.name, which was

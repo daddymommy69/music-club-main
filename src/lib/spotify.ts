@@ -186,6 +186,87 @@ export async function searchSpotifyTrack(
   }
 }
 
+export type SpotifyArtistMatch = { id: string; photoUrl: string | null };
+
+/** Best-effort artist-name search, taking the top result — same "no
+ * fuzzy scoring beyond Spotify's own relevance" judgment call as
+ * searchSpotifyTrack above. Backs the artist-photo cache
+ * (src/lib/artists.ts) for the Browse page (2026-10-07 round — see
+ * claude/next-build.md): since songs.artist is free text with no real
+ * entity behind it, this is matched purely by name, and a name shared
+ * by two different real-world artists will just get whichever one
+ * Spotify ranks first — an accepted limitation, not a bug. */
+export async function searchSpotifyArtist(accessToken: string, name: string): Promise<SpotifyArtistMatch | null> {
+  try {
+    const params = new URLSearchParams({ q: `artist:${name}`, type: "artist", limit: "1" });
+    const res = await fetch(`${API_BASE}/search?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      artists?: { items?: { id: string; images?: { url: string }[] }[] };
+    };
+    const artist = data.artists?.items?.[0];
+    if (!artist) return null;
+    return { id: artist.id, photoUrl: artist.images?.[0]?.url ?? null };
+  } catch {
+    return null;
+  }
+}
+
+export type SpotifyTrackSearchResult = {
+  id: string;
+  title: string;
+  artist: string;
+  artworkUrl: string | null;
+  /** The track's normal open.spotify.com page — this is what gets
+   * submitted as a Listener Pick's link (same field every manually-
+   * pasted link already fills), not the internal spotify: URI. */
+  externalUrl: string | null;
+};
+
+/** Free-text track search for Browse's search bar (2026-10-07 round —
+ * see claude/next-build.md) — unlike searchSpotifyTrack above (one
+ * best-guess match for a known title+artist pair), this takes whatever
+ * the member types and returns several candidates for them to pick
+ * from, the same way Spotify's own search box would. */
+export async function searchSpotifyTracks(
+  accessToken: string,
+  query: string,
+  limit = 8
+): Promise<SpotifyTrackSearchResult[]> {
+  try {
+    const params = new URLSearchParams({ q: query, type: "track", limit: String(limit) });
+    const res = await fetch(`${API_BASE}/search?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      tracks?: {
+        items?: {
+          id: string;
+          name: string;
+          artists?: { name: string }[];
+          album?: { images?: { url: string }[] };
+          external_urls?: { spotify?: string };
+        }[];
+      };
+    };
+    const items = data.tracks?.items ?? [];
+    return items.map((t) => ({
+      id: t.id,
+      title: t.name,
+      artist: t.artists?.[0]?.name ?? "",
+      artworkUrl: t.album?.images?.[0]?.url ?? null,
+      externalUrl: t.external_urls?.spotify ?? null,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export type CreatedPlaylist = { id: string; url: string };
 
 export async function createSpotifyPlaylist(

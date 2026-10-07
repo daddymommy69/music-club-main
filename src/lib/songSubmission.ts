@@ -27,6 +27,13 @@ export async function resolveAndSubmitListenerPick(params: {
   link: string;
   title?: string;
   artist?: string;
+  /** Already-known artwork (2026-10-07 Browse round — see
+   * claude/next-build.md): a song picked from Browse's live Spotify
+   * search already has real artwork from that search result, so there's
+   * no need to wait on Odesli (dead) or the ship-time auto-build backfill
+   * to fill it in later. Ignored when Odesli does resolve metadata (rare,
+   * but its artwork would be at least as fresh). */
+  artworkUrl?: string | null;
 }): Promise<ResolveListenerPickResult> {
   const metadata = await resolveSongMetadata(params.link);
   const title = metadata?.title ?? params.title?.trim() ?? "";
@@ -40,7 +47,7 @@ export async function resolveAndSubmitListenerPick(params: {
       needsManualMetadata: true,
     };
   }
-  const artworkUrl = metadata?.artworkUrl ?? null;
+  const artworkUrl = metadata?.artworkUrl ?? params.artworkUrl ?? null;
 
   const existing = await getListenerPick(params.dropId, params.memberId);
   if (existing) {

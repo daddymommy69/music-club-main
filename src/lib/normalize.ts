@@ -18,6 +18,21 @@ export function normalizeEmail(email: string): string {
 }
 
 /**
+ * Canonical grouping key for a free-text artist name (2026-10-07
+ * "Browse" round — see claude/next-build.md). songs.artist has no real
+ * FK/entity behind it — every artist page, the Browse directory, and
+ * the Spotify-photo cache all group songs by this same trim+lowercase
+ * key rather than the raw text, so "Tame Impala" and "tame impala " are
+ * treated as the same artist. Known, accepted limitation (founder's own
+ * call): two differently-spelled or differently-cased entries for what
+ * is actually the same artist won't merge, and two different real-world
+ * artists who happen to share an exact name will.
+ */
+export function normalizeArtistName(artist: string): string {
+  return artist.trim().toLowerCase();
+}
+
+/**
  * True if `err` is a Postgres unique-constraint violation (SQLSTATE
  * 23505). Checks both `err.code` and `err.cause.code` — drizzle-orm
  * wraps the raw postgres-js error in its own `DrizzleQueryError`, which
