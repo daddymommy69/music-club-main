@@ -9,7 +9,10 @@ export default function CuratorLogin() {
     useCodeLogin({
       lookupUrl: "/api/curators/lookup",
       verifyUrl: "/api/curators/verify",
-      onVerified: () => router.push("/room"),
+      // /room is gone (2026-10 account consolidation — see
+      // claude/next-build.md) — the curator workspace now lives inside
+      // the "Curator tools" section at the bottom of /account.
+      onVerified: () => router.push("/account"),
     });
 
   async function handleEntrySubmit(e: React.FormEvent<HTMLFormElement>) {

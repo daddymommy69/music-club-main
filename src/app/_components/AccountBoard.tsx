@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import RoleName from "./RoleName";
 import ListenerPickForm from "./ListenerPickForm";
 import RateDropControl from "./RateDropControl";
+import CuratorToolsPanel, { type CuratorToolsPanelProps } from "./CuratorToolsPanel";
 import { formatDropMonth } from "@/lib/format";
+import { formatRelativeTime } from "@/lib/relativeTime";
 import { useDirtyField } from "@/lib/useDirtyField";
 
 type Member = { id: number; name: string | null; bio: string | null; isCurator: boolean };
@@ -26,15 +27,22 @@ type SubmissionRow = {
 type LeaderboardRow = { memberId: number; name: string; isCurator: boolean; pickCount: number };
 type PublishedDrop = { id: number; num: number; title: string | null; publishedAt: string };
 
+type ActivityRow =
+  | { kind: "song-like"; at: string; songId: number; title: string; artist: string; dropNum: number }
+  | { kind: "drop-like"; at: string; dropId: number; dropNum: number; dropTitle: string | null }
+  | { kind: "drop-save"; at: string; dropId: number; dropNum: number; dropTitle: string | null };
+
 type AccountBoardProps = {
   member: Member;
   openDrop: OpenDrop;
   listenerPick: ListenerPick;
   submissionHistory: SubmissionRow[];
+  activity: ActivityRow[];
   leaderboard: LeaderboardRow[];
   publishedDrops: PublishedDrop[];
   favoriteDropIds: number[];
   myRatings: Record<number, number>;
+  curatorTools: CuratorToolsPanelProps | null;
 };
 
 export default function AccountBoard({
@@ -42,10 +50,12 @@ export default function AccountBoard({
   openDrop,
   listenerPick,
   submissionHistory,
+  activity,
   leaderboard,
   publishedDrops,
   favoriteDropIds,
   myRatings,
+  curatorTools,
 }: AccountBoardProps) {
   const router = useRouter();
 
@@ -58,31 +68,7 @@ export default function AccountBoard({
     <div className="gz-up">
       <ProfileCard member={member} />
 
-      {/* Curator-only section stays deliberately lightweight for v1 —
-          see this component's own header comment below the exports for
-          the scoping call. The real pick/ship tooling stays at /room
-          and /overview rather than being re-ported here. */}
-      {member.isCurator && (
-        <div className="acc-panel" style={{ marginBottom: 30 }}>
-          <p className="label" style={{ marginBottom: 10 }}>
-            Curator tools
-          </p>
-          <p style={{ fontSize: 12.5, lineHeight: 1.6, marginBottom: 12 }}>
-            Picking songs, writing notes, and shipping the drop still happen in
-            the curator workspace, not here.
-          </p>
-          <div style={{ display: "flex", gap: 10 }}>
-            <Link href="/room" className="btn btn-outline" style={{ width: "auto", padding: "0 16px" }}>
-              Open Room
-            </Link>
-            <Link href="/overview" className="btn btn-outline" style={{ width: "auto", padding: "0 16px" }}>
-              Open Overview
-            </Link>
-          </div>
-        </div>
-      )}
-
-      <Section label="Your Listener Pick">
+      <Section label="This cycle's pick">
         {openDrop ? (
           <ListenerPickForm openDrop={openDrop} initialPick={listenerPick} />
         ) : (
@@ -96,6 +82,10 @@ export default function AccountBoard({
         <SubmissionHistory rows={submissionHistory} />
       </Section>
 
+      <Section label="Your activity">
+        <ActivityList rows={activity} />
+      </Section>
+
       <Section label="Leaderboard">
         <Leaderboard rows={leaderboard} />
       </Section>
@@ -107,6 +97,16 @@ export default function AccountBoard({
       <Section label="Your ratings">
         <RatingsList drops={publishedDrops} myRatings={myRatings} />
       </Section>
+
+      {/* Moved here from the standalone /room + /overview pages
+          (2026-10 account consolidation — see claude/next-build.md):
+          only approved curators ever get curatorTools (gated
+          server-side in account/page.tsx, not just by isCurator here),
+          and it sits at the very bottom, collapsed by default, so it
+          doesn't crowd out the member-facing sections above for the
+          curators who are also just regular members checking their
+          own pick/ratings/favorites. */}
+      {curatorTools && <CuratorToolsPanel {...curatorTools} />}
 
       <button type="button" className="link-btn" onClick={logout} style={{ marginTop: 10 }}>
         Log out
@@ -157,7 +157,18 @@ function ProfileCard({ member }: { member: Member }) {
   return (
     <div style={{ marginBottom: 30 }}>
       <div style={{ fontSize: 15, marginBottom: 10 }}>
-        <RoleName name={member.name?.trim() || "You"} isCurator={member.isCurator} />
+        {/* Bug fix (2026-10 account consolidation, flagged by the founder
+            as "weird wording" — see claude/next-build.md): this used to
+            fall back to the literal word "You", run through RoleName,
+            which colors it gold/teal exactly like a real curator/member
+            name — so a member who hadn't set a name saw what looked like
+            someone actually named "You". Falling back to plain, uncolored
+            copy instead makes clear it's a placeholder, not a name. */}
+        {member.name?.trim() ? (
+          <RoleName name={member.name.trim()} isCurator={member.isCurator} />
+        ) : (
+          <span className="mut">You haven&rsquo;t set a name yet</span>
+        )}
       </div>
       <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <span className="mut" style={{ fontSize: 11.5 }}>
@@ -209,6 +220,49 @@ function SubmissionHistory({ rows }: { rows: SubmissionRow[] }) {
             drop {row.dropNum} · {row.pickType === "curator" ? "curator pick" : "listener pick"}
             {!row.publishedAt && " · not shipped yet"}
           </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * "Your activity" (2026-10 account consolidation — see
+ * claude/next-build.md): the founder's own report that liking/saving
+ * stuff didn't show up anywhere on /account. Merges three previously-
+ * invisible actions (song likes, whole-drop likes, whole-drop saves —
+ * src/lib/activity.ts) into one reverse-chronological list, same
+ * `formatRelativeTime` labels /room already uses for its stream view.
+ */
+function ActivityList({ rows }: { rows: ActivityRow[] }) {
+  if (rows.length === 0) {
+    return (
+      <p className="mut" style={{ fontSize: 12.5 }}>
+        Nothing yet — liked songs and saved or liked drops will show up here.
+      </p>
+    );
+  }
+  return (
+    <div className="roster-list">
+      {rows.map((row) => (
+        <div
+          className="roster-row"
+          key={`${row.kind}-${row.kind === "song-like" ? row.songId : row.dropId}`}
+        >
+          <span className="roster-name">
+            {row.kind === "song-like" && (
+              <>
+                You liked &ldquo;{row.title}&rdquo; — {row.artist}
+              </>
+            )}
+            {row.kind === "drop-like" && (
+              <>You liked {row.dropTitle ?? `drop ${row.dropNum}`}</>
+            )}
+            {row.kind === "drop-save" && (
+              <>You saved {row.dropTitle ?? `drop ${row.dropNum}`}</>
+            )}
+          </span>
+          <span className="roster-meta">{formatRelativeTime(new Date(row.at))}</span>
         </div>
       ))}
     </div>

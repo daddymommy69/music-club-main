@@ -4,15 +4,18 @@ import { getSessionMember } from "@/lib/memberSession";
 import { getDefaultClub } from "@/lib/club";
 import { isCycleValue } from "@/lib/cycle";
 import { listCurators } from "@/lib/members";
-import CuratorNav from "@/app/_components/CuratorNav";
 import LogoutButton from "@/app/_components/LogoutButton";
 import SettingsBoard from "@/app/_components/SettingsBoard";
 
 export const dynamic = "force-dynamic";
 
 // #/settings (design-handoff.md §9): club rename, the cycle picker, and
-// the join code. Curator-gated the same way as /room and /overview —
-// this changes what every subscriber-facing countdown shows.
+// the join code. Curator-gated, same as the curator workspace embedded
+// in /account — this changes what every subscriber-facing countdown
+// shows. Stays its own page (2026-10 account consolidation decision —
+// see claude/next-build.md) rather than folding in alongside the rest
+// of the curator tools, since club-wide settings are a different kind
+// of control than the day-to-day pick/ship workspace.
 export default async function SettingsPage({
   searchParams,
 }: {
@@ -41,7 +44,6 @@ export default async function SettingsPage({
       <p className="mut" style={{ fontSize: 11.5, marginBottom: 16 }}>
         Settings
       </p>
-      <CuratorNav />
 
       <SettingsBoard
         clubName={club.name}
