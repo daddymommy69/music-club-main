@@ -11,7 +11,20 @@ export type OdesliMetadata = {
   title: string;
   artist: string;
   artworkUrl: string | null;
+  /** `spotify:track:<id>`, straight from Odesli's own cross-platform
+   * link graph (2026-10-08 "auto-find the Spotify version" round — see
+   * claude/next-build.md) — null when this song isn't on Spotify at
+   * all, or Odesli's data doesn't have it. Pasting a Spotify link
+   * directly resolves this trivially (the matched entity IS the
+   * Spotify one); pasting an Apple Music link gets it too, whenever
+   * Odesli's graph has a Spotify counterpart on file — no separate
+   * fuzzy title/artist search needed, unlike the ship-time auto-build
+   * in spotifyBuild.ts (which stays as the fallback for whatever this
+   * doesn't catch). */
+  spotifyUri: string | null;
 };
+
+const SPOTIFY_TRACK_URL_RE = /open\.spotify\.com\/track\/([A-Za-z0-9]+)/;
 
 /**
  * The actual bug behind every "artwork still has a white frame" report
@@ -46,6 +59,9 @@ export async function resolveSongMetadata(url: string): Promise<OdesliMetadata |
         string,
         { title?: string; artistName?: string; thumbnailUrl?: string }
       >;
+      linksByPlatform?: {
+        spotify?: { url?: string };
+      };
     };
 
     const entity = data.entityUniqueId
@@ -54,10 +70,14 @@ export async function resolveSongMetadata(url: string): Promise<OdesliMetadata |
 
     if (!entity?.title || !entity?.artistName) return null;
 
+    const spotifyUrl = data.linksByPlatform?.spotify?.url;
+    const spotifyMatch = spotifyUrl?.match(SPOTIFY_TRACK_URL_RE);
+
     return {
       title: entity.title,
       artist: entity.artistName,
       artworkUrl: entity.thumbnailUrl ? squareArtworkUrl(entity.thumbnailUrl) : null,
+      spotifyUri: spotifyMatch ? `spotify:track:${spotifyMatch[1]}` : null,
     };
   } catch {
     return null;

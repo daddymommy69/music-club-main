@@ -76,6 +76,12 @@ export async function POST(request: Request) {
       artist: metadata.artist,
       artworkUrl: metadata.artworkUrl,
       sourceUrl: link,
+      // Auto-find-the-Spotify-version (2026-10-08 round — see
+      // claude/next-build.md): same Odesli lookup above already carries
+      // this when it's on Spotify's catalog, so a pasted Apple Music
+      // link can be playable immediately rather than waiting on
+      // ship-day's separate fuzzy-match auto-build.
+      spotifyUri: metadata.spotifyUri,
       submittedBy: null,
       curatorCredit: curator.name,
       curatorId: curator.id,
