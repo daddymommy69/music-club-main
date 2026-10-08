@@ -66,19 +66,27 @@ export default async function BrowsePage() {
           </p>
         ) : (
           <div className="archive-grid">
+            {/* Title + artist underneath, same .drop-card-wrap/.info
+                treatment as the Artists grid right above (2026-10-08 —
+                founder's own report: these tiles had no visible label at
+                all, just a hover tooltip — see claude/next-build.md).
+                Link/behavior unchanged — still goes to the artist page. */}
             {directory.songs.map((song) => (
-              <Link
-                key={song.songId}
-                href={artistHref(song.artist)}
-                className="song-tile"
-                title={`${song.title} — ${song.artist}`}
-              >
-                {song.artworkUrl ? (
-                  <FallbackImg src={song.artworkUrl} className="" fallbackClassName="song-tile-empty" />
-                ) : (
-                  <div className="song-tile-empty" aria-hidden="true" />
-                )}
-              </Link>
+              <div key={song.songId} className="drop-card-wrap">
+                <Link href={artistHref(song.artist)} className="drop-card">
+                  <div className="song-tile">
+                    {song.artworkUrl ? (
+                      <FallbackImg src={song.artworkUrl} className="" fallbackClassName="song-tile-empty" />
+                    ) : (
+                      <div className="song-tile-empty" aria-hidden="true" />
+                    )}
+                  </div>
+                  <div className="info">
+                    <div className="title">{song.title}</div>
+                    <div className="meta">{song.artist}</div>
+                  </div>
+                </Link>
+              </div>
             ))}
           </div>
         )}

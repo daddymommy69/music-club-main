@@ -868,13 +868,20 @@ input {
 
 /* Like + star rating, stacked and matching in size, right next to the
    track's title/artist (2026-10-07 — replaces the below-row like
-   button + embedded player; see claude/next-build.md). */
+   button + embedded player; see claude/next-build.md). Fixed width
+   (2026-10-08 — founder's own report: a song with a rating average
+   showing, e.g. "5.0", made this column wider than a song without one,
+   which pushed its left edge around row to row since .track-row-body
+   next to it is flex:1 and absorbs the difference. A fixed width wide
+   enough for the worst case (5 filled stars + "X.X") keeps every row's
+   controls starting at the same x position regardless of content. */
 .track-row-controls {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 3px;
+  gap: 1px;
   flex-shrink: 0;
+  width: 78px;
 }
 
 /* Same plain, borderless treatment as .like-btn (2026-10-07 — see
@@ -885,7 +892,7 @@ input {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  height: 24px;
+  height: 18px;
   padding: 0;
   background: none;
   border: none;
@@ -1270,7 +1277,7 @@ input {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 24px;
+  height: 18px;
   padding: 0;
   background: none;
   border: none;
