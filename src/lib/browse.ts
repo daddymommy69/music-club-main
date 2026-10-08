@@ -26,6 +26,7 @@ export type BrowseSongEntry = {
   title: string;
   artist: string;
   artworkUrl: string | null;
+  spotifyUri: string | null;
 };
 
 /** How many songs the Songs grid shows, newest drop first — same spirit
@@ -47,6 +48,7 @@ export async function getBrowseDirectory(clubId: number): Promise<BrowseDirector
       title: songs.title,
       artist: songs.artist,
       artworkUrl: songs.artworkUrl,
+      spotifyUri: songs.spotifyUri,
       dropId: songs.dropId,
       dropNum: drops.num,
       position: songs.position,
@@ -79,6 +81,7 @@ export async function getBrowseDirectory(clubId: number): Promise<BrowseDirector
     title: r.title,
     artist: r.artist,
     artworkUrl: r.artworkUrl,
+    spotifyUri: r.spotifyUri,
   }));
 
   return { artists, songs: songsOut };
