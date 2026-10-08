@@ -119,6 +119,13 @@ export type PublicSongRow = {
    * Used to build each track's embedded player. */
   sourceUrl: string | null;
   artworkUrl: string | null;
+  /** Set only when the Spotify auto-build step found a confident match
+   * (see songs.spotifyUri's own comment in db/schema.ts) — the release
+   * page's play-on-click (2026-10-08 "drop control + playback" round,
+   * see claude/next-build.md) needs the bare track id this resolves to
+   * via src/lib/spotifyId.ts; null means "no play available," same
+   * never-throw-just-degrade spirit as everywhere else this is used. */
+  spotifyUri: string | null;
   /** 'curator' (unchanged default) or 'listener' — which public section
    * (Curator Picks / Listener Picks) this song shows under. */
   pickType: "curator" | "listener";
@@ -212,6 +219,7 @@ export async function getPublicDrop(
       curatorCredit: songs.curatorCredit,
       sourceUrl: songs.sourceUrl,
       artworkUrl: songs.artworkUrl,
+      spotifyUri: songs.spotifyUri,
       pickType: songs.pickType,
       submittedByMemberId: songs.submittedByMemberId,
       listenerName: membersListener.name,
@@ -240,6 +248,7 @@ export async function getPublicDrop(
     curatorCredit: s.curatorCredit,
     sourceUrl: s.sourceUrl,
     artworkUrl: s.artworkUrl,
+    spotifyUri: s.spotifyUri,
     pickType: s.pickType,
     listenerCredit: s.pickType === "listener" ? s.listenerName ?? null : null,
     listenerIsCurator: s.pickType === "listener" ? s.listenerIsCurator ?? false : false,

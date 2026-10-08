@@ -4,7 +4,7 @@ import { formatDropMonth } from "@/lib/format";
 import { artistHref } from "@/lib/artistLink";
 import CloseButton from "./CloseButton";
 import DropTile from "./DropTile";
-import FallbackImg from "./FallbackImg";
+import PlayableArt from "./PlayableArt";
 import LikeButton from "./LikeButton";
 import SongRatingControl from "./SongRatingControl";
 import DropLikeButton from "./DropLikeButton";
@@ -212,28 +212,31 @@ function Tracklist({
                 release-page redesign — a playlist-like feel, see
                 claude/next-build.md) — falls back to a plain gradient
                 swatch when a song has no artwork, same spirit as
-                DropTile's own empty-quadrant fallback. The embedded
-                player that used to sit below this row is gone (2026-
-                10-07 — see claude/next-build.md): the artwork itself is
-                now the clickable thing, linking to this song's artist
-                page instead. */}
+                DropTile's own empty-quadrant fallback.
+                Playback round (2026-10-08 — see claude/next-build.md):
+                the artwork is the play target now (PlayableArt), not a
+                link — "clicking the artwork... plays from spotify."
+                Navigating to the artist moved onto the title/artist
+                TEXT instead ("clicking the text... takes it to the
+                artist page"). */}
             <div className="track-row-top">
               <div className="track-row-num">{String(i + 1).padStart(2, "0")}</div>
-              <Link href={artistHref(song.artist)} className="track-row-art-link">
-                {song.artworkUrl ? (
-                  <FallbackImg
-                    src={song.artworkUrl}
-                    className="track-row-art"
-                    fallbackClassName="track-row-art track-row-art-empty"
-                  />
-                ) : (
-                  <div className="track-row-art track-row-art-empty" aria-hidden="true" />
-                )}
-              </Link>
+              <PlayableArt
+                spotifyUri={song.spotifyUri}
+                artworkUrl={song.artworkUrl}
+                title={song.title}
+                artist={song.artist}
+                className="track-row-art"
+                fallbackClassName="track-row-art track-row-art-empty"
+              />
               <div className="track-row-body">
                 <div className="track-info">
-                  <div className="track-title">{song.title}</div>
-                  <div className="track-artist">{song.artist}</div>
+                  <Link href={artistHref(song.artist)} className="track-title">
+                    {song.title}
+                  </Link>
+                  <Link href={artistHref(song.artist)} className="track-artist">
+                    {song.artist}
+                  </Link>
                 </div>
                 <div className="track-credit">
                   {song.curatorCredit && <RoleName name={song.curatorCredit} isCurator />}

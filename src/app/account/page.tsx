@@ -79,7 +79,32 @@ async function getCuratorToolsProps(club: Club, openDrop: Drop | null): Promise<
       joinedAt: c.joinedAt.toISOString(),
     })),
     picks,
-    shipCandidate: overview.shipCandidate,
+    shipCandidate: overview.shipCandidate
+      ? {
+          dropId: overview.shipCandidate.dropId,
+          dropNum: overview.shipCandidate.dropNum,
+          title: overview.shipCandidate.title,
+          pickCount: overview.shipCandidate.pickCount,
+          startedBy: overview.shipCandidate.startedBy,
+          startedAt: overview.shipCandidate.startedAt.toISOString(),
+          titleUpdatedBy: overview.shipCandidate.titleUpdatedBy,
+          titleUpdatedAt: overview.shipCandidate.titleUpdatedAt
+            ? overview.shipCandidate.titleUpdatedAt.toISOString()
+            : null,
+          scheduledShipAt: overview.shipCandidate.scheduledShipAt
+            ? overview.shipCandidate.scheduledShipAt.toISOString()
+            : null,
+        }
+      : null,
+    nextDropOpensAt: overview.nextDropOpensAt ? overview.nextDropOpensAt.toISOString() : null,
+    canceledDrop: overview.canceledDrop
+      ? {
+          num: overview.canceledDrop.num,
+          title: overview.canceledDrop.title,
+          canceledBy: overview.canceledDrop.canceledBy,
+          canceledAt: overview.canceledDrop.canceledAt.toISOString(),
+        }
+      : null,
     top10: top10Visible
       ? {
           dropNum: top10Visible.dropNum,
@@ -102,7 +127,7 @@ export const dynamic = "force-dynamic";
 // and every write action it can trigger (bio save, favorites, ratings,
 // a listener pick) requires its own real session server-side regardless
 // of what this placeholder says, so there's nothing this id could do.
-const PREVIEW_MEMBER = { id: 0, name: null, bio: null, isCurator: false };
+const PREVIEW_MEMBER = { id: 0, name: null, bio: null, isCurator: false, spotifyConnected: false };
 
 /**
  * /account (2026-10 "next build" — see claude/next-build.md): the
@@ -201,7 +226,13 @@ export default async function AccountPage() {
           Your account
         </h1>
         <AccountBoard
-          member={{ id: member.id, name: member.name, bio: member.bio, isCurator: member.isCurator }}
+          member={{
+            id: member.id,
+            name: member.name,
+            bio: member.bio,
+            isCurator: member.isCurator,
+            spotifyConnected: !!member.spotifyRefreshToken,
+          }}
           openDrop={openDrop ? { num: openDrop.num, title: openDrop.title } : null}
           listenerPick={
             listenerPick
@@ -216,6 +247,8 @@ export default async function AccountPage() {
             songId: row.songId,
             title: row.title,
             artist: row.artist,
+            artworkUrl: row.artworkUrl,
+            spotifyUri: row.spotifyUri,
             pickType: row.pickType,
             dropNum: row.dropNum,
             dropTitle: row.dropTitle,

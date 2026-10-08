@@ -59,6 +59,14 @@ export const clubs = pgTable("clubs", {
   // signal to fall back to the manual paste-the-link flow rather than
   // erroring, same as a revoked/expired token (see src/lib/spotify.ts).
   spotifyRefreshToken: text("spotify_refresh_token"),
+  // Curator-scheduled auto-start date for the NEXT drop (2026-10-08
+  // "drop control" round — see claude/next-build.md): set from the
+  // curator tools panel while nothing's currently open; the daily cron
+  // (src/app/api/cron/drops) starts a new drop once this passes and
+  // clears it. Club-level, not a drops row, because the drop it refers
+  // to doesn't exist yet. Null = no auto-open scheduled — starting a
+  // drop stays a manual click, same as always.
+  nextDropOpensAt: timestamp("next_drop_opens_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -73,6 +81,39 @@ export const drops = pgTable(
       .references(() => clubs.id, { onDelete: "cascade" }),
     num: integer("num").notNull(),
     title: text("title"),
+    // Lightweight rename history (2026-10-08 "drop control" round — see
+    // claude/next-build.md): who last changed the title and when, shown
+    // as a single "renamed by X" line rather than a full edit log, per
+    // the founder's own "lightweight... but not necessary" call. Only
+    // ever set by the rename endpoint, not by starting/shipping.
+    titleUpdatedBy: text("title_updated_by"),
+    titleUpdatedAt: timestamp("title_updated_at", { withTimezone: true }),
+    // Who started this drop — createdAt below is already "when," this
+    // is just "who" for the same short history line. "Auto-open" when
+    // the scheduling cron started it instead of a curator click.
+    startedBy: text("started_by"),
+    // Curator-set target ship date/time (2026-10-08 "drop control"
+    // round). The daily cron auto-ships once this passes — same
+    // auto-build-then-send logic as a manual Ship click (see
+    // src/lib/shipDrop.ts) — once-a-day precision, not exact-minute,
+    // per the founder's own explicit "thats fine." Null = no schedule,
+    // shipping stays a manual Ship click, same as always.
+    scheduledShipAt: timestamp("scheduled_ship_at", { withTimezone: true }),
+    // Who actually shipped it — "Auto-ship" when the cron did it
+    // instead of a curator clicking Ship. publishedAt itself is still
+    // the one true "is this shipped" signal; this is just the "who"
+    // for the history line.
+    shippedBy: text("shipped_by"),
+    // A drop a curator closed off without shipping (2026-10-08 "drop
+    // control" round — founder's explicit ask: cancel without losing
+    // data, curator-only visibility, reversible). Excluded from
+    // getCurrentDrop/getOpenDrop (so a fresh drop can be started) but
+    // the row and its songs are kept forever — nothing deletes on
+    // cancel. The drop number stays used up either way (the founder's
+    // own call): starting the next drop always continues from the true
+    // highest num, canceled or not, never reusing one.
+    canceledAt: timestamp("canceled_at", { withTimezone: true }),
+    canceledBy: text("canceled_by"),
     // null while the drop is still being privately built by curators.
     // Setting this is what "shipping" a drop means.
     publishedAt: timestamp("published_at", { withTimezone: true }),
@@ -260,6 +301,16 @@ export const members = pgTable(
     // claude/next-build.md). Shown on /account; nullable since most
     // existing members have never had a chance to write one.
     bio: text("bio"),
+    // A visitor's OWN Spotify connection (2026-10-08 "drop control +
+    // playback" round — see claude/next-build.md) — entirely separate
+    // from clubs.spotifyRefreshToken above, which is the one account
+    // that auto-builds playlists. This is per-member, opt-in, and only
+    // ever used for full-track playback in the visitor's own browser
+    // (src/lib/visitorSpotify.ts) — never for anything server-side like
+    // playlist building. Null means not connected; every caller falls
+    // back to the 30-second preview embed, same "never throw, just
+    // degrade" spirit as the club-level token.
+    spotifyRefreshToken: text("spotify_refresh_token"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

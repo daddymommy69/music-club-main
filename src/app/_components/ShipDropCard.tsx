@@ -4,7 +4,6 @@ import { useState } from "react";
 
 export type ShipDropCardProps = {
   dropNum: number;
-  title: string | null;
   pickCount: number;
 };
 
@@ -15,19 +14,25 @@ type SpotifyAutoBuild = {
 } | null;
 
 /**
- * The "finish the drop" step — once curators are done picking in /room,
- * ship it. The Spotify playlist auto-builds from this drop's songs when
- * that field's left blank (search-match each song, create a public
+ * The "finish the drop" step — once curators are done picking, ship it.
+ * Nested inside the Manage-this-drop panel now (2026-10-08 "drop
+ * control" round — see claude/next-build.md: "replace and be apart
+ * of... add to it"), no longer its own separate card — and no longer
+ * has its own title field either, now that ManageDropCard's own
+ * Rename control (CuratorToolsPanel.tsx) is the one place a drop's
+ * name gets set.
+ *
+ * The Spotify playlist auto-builds from this drop's songs when that
+ * field's left blank (search-match each song, create a public
  * playlist, upload a matching cover) — pasting a link here still works
  * and always wins, as the manual fallback for whenever auto-build isn't
  * connected or you want to override it. Apple Music stays a manual
  * paste, same as always. Same one-shot behavior either way: once this
  * succeeds the drop is published and the release message is already
- * sent, so there's nothing left to edit here afterward (the next load of
- * /overview simply won't have a ship candidate anymore).
+ * sent, so there's nothing left to edit here afterward (the next load
+ * simply won't have a ship candidate anymore).
  */
-export default function ShipDropCard({ dropNum, title: initialTitle, pickCount }: ShipDropCardProps) {
-  const [title, setTitle] = useState(initialTitle ?? "");
+export default function ShipDropCard({ dropNum, pickCount }: ShipDropCardProps) {
   const [spotifyUrl, setSpotifyUrl] = useState("");
   const [appleUrl, setAppleUrl] = useState("");
   const [shipping, setShipping] = useState(false);
@@ -50,7 +55,6 @@ export default function ShipDropCard({ dropNum, title: initialTitle, pickCount }
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: title.trim() || undefined,
           spotifyUrl: spotifyUrl.trim() || undefined,
           appleUrl: appleUrl.trim() || undefined,
         }),
@@ -97,14 +101,6 @@ export default function ShipDropCard({ dropNum, title: initialTitle, pickCount }
             automatically from the picks. Ship publishes this drop and texts/emails everyone, no
             separate step after this.
           </p>
-          <input
-            type="text"
-            className="settings-input"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Give this drop a name (optional)"
-          />
-
           {linksOpen ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <input

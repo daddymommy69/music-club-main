@@ -10,8 +10,23 @@ import RateDropControl from "./RateDropControl";
 import DropTile from "./DropTile";
 import FallbackImg from "./FallbackImg";
 import CuratorToolsPanel, { type CuratorToolsPanelProps } from "./CuratorToolsPanel";
+import PlayableArt from "./PlayableArt";
 
-type Member = { id: number; name: string | null; bio: string | null; isCurator: boolean };
+type Member = {
+  id: number;
+  name: string | null;
+  bio: string | null;
+  isCurator: boolean;
+  /** Whether this visitor has their own Spotify account connected
+   * (2026-10-08 "drop control + playback" round — see
+   * claude/next-build.md) — src/lib/visitorSpotify.ts, entirely
+   * separate from the club's own auto-build connection. Drives
+   * SpotifyConnectControl below; playback itself degrades to the
+   * 30-second preview regardless of this flag whenever full playback
+   * isn't actually available (no Premium, SDK connect failed, etc.) —
+   * see NowPlayingProvider.tsx. */
+  spotifyConnected: boolean;
+};
 type OpenDrop = { num: number; title: string | null } | null;
 type ListenerPick = { title: string; artist: string; sourceUrl: string | null } | null;
 
@@ -19,6 +34,8 @@ type SubmissionRow = {
   songId: number;
   title: string;
   artist: string;
+  artworkUrl: string | null;
+  spotifyUri: string | null;
   pickType: "curator" | "listener";
   dropNum: number;
   dropTitle: string | null;
@@ -101,6 +118,7 @@ export default function AccountBoard({
       ) : (
         <>
           <ProfileCard member={member} />
+          <SpotifyConnectControl connected={member.spotifyConnected} />
 
           <Section label="This cycle's pick">
             {openDrop ? (
@@ -294,6 +312,57 @@ function ProfileCard({ member }: { member: Member }) {
   );
 }
 
+/**
+ * Small and skippable by design (2026-10-08 "drop control + playback"
+ * round — founder's own call, "make the connect spotify link small/
+ * skippable"): one quiet line, not its own card or Section — previews
+ * work for every visitor regardless, this only ever upgrades playback
+ * to full tracks for someone who both connects AND has Spotify
+ * Premium (src/lib/visitorSpotify.ts / NowPlayingProvider.tsx). The
+ * connect click is a real page navigation (Spotify's OAuth consent
+ * screen), not a fetch — Disconnect is the only part that's a fetch.
+ */
+function SpotifyConnectControl({ connected }: { connected: boolean }) {
+  const router = useRouter();
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  async function disconnect() {
+    setDisconnecting(true);
+    try {
+      await fetch("/api/account/spotify/disconnect", { method: "POST" });
+      router.refresh();
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
+  if (connected) {
+    return (
+      <p className="mut" style={{ fontSize: 11, marginBottom: 24 }}>
+        Spotify connected — full tracks play when you have Premium, previews otherwise.{" "}
+        <button
+          type="button"
+          className="link-btn"
+          style={{ fontSize: 11 }}
+          onClick={disconnect}
+          disabled={disconnecting}
+        >
+          {disconnecting ? "Disconnecting…" : "Disconnect"}
+        </button>
+      </p>
+    );
+  }
+
+  return (
+    <p className="mut" style={{ fontSize: 11, marginBottom: 24 }}>
+      <a href="/api/account/spotify/connect" className="link-btn" style={{ fontSize: 11 }}>
+        Connect Spotify for full playback
+      </a>{" "}
+      — optional, 30-second previews work either way.
+    </p>
+  );
+}
+
 function SubmissionHistory({ rows }: { rows: SubmissionRow[] }) {
   if (rows.length === 0) {
     return <p className="mut" style={{ fontSize: 12.5 }}>No picks yet.</p>;
@@ -302,8 +371,21 @@ function SubmissionHistory({ rows }: { rows: SubmissionRow[] }) {
     <div className="roster-list">
       {rows.map((row) => (
         <div className="roster-row" key={row.songId}>
-          <span className="roster-name">
-            {row.title} — {row.artist}
+          {/* Artwork + play (2026-10-08 "drop control + playback" round
+              — see claude/next-build.md) — same PlayableArt everywhere
+              else uses, just at this row's own smaller scale. */}
+          <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+            <PlayableArt
+              spotifyUri={row.spotifyUri}
+              artworkUrl={row.artworkUrl}
+              title={row.title}
+              artist={row.artist}
+              className="now-playing-art"
+              fallbackClassName="now-playing-art now-playing-art-empty"
+            />
+            <span className="roster-name" style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+              {row.title} — {row.artist}
+            </span>
           </span>
           <span className="roster-meta">
             drop {row.dropNum} · {row.pickType === "curator" ? "curator pick" : "listener pick"}

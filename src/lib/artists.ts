@@ -20,6 +20,8 @@ export { artistHref } from "./artistLink";
 export type ArtistSongEntry = {
   songId: number;
   title: string;
+  artworkUrl: string | null;
+  spotifyUri: string | null;
   dropId: number;
   dropNum: number;
   dropTitle: string | null;
@@ -63,6 +65,8 @@ export async function getArtistPageData(
       id: songs.id,
       title: songs.title,
       artist: songs.artist,
+      artworkUrl: songs.artworkUrl,
+      spotifyUri: songs.spotifyUri,
       dropId: songs.dropId,
       dropNum: drops.num,
       dropTitle: drops.title,
@@ -88,6 +92,8 @@ export async function getArtistPageData(
     .map((m) => ({
       songId: m.id,
       title: m.title,
+      artworkUrl: m.artworkUrl,
+      spotifyUri: m.spotifyUri,
       dropId: m.dropId,
       dropNum: m.dropNum,
       dropTitle: m.dropTitle,

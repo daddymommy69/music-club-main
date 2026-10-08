@@ -1,4 +1,4 @@
-import { eq, desc, and, or } from "drizzle-orm";
+import { eq, desc, and, or, isNull } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { members, drops, type Drop } from "@/db/schema";
 import { getDefaultClub } from "./club";
@@ -7,14 +7,29 @@ import { sendEmail } from "./email";
 import { releaseSmsBody, releaseEmailHtml, top10ReleaseSmsBody, top10ReleaseEmailHtml } from "./messages";
 import { generateMemberToken } from "./memberToken";
 
-/** The drop that hasn't shipped yet (or most recent one, if all have). */
+/**
+ * The drop that hasn't shipped yet (or most recent one, if all have).
+ *
+ * Excludes canceled drops (2026-10-08 "drop control" round — see
+ * claude/next-build.md): a canceled drop is closed off on purpose, so
+ * it must never be mistaken for "the current drop" everywhere this
+ * function feeds into (getOpenDrop, getDropStatus, the curator tools
+ * panel, /submit, Browse's "drop open" check, etc.) — that's what lets
+ * a curator start a fresh drop right after canceling one. The row and
+ * its songs are kept forever either way; this is a visibility filter,
+ * not a delete. Note: the *next drop number* is still computed from
+ * the true highest num including canceled rows (see
+ * /api/overview/start-drop) so a canceled drop's number is never
+ * reused — this function answers "what's open," not "what's the
+ * highest number that ever existed."
+ */
 export async function getCurrentDrop(): Promise<Drop | null> {
   const club = await getDefaultClub();
   const db = getDb();
   const rows = await db
     .select()
     .from(drops)
-    .where(eq(drops.clubId, club.id))
+    .where(and(eq(drops.clubId, club.id), isNull(drops.canceledAt)))
     .orderBy(desc(drops.num))
     .limit(1);
   return rows[0] ?? null;
@@ -26,7 +41,7 @@ export async function getCurrentDrop(): Promise<Drop | null> {
  * so the caller (manual "send now" route or the cron route) can report
  * what happened.
  */
-export async function sendDropToSubscribers(drop: Drop) {
+export async function sendDropToSubscribers(drop: Drop, shippedBy?: string) {
   const db = getDb();
   const club = await getDefaultClub();
 
@@ -73,7 +88,10 @@ export async function sendDropToSubscribers(drop: Drop) {
     }
   }
 
-  await db.update(drops).set({ publishedAt: new Date() }).where(eq(drops.id, drop.id));
+  await db
+    .update(drops)
+    .set({ publishedAt: new Date(), ...(shippedBy ? { shippedBy } : {}) })
+    .where(eq(drops.id, drop.id));
 
   return { sent, total: active.length, errors };
 }

@@ -4,7 +4,8 @@ import SignupPopup from "@/app/_components/SignupPopup";
 import DropTile from "@/app/_components/DropTile";
 import { getDefaultClub } from "@/lib/club";
 import { getPublishedDrops } from "@/lib/archive";
-import { formatDropMeta } from "@/lib/format";
+import { getDropStatus } from "@/lib/dropStatus";
+import { formatDropMeta, formatScheduledDate } from "@/lib/format";
 
 // Drops change whenever curators ship a new one — never freeze this
 // at build time.
@@ -23,7 +24,20 @@ export const dynamic = "force-dynamic";
 // longer needs its own copy of getSignupContext/the popup form.
 export default async function ReleasesPage() {
   const club = await getDefaultClub();
-  const dropList = await getPublishedDrops(club.id);
+  const [dropList, status] = await Promise.all([getPublishedDrops(club.id), getDropStatus(club)]);
+
+  // Public scheduled-date line (2026-10-08 "drop control" round —
+  // founder's own answer, "yes they see it," to whether subscribers
+  // should see a curator-set schedule). Only ever one of these two —
+  // scheduledShipAt is only ever set on the currently-open drop,
+  // nextDropOpensAt only ever meaningful when nothing's open — and
+  // both are null (no line at all) whenever nothing's been scheduled,
+  // same quiet-by-default spirit as the curator panel's own fields.
+  const scheduleLine = status.scheduledShipAt
+    ? `Drop ${status.current?.num} ships ${formatScheduledDate(status.scheduledShipAt)}.`
+    : status.nextDropOpensAt
+      ? `Next drop opens ${formatScheduledDate(status.nextDropOpensAt)}.`
+      : null;
 
   return (
     <>
@@ -32,6 +46,12 @@ export default async function ReleasesPage() {
         <h1 style={{ fontSize: 20, letterSpacing: "-0.02em", marginBottom: 12 }}>
           Every drop so far
         </h1>
+
+        {scheduleLine && (
+          <p className="mut" style={{ fontSize: 12, marginTop: -4, marginBottom: 16 }}>
+            {scheduleLine}
+          </p>
+        )}
 
         <SignupPopup />
 

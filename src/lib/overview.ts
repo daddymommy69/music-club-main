@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { members, submissions, songs, type Club } from "@/db/schema";
+import { members, submissions, songs, drops, type Club } from "@/db/schema";
 import { getDropStatus } from "./dropStatus";
 
 export type PileItem = {
@@ -28,9 +28,29 @@ export type RosterCurator = {
 };
 
 export type ShipCandidate = {
+  dropId: number;
   dropNum: number;
   title: string | null;
   pickCount: number;
+  /** Short "who did what" history (2026-10-08 "drop control" round —
+   * see claude/next-build.md) — whichever of these are set render as a
+   * single line each in the Manage-this-drop panel. */
+  startedBy: string | null;
+  startedAt: Date;
+  titleUpdatedBy: string | null;
+  titleUpdatedAt: Date | null;
+  scheduledShipAt: Date | null;
+};
+
+/** A drop a curator canceled that's still eligible to be un-canceled —
+ * only true when it's still the highest-numbered drop for the club
+ * (nothing newer was started since), matching the guard the uncancel
+ * route itself enforces. */
+export type CanceledDrop = {
+  num: number;
+  title: string | null;
+  canceledBy: string | null;
+  canceledAt: Date;
 };
 
 export type OverviewData = {
@@ -45,12 +65,41 @@ export type OverviewData = {
    * shipped — null when there's nothing open right now (see the ship
    * card on /overview, src/app/api/overview/ship). */
   shipCandidate: ShipCandidate | null;
+  /** Curator-scheduled auto-open date for the next drop — only ever
+   * meaningful when there's no open drop right now. */
+  nextDropOpensAt: Date | null;
+  canceledDrop: CanceledDrop | null;
 };
 
 export async function getOverviewData(club: Club): Promise<OverviewData> {
   const db = getDb();
   const status = await getDropStatus(club);
   const openDropId = status.current && !status.current.publishedAt ? status.current.id : null;
+
+  // A canceled drop is only eligible to be un-canceled while it's still
+  // the TRUE highest-numbered drop for the club, canceled or not — the
+  // exact same check /api/overview/uncancel itself enforces (if a
+  // newer drop has since been started, reopening this one would create
+  // two "open" drops at once). So: look at the real highest-num row
+  // directly (no canceled filter), not status.current (which already
+  // excludes canceled rows and could otherwise point at an older,
+  // already-shipped drop instead).
+  const latestDropRows = await db
+    .select()
+    .from(drops)
+    .where(eq(drops.clubId, club.id))
+    .orderBy(desc(drops.num))
+    .limit(1);
+  const latestDrop = latestDropRows[0] ?? null;
+  const canceledDrop: CanceledDrop | null =
+    latestDrop && latestDrop.canceledAt
+      ? {
+          num: latestDrop.num,
+          title: latestDrop.title,
+          canceledBy: latestDrop.canceledBy,
+          canceledAt: latestDrop.canceledAt,
+        }
+      : null;
 
   const [subscriberCountRows, pileRows, curatorRows, lifetimeCounts, cycleCounts, pickCountRows] =
     await Promise.all([
@@ -130,10 +179,18 @@ export async function getOverviewData(club: Club): Promise<OverviewData> {
     shipCandidate:
       openDropId && status.current
         ? {
+            dropId: status.current.id,
             dropNum: status.current.num,
             title: status.current.title,
             pickCount: pickCountRows[0]?.value ?? 0,
+            startedBy: status.current.startedBy,
+            startedAt: status.current.createdAt,
+            titleUpdatedBy: status.current.titleUpdatedBy,
+            titleUpdatedAt: status.current.titleUpdatedAt,
+            scheduledShipAt: status.current.scheduledShipAt,
           }
         : null,
+    nextDropOpensAt: status.nextDropOpensAt,
+    canceledDrop,
   };
 }

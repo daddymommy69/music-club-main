@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { artistHref } from "@/lib/artistLink";
+import PlayableArt from "./PlayableArt";
 
 type SearchResultSite = {
   songId: number;
@@ -11,7 +12,7 @@ type SearchResultSite = {
   rating: { average: number | null; count: number };
 } | null;
 
-type SearchResult = {
+type SpotifyResult = {
   id: string;
   title: string;
   artist: string;
@@ -20,24 +21,106 @@ type SearchResult = {
   site: SearchResultSite;
 };
 
+/** Shape of a /api/browse/search?source=site row (src/lib/browse.ts's
+ * SiteSearchResult) — already-featured songs, so every stat is already
+ * known, no separate site-match lookup the way a Spotify result needs. */
+type SiteResult = {
+  songId: number;
+  title: string;
+  artist: string;
+  artworkUrl: string | null;
+  spotifyUri: string | null;
+  dropNum: number;
+  likeCount: number;
+  rating: { average: number | null; count: number };
+};
+
+type SearchSource = "site" | "spotify";
+
+/** Remembers the visitor's last-used tab across visits (2026-10-08
+ * "drop control + playback" round — founder's own ask — see
+ * claude/next-build.md). Per-browser, not account-wide — there's no
+ * server-side place this belongs, and it's a pure UI convenience, so
+ * localStorage is the right (and only) place for it. Wrapped in
+ * try/catch since a private window or blocked site data can make this
+ * throw; the search still works either way, it just won't remember. */
+const SOURCE_STORAGE_KEY = "gz-browse-search-source";
+
+function readStoredSource(): SearchSource {
+  try {
+    const stored = window.localStorage.getItem(SOURCE_STORAGE_KEY);
+    return stored === "site" ? "site" : "spotify";
+  } catch {
+    return "spotify";
+  }
+}
+
+function storeSource(source: SearchSource) {
+  try {
+    window.localStorage.setItem(SOURCE_STORAGE_KEY, source);
+  } catch {
+    // Best-effort — nothing to recover, the toggle still works this visit.
+  }
+}
+
 /**
- * Browse's one search bar (2026-10-07 — see claude/next-build.md): a
- * live Spotify search, debounced as you type. Any result that matches
- * a song already featured here shows its public stats inline; a
- * "Submit as my pick" action appears on every result, but only while a
- * drop is currently open. If this club's Spotify connection isn't set
- * up (or gets disconnected), the search box is replaced by a plain
- * manual-entry fallback — same link/title/artist fields /submit used
- * to ask for, per the founder's own "I like a fallback" call.
+ * Browse's one search bar (2026-10-07 — see claude/next-build.md),
+ * extended 2026-10-08 with a two-tab switch between searching this
+ * site's own already-featured songs and live Spotify (the founder's
+ * own ask — "is there a way to toggle the search between the site and
+ * the internet easily"). One box, one query, the tab just decides
+ * where it looks — switching tabs re-runs whatever's already typed.
+ * Spotify stays the default for a first-time visitor; the last tab
+ * used is remembered after that (readStoredSource above). The
+ * Spotify-search path still falls back to a plain manual-entry form
+ * when this club's Spotify connection isn't available — that's
+ * unrelated to (and unaffected by) this tab switch, since the This
+ * Site tab never touches Spotify at all and can never be "unavailable."
  */
 export default function BrowseSearch({ isLoggedIn, dropOpen }: { isLoggedIn: boolean; dropOpen: boolean }) {
+  const [source, setSource] = useState<SearchSource>("spotify");
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[] | null>(null);
+  const [spotifyResults, setSpotifyResults] = useState<SpotifyResult[] | null>(null);
+  const [siteResults, setSiteResults] = useState<SiteResult[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [spotifyUnavailable, setSpotifyUnavailable] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const trimmedQuery = query.trim();
+
+  // Hydrate the remembered tab after mount — server-rendered markup
+  // has no localStorage to read, so this always starts as "spotify"
+  // and corrects itself right after mount instead of reading
+  // localStorage during render (which would mismatch the server-
+  // rendered HTML). A deliberate one-time exception to the usual
+  // "don't setState in an effect" rule — there's no external system to
+  // subscribe to here, just a value only the browser has.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSource(readStoredSource());
+  }, []);
+
+  async function runSearch(q: string, src: SearchSource) {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/browse/search?q=${encodeURIComponent(q)}&source=${src}`);
+      const data = await res.json().catch(() => null);
+      if (src === "site") {
+        setSiteResults(data?.results ?? []);
+      } else if (data?.spotifyUnavailable) {
+        setSpotifyUnavailable(true);
+        setSpotifyResults([]);
+      } else {
+        setSpotifyUnavailable(false);
+        setSpotifyResults(data?.results ?? []);
+      }
+    } catch {
+      if (src === "site") setSiteResults([]);
+      else setSpotifyResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   // Debounced directly from the input's own change handler rather than
   // an effect keyed on `query` — this is a response to the person
@@ -52,23 +135,15 @@ export default function BrowseSearch({ isLoggedIn, dropOpen }: { isLoggedIn: boo
     if (!q) return;
 
     setLoading(true);
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/browse/search?q=${encodeURIComponent(q)}`);
-        const data = await res.json().catch(() => null);
-        if (data?.spotifyUnavailable) {
-          setSpotifyUnavailable(true);
-          setResults([]);
-        } else {
-          setSpotifyUnavailable(false);
-          setResults(data?.results ?? []);
-        }
-      } catch {
-        setResults([]);
-      } finally {
-        setLoading(false);
-      }
-    }, 350);
+    debounceRef.current = setTimeout(() => runSearch(q, source), 350);
+  }
+
+  function switchSource(next: SearchSource) {
+    if (next === source) return;
+    setSource(next);
+    storeSource(next);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (trimmedQuery) runSearch(trimmedQuery, next);
   }
 
   // Unmount-only cleanup so a pending debounce never fires (and calls
@@ -81,10 +156,31 @@ export default function BrowseSearch({ isLoggedIn, dropOpen }: { isLoggedIn: boo
 
   return (
     <div>
+      <div className="search-toggle" role="tablist" aria-label="Search">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={source === "spotify"}
+          className={`search-toggle-btn${source === "spotify" ? " active" : ""}`}
+          onClick={() => switchSource("spotify")}
+        >
+          Spotify
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={source === "site"}
+          className={`search-toggle-btn${source === "site" ? " active" : ""}`}
+          onClick={() => switchSource("site")}
+        >
+          This site
+        </button>
+      </div>
+
       <input
         type="text"
         className="settings-input"
-        placeholder="Search for a song or artist…"
+        placeholder={source === "site" ? "Search songs already featured here…" : "Search for a song or artist…"}
         value={query}
         onChange={(e) => handleQueryChange(e.target.value)}
         style={{ marginBottom: 12 }}
@@ -96,20 +192,34 @@ export default function BrowseSearch({ isLoggedIn, dropOpen }: { isLoggedIn: boo
         </p>
       )}
 
-      {!loading && trimmedQuery && spotifyUnavailable && (
+      {!loading && trimmedQuery && source === "spotify" && spotifyUnavailable && (
         <ManualSubmit dropOpen={dropOpen} isLoggedIn={isLoggedIn} />
       )}
 
-      {!loading && trimmedQuery && !spotifyUnavailable && results && results.length === 0 && (
+      {!loading && trimmedQuery && source === "spotify" && !spotifyUnavailable && spotifyResults && spotifyResults.length === 0 && (
         <p className="mut" style={{ fontSize: 11.5 }}>
           No matches on Spotify for that.
         </p>
       )}
 
-      {!loading && trimmedQuery && !spotifyUnavailable && results && results.length > 0 && (
+      {!loading && trimmedQuery && source === "spotify" && !spotifyUnavailable && spotifyResults && spotifyResults.length > 0 && (
         <div className="roster-list">
-          {results.map((r) => (
-            <SearchResultRow key={r.id} result={r} dropOpen={dropOpen} isLoggedIn={isLoggedIn} />
+          {spotifyResults.map((r) => (
+            <SpotifyResultRow key={r.id} result={r} dropOpen={dropOpen} isLoggedIn={isLoggedIn} />
+          ))}
+        </div>
+      )}
+
+      {!loading && trimmedQuery && source === "site" && siteResults && siteResults.length === 0 && (
+        <p className="mut" style={{ fontSize: 11.5 }}>
+          Nothing featured here yet matches that.
+        </p>
+      )}
+
+      {!loading && trimmedQuery && source === "site" && siteResults && siteResults.length > 0 && (
+        <div className="roster-list">
+          {siteResults.map((r) => (
+            <SiteResultRow key={r.songId} result={r} />
           ))}
         </div>
       )}
@@ -117,12 +227,41 @@ export default function BrowseSearch({ isLoggedIn, dropOpen }: { isLoggedIn: boo
   );
 }
 
-function SearchResultRow({
+function SiteResultRow({ result }: { result: SiteResult }) {
+  return (
+    <div className="roster-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <PlayableArt
+          spotifyUri={result.spotifyUri}
+          artworkUrl={result.artworkUrl}
+          title={result.title}
+          artist={result.artist}
+          className="track-row-art"
+          fallbackClassName="track-row-art track-row-art-empty"
+        />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <Link href={`/drop/${result.dropNum}`} className="track-title">
+            {result.title}
+          </Link>
+          <Link href={artistHref(result.artist)} className="track-artist">
+            {result.artist}
+          </Link>
+          <div className="mut" style={{ fontSize: 10, marginTop: 2 }}>
+            ♥ {result.likeCount}
+            {result.rating.count > 0 && ` · ★ ${result.rating.average?.toFixed(1)}`} · drop {result.dropNum}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SpotifyResultRow({
   result,
   dropOpen,
   isLoggedIn,
 }: {
-  result: SearchResult;
+  result: SpotifyResult;
   dropOpen: boolean;
   isLoggedIn: boolean;
 }) {
@@ -191,12 +330,17 @@ function SearchResultRow({
   return (
     <div className="roster-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        {result.artworkUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={result.artworkUrl} alt="" className="track-row-art" />
-        ) : (
-          <div className="track-row-art track-row-art-empty" aria-hidden="true" />
-        )}
+        {/* result.id is Spotify's own bare track id (src/lib/spotify.ts's
+            searchSpotifyTracks) — reconstructed as a full URI here since
+            that's the shape PlayableArt/every other call site takes. */}
+        <PlayableArt
+          spotifyUri={`spotify:track:${result.id}`}
+          artworkUrl={result.artworkUrl}
+          title={result.title}
+          artist={result.artist}
+          className="track-row-art"
+          fallbackClassName="track-row-art track-row-art-empty"
+        />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="track-title">{result.title}</div>
           <Link href={artistHref(result.artist)} className="track-artist">
@@ -268,7 +412,9 @@ function SearchResultRow({
 
 /** Spotify search isn't available right now (club not connected, or
  * the connection's been revoked) — same manual link/title/artist entry
- * /submit always had, routed through the exact same endpoints. */
+ * /submit always had, routed through the exact same endpoints. Only
+ * ever shown under the Spotify tab — the This Site tab never touches
+ * Spotify at all, so it has no equivalent "unavailable" state. */
 function ManualSubmit({ dropOpen, isLoggedIn }: { dropOpen: boolean; isLoggedIn: boolean }) {
   const [link, setLink] = useState("");
   const [title, setTitle] = useState("");

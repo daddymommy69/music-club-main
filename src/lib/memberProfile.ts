@@ -27,6 +27,8 @@ export type MemberSubmissionHistoryRow = {
   songId: number;
   title: string;
   artist: string;
+  artworkUrl: string | null;
+  spotifyUri: string | null;
   pickType: "curator" | "listener";
   dropNum: number;
   dropTitle: string | null;
@@ -47,6 +49,8 @@ export async function getMemberSubmissionHistory(memberId: number): Promise<Memb
       songId: songs.id,
       title: songs.title,
       artist: songs.artist,
+      artworkUrl: songs.artworkUrl,
+      spotifyUri: songs.spotifyUri,
       pickType: songs.pickType,
       dropNum: drops.num,
       dropTitle: drops.title,

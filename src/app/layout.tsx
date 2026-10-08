@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import NowPlayingProvider from "./_components/NowPlayingProvider";
 
 export const metadata: Metadata = {
   title: "Project Music Club",
@@ -9,7 +10,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <NowPlayingProvider>{children}</NowPlayingProvider>
+      </body>
     </html>
   );
 }

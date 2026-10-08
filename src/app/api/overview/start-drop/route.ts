@@ -16,6 +16,15 @@ import { getDefaultClub } from "@/lib/club";
  * does, same single-open-drop rule, just reachable from the curator
  * session a real person is already using instead of a bearer token —
  * /api/drops itself is untouched, for any script that still wants it.
+ *
+ * Canceled-aware guard, 2026-10-08 ("drop control" round — see
+ * claude/next-build.md): the "is something already open" check looks
+ * at the TRUE highest-numbered drop regardless of canceled status —
+ * canceling a drop is deliberately NOT the same as it never having
+ * existed, so the next drop started after a cancel still continues
+ * from `last.num + 1`, never reusing the canceled number (the
+ * founder's own explicit call). Only a drop that's neither shipped nor
+ * canceled actually blocks starting a new one.
  */
 export async function POST(request: Request) {
   const curator = await getSessionMember();
@@ -39,12 +48,9 @@ export async function POST(request: Request) {
     .orderBy(desc(drops.num))
     .limit(1);
 
-  // Same guard as /api/drops: a second open drop before the first ships
-  // would silently orphan it, since every "current drop" lookup in this
-  // app only ever looks at the highest drop.num.
-  if (last && !last.publishedAt) {
+  if (last && !last.publishedAt && !last.canceledAt) {
     return NextResponse.json(
-      { error: `Drop #${last.num} hasn't shipped yet — ship it before starting a new one.` },
+      { error: `Drop #${last.num} hasn't shipped yet — ship or cancel it before starting a new one.` },
       { status: 400 }
     );
   }
@@ -55,6 +61,7 @@ export async function POST(request: Request) {
       clubId: club.id,
       num: (last?.num ?? 0) + 1,
       title: title?.trim() || null,
+      startedBy: curator.name || "A curator",
     })
     .returning();
 

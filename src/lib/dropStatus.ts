@@ -11,6 +11,16 @@ export type DropStatus = {
   /** Days until the next drop ships. null = manual mode, or unknown (nothing currently building). */
   daysUntilNext: number | null;
   nextDropNum: number;
+  /** The exact, curator-picked ship date for the current drop, if one's
+   * been set (2026-10-08 "drop control" round — see
+   * claude/next-build.md) — takes over from the fuzzy cycleDays-based
+   * daysUntilNext estimate above whenever it's present, since this is
+   * a real scheduled date, not a guess. Null when nothing's scheduled. */
+  scheduledShipAt: Date | null;
+  /** The curator-scheduled auto-open date for the NEXT drop, only ever
+   * meaningful when `current` is null (nothing open right now) — see
+   * clubs.nextDropOpensAt. */
+  nextDropOpensAt: Date | null;
 };
 
 /**
@@ -26,15 +36,32 @@ export async function getDropStatus(club: Club): Promise<DropStatus> {
   const isManual = club.cycle === "manual";
   const cycleDays = getCycleDays(club);
 
+  const scheduledShipAt = current && !current.publishedAt ? current.scheduledShipAt ?? null : null;
+
   let daysUntilNext: number | null = null;
-  if (!isManual && cycleDays && current && !current.publishedAt) {
-    const dueAt = new Date(current.createdAt);
-    dueAt.setDate(dueAt.getDate() + cycleDays);
-    const msLeft = dueAt.getTime() - Date.now();
-    daysUntilNext = Math.max(0, Math.ceil(msLeft / (24 * 60 * 60 * 1000)));
+  if (current && !current.publishedAt) {
+    if (scheduledShipAt) {
+      const msLeft = scheduledShipAt.getTime() - Date.now();
+      daysUntilNext = Math.max(0, Math.ceil(msLeft / (24 * 60 * 60 * 1000)));
+    } else if (!isManual && cycleDays) {
+      const dueAt = new Date(current.createdAt);
+      dueAt.setDate(dueAt.getDate() + cycleDays);
+      const msLeft = dueAt.getTime() - Date.now();
+      daysUntilNext = Math.max(0, Math.ceil(msLeft / (24 * 60 * 60 * 1000)));
+    }
   }
 
   const nextDropNum = current?.num ?? (latestPublished ? latestPublished.num + 1 : 1);
+  const nextDropOpensAt = !current ? club.nextDropOpensAt ?? null : null;
 
-  return { current, latestPublished, isManual, cycleDays, daysUntilNext, nextDropNum };
+  return {
+    current,
+    latestPublished,
+    isManual,
+    cycleDays,
+    daysUntilNext,
+    nextDropNum,
+    scheduledShipAt,
+    nextDropOpensAt,
+  };
 }

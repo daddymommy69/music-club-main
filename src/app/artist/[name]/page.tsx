@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import SiteHeader from "@/app/_components/SiteHeader";
 import RoleName from "@/app/_components/RoleName";
 import FallbackImg from "@/app/_components/FallbackImg";
+import PlayableArt from "@/app/_components/PlayableArt";
 import { getDefaultClub } from "@/lib/club";
 import { getSessionMember } from "@/lib/memberSession";
 import { getArtistPageData } from "@/lib/artists";
@@ -55,25 +56,42 @@ export default async function ArtistPage({ params }: { params: Promise<{ name: s
         <div className="roster-list">
           {artist.songs.map((song) => (
             <div className="roster-row" key={song.songId} style={{ flexDirection: "column", alignItems: "stretch", gap: 4 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                <span className="roster-name">
-                  <Link href={`/drop/${song.dropNum}`}>{song.title}</Link>
-                </span>
-                <span className="roster-meta">
-                  drop {song.dropNum} · ♥ {song.likeCount}
-                  {song.rating.count > 0 && ` · ★ ${song.rating.average?.toFixed(1)}`}
-                </span>
+              {/* Artwork next to the song name (2026-10-08 "drop control
+                  + playback" round — founder's own ask — see
+                  claude/next-build.md), matching the rest of the site's
+                  artwork conventions and doubling as this song's play
+                  target, same as everywhere else PlayableArt shows up. */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <PlayableArt
+                  spotifyUri={song.spotifyUri}
+                  artworkUrl={song.artworkUrl}
+                  title={song.title}
+                  artist={artist.displayName}
+                  className="track-row-art"
+                  fallbackClassName="track-row-art track-row-art-empty"
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                    <span className="roster-name">
+                      <Link href={`/drop/${song.dropNum}`}>{song.title}</Link>
+                    </span>
+                    <span className="roster-meta">
+                      drop {song.dropNum} · ♥ {song.likeCount}
+                      {song.rating.count > 0 && ` · ★ ${song.rating.average?.toFixed(1)}`}
+                    </span>
+                  </div>
+                  {song.curatorCredit && (
+                    <div className="mut" style={{ fontSize: 10.5 }}>
+                      picked by <RoleName name={song.curatorCredit} isCurator />
+                    </div>
+                  )}
+                  {song.isOwnPick && (
+                    <div style={{ fontSize: 10.5, color: "var(--accent)" }}>
+                      You picked this — drop {song.dropNum}
+                    </div>
+                  )}
+                </div>
               </div>
-              {song.curatorCredit && (
-                <div className="mut" style={{ fontSize: 10.5 }}>
-                  picked by <RoleName name={song.curatorCredit} isCurator />
-                </div>
-              )}
-              {song.isOwnPick && (
-                <div style={{ fontSize: 10.5, color: "var(--accent)" }}>
-                  You picked this — drop {song.dropNum}
-                </div>
-              )}
             </div>
           ))}
         </div>

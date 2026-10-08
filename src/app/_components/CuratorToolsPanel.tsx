@@ -71,7 +71,34 @@ type RosterCurator = {
   joinedAt: string;
 };
 
-type ShipCandidate = { dropNum: number; title: string | null; pickCount: number };
+/** Everything the Manage-this-drop panel needs, including the short
+ * "who did what" history line(s) (2026-10-08 "drop control" round —
+ * see claude/next-build.md: the founder's own "lightweight... but not
+ * necessary" call, so this stays one or two short lines, not a real
+ * audit log). Dates arrive as ISO strings — serialized server-side in
+ * src/app/account/page.tsx, same convention as every other date this
+ * panel already receives (pile/roster/etc). */
+type ShipCandidate = {
+  dropId: number;
+  dropNum: number;
+  title: string | null;
+  pickCount: number;
+  startedBy: string | null;
+  startedAt: string;
+  titleUpdatedBy: string | null;
+  titleUpdatedAt: string | null;
+  scheduledShipAt: string | null;
+};
+
+/** A drop a curator canceled that's still eligible to be un-canceled
+ * (src/lib/overview.ts's own CanceledDrop — see that type's comment
+ * for the exact eligibility rule). */
+type CanceledDrop = {
+  num: number;
+  title: string | null;
+  canceledBy: string | null;
+  canceledAt: string;
+};
 
 export type CuratorToolsPanelProps = {
   dropNum: number;
@@ -83,6 +110,10 @@ export type CuratorToolsPanelProps = {
   pile: PileItem[];
   roster: RosterCurator[];
   shipCandidate: ShipCandidate | null;
+  /** Curator-scheduled auto-open date for the next drop — only ever
+   * meaningful (and only ever shown) while nothing's open right now. */
+  nextDropOpensAt: string | null;
+  canceledDrop: CanceledDrop | null;
   top10: Top10CardProps | null;
 };
 
@@ -111,6 +142,8 @@ export default function CuratorToolsPanel({
   pile,
   roster,
   shipCandidate,
+  nextDropOpensAt,
+  canceledDrop,
   top10,
 }: CuratorToolsPanelProps) {
   const router = useRouter();
@@ -128,7 +161,11 @@ export default function CuratorToolsPanel({
         <Stat label="Submissions" value={String(pile.length)} />
       </div>
 
-      {!hasOpenDrop && <StartDropCard dropNum={dropNum} onStarted={refresh} />}
+      {!hasOpenDrop && canceledDrop && <CanceledDropBanner canceledDrop={canceledDrop} onChanged={refresh} />}
+
+      {!hasOpenDrop && (
+        <StartDropCard dropNum={dropNum} nextDropOpensAt={nextDropOpensAt} onChanged={refresh} />
+      )}
 
       {hasOpenDrop && (
         <>
@@ -141,18 +178,7 @@ export default function CuratorToolsPanel({
 
       <CuratorsDisclosure roster={roster} />
 
-      {shipCandidate && (
-        <div className="ct-card-emphasis" style={{ marginTop: 20 }}>
-          <p className="label" style={{ marginBottom: 10 }}>
-            Ship drop {shipCandidate.dropNum}
-          </p>
-          <ShipDropCard
-            dropNum={shipCandidate.dropNum}
-            title={shipCandidate.title}
-            pickCount={shipCandidate.pickCount}
-          />
-        </div>
-      )}
+      {shipCandidate && <ManageDropCard shipCandidate={shipCandidate} onChanged={refresh} />}
 
       {top10 && <Top10Disclosure top10={top10} />}
     </div>
@@ -168,7 +194,15 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StartDropCard({ dropNum, onStarted }: { dropNum: number; onStarted: () => void }) {
+function StartDropCard({
+  dropNum,
+  nextDropOpensAt,
+  onChanged,
+}: {
+  dropNum: number;
+  nextDropOpensAt: string | null;
+  onChanged: () => void;
+}) {
   const [title, setTitle] = useState("");
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -188,7 +222,7 @@ function StartDropCard({ dropNum, onStarted }: { dropNum: number; onStarted: () 
         setError(data.error ?? "Something went wrong. Try again.");
         return;
       }
-      onStarted();
+      onChanged();
     } catch {
       setError("Something went wrong. Try again.");
     } finally {
@@ -218,6 +252,465 @@ function StartDropCard({ dropNum, onStarted }: { dropNum: number; onStarted: () 
       </form>
       {error && (
         <p className="notice error" style={{ marginTop: 10 }}>
+          {error}
+        </p>
+      )}
+
+      <hr className="hairline" style={{ margin: "16px 0" }} />
+      <ScheduleOpenField nextDropOpensAt={nextDropOpensAt} onChanged={onChanged} />
+    </div>
+  );
+}
+
+/** Set a date for drop {dropNum} to open itself, no click needed
+ * (2026-10-08 "drop control" round — the founder's own ask: "pick
+ * actual dates and it s[h]ips automatically" for both ends of a drop,
+ * not just shipping). Stored on the club (src/db/schema.ts's
+ * clubs.nextDropOpensAt), since the drop itself doesn't exist until
+ * the daily cron (src/app/api/cron/drops) actually starts it — once a
+ * day, same precision as auto-ship, per the founder's own "thats
+ * fine." */
+function ScheduleOpenField({
+  nextDropOpensAt,
+  onChanged,
+}: {
+  nextDropOpensAt: string | null;
+  onChanged: () => void;
+}) {
+  const [value, setValue] = useState(nextDropOpensAt ? toDatetimeLocalValue(nextDropOpensAt) : "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save(next: string | null) {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/overview/schedule-open", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nextDropOpensAt: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Couldn't save that. Try again.");
+        return;
+      }
+      onChanged();
+    } catch {
+      setError("Couldn't save that. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <span className="mut" style={{ fontSize: 11.5 }}>
+        {nextDropOpensAt
+          ? "Scheduled to open automatically — checked once a day:"
+          : "Or schedule it to open itself later (optional):"}
+      </span>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <input
+          type="datetime-local"
+          className="settings-input"
+          style={{ flex: 1, minWidth: 180 }}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        />
+        <button
+          type="button"
+          className="btn"
+          style={{ width: "auto", minHeight: 36, height: 36, padding: "0 14px", fontSize: 12 }}
+          disabled={saving || !value}
+          onClick={() => save(new Date(value).toISOString())}
+        >
+          {saving ? "Saving…" : "Schedule"}
+        </button>
+        {nextDropOpensAt && (
+          <button
+            type="button"
+            className="link-btn"
+            disabled={saving}
+            onClick={() => {
+              setValue("");
+              save(null);
+            }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      {error && <p className="notice error">{error}</p>}
+    </div>
+  );
+}
+
+/** A canceled drop that's still eligible to be un-canceled, shown only
+ * to curators (2026-10-08 "drop control" round — founder's explicit
+ * "curator-only visibility" + "can be uncancelled" calls). Nothing
+ * was ever deleted on cancel, so this is just flipping canceledAt back
+ * off — src/app/api/overview/uncancel enforces the same "still the
+ * true latest drop" guard this banner's own visibility already implies. */
+function CanceledDropBanner({
+  canceledDrop,
+  onChanged,
+}: {
+  canceledDrop: { num: number; title: string | null; canceledBy: string | null; canceledAt: string };
+  onChanged: () => void;
+}) {
+  const [uncanceling, setUncanceling] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function uncancel() {
+    setUncanceling(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/overview/uncancel", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Couldn't un-cancel that. Try again.");
+        return;
+      }
+      onChanged();
+    } catch {
+      setError("Couldn't un-cancel that. Try again.");
+    } finally {
+      setUncanceling(false);
+    }
+  }
+
+  return (
+    <div className="ct-card gz-up" style={{ marginTop: 20 }}>
+      <p className="label" style={{ marginBottom: 6 }}>
+        Drop {canceledDrop.num} was canceled
+      </p>
+      <p className="mut" style={{ fontSize: 12, lineHeight: 1.6, marginBottom: 10 }}>
+        {canceledDrop.title ? `"${canceledDrop.title}"` : `Drop ${canceledDrop.num}`}
+        {canceledDrop.canceledBy && <> · canceled by {canceledDrop.canceledBy}</>} · its picks are
+        still there, nothing was lost.
+      </p>
+      <button
+        type="button"
+        className="btn"
+        style={{ width: "auto", minHeight: 32, height: 32, padding: "0 12px", fontSize: 11.5 }}
+        disabled={uncanceling}
+        onClick={uncancel}
+      >
+        {uncanceling ? "Un-canceling…" : `Un-cancel drop ${canceledDrop.num}`}
+      </button>
+      {error && (
+        <p className="notice error" style={{ marginTop: 8 }}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** `<input type="datetime-local">` wants `YYYY-MM-DDTHH:mm` in the
+ * viewer's own local time, not an ISO string — this just reformats
+ * one into the other for the field's initial value. */
+function toDatetimeLocalValue(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
+ * Manage-this-drop (2026-10-08 "drop control" round — see
+ * claude/next-build.md). Replaces the old bare "Ship drop N" card:
+ * the founder's own call was that Ship should fold into a bigger panel
+ * rather than sit beside it ("replace and be apart of... add to it").
+ * Rename works anytime while the drop's open (any current curator can
+ * do it — there's no single owner), the schedule-ship date is the
+ * other half of "pick actual dates and it ships automatically," and
+ * Cancel is reversible with curator-only visibility — see
+ * CanceledDropBanner above for the un-cancel side of that.
+ */
+function ManageDropCard({ shipCandidate, onChanged }: { shipCandidate: ShipCandidate; onChanged: () => void }) {
+  const { dropId, dropNum, title, pickCount, startedBy, titleUpdatedBy, scheduledShipAt } = shipCandidate;
+
+  return (
+    <div className="ct-card-emphasis gz-up" style={{ marginTop: 20 }} key={dropId}>
+      <p className="label" style={{ marginBottom: 10 }}>
+        Manage drop {dropNum}
+      </p>
+
+      <RenameDropField
+        dropNum={dropNum}
+        title={title}
+        startedBy={startedBy}
+        titleUpdatedBy={titleUpdatedBy}
+        onChanged={onChanged}
+      />
+
+      <hr className="hairline" style={{ margin: "16px 0" }} />
+
+      <ScheduleShipField scheduledShipAt={scheduledShipAt} onChanged={onChanged} />
+
+      <hr className="hairline" style={{ margin: "16px 0" }} />
+
+      <ShipDropCard dropNum={dropNum} pickCount={pickCount} />
+
+      <hr className="hairline" style={{ margin: "16px 0" }} />
+
+      <CancelDropControl dropNum={dropNum} onChanged={onChanged} />
+    </div>
+  );
+}
+
+/** Any current curator can rename an open drop, any time before it
+ * ships (founder's own answers: "whoever is a curator during the time
+ * of the drop can rename it," "just before the drop, cant change
+ * after" — the field living only inside the open-drop Manage panel is
+ * what enforces the latter; there's nothing to lock separately). */
+function RenameDropField({
+  dropNum,
+  title,
+  startedBy,
+  titleUpdatedBy,
+  onChanged,
+}: {
+  dropNum: number;
+  title: string | null;
+  startedBy: string | null;
+  titleUpdatedBy: string | null;
+  onChanged: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(title ?? `Drop ${dropNum}`);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/overview/rename", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: value.trim() || `Drop ${dropNum}` }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Couldn't rename that. Try again.");
+        return;
+      }
+      setEditing(false);
+      onChanged();
+    } catch {
+      setError("Couldn't rename that. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // "last edited by" line — titleUpdatedBy wins once it's ever been
+  // set (that's the more recent fact); startedBy otherwise. Lightweight
+  // on purpose (founder's own call) — just who, no timestamp.
+  const historyLine = titleUpdatedBy
+    ? `renamed by ${titleUpdatedBy}`
+    : startedBy
+      ? `started by ${startedBy}`
+      : null;
+
+  if (!editing) {
+    return (
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+        <div>
+          <p className="label" style={{ marginBottom: 2 }}>
+            {title ?? `Drop ${dropNum}`}
+          </p>
+          {historyLine && (
+            <p className="mut" style={{ fontSize: 10.5 }}>
+              {historyLine}
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          className="link-btn"
+          style={{ flexShrink: 0 }}
+          onClick={() => {
+            setValue(title ?? `Drop ${dropNum}`);
+            setError(null);
+            setEditing(true);
+          }}
+        >
+          Rename
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <input
+        type="text"
+        className="settings-input"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={`Drop ${dropNum}`}
+      />
+      {error && <p className="notice error">{error}</p>}
+      <div style={{ display: "flex", gap: 10 }}>
+        <button
+          type="button"
+          className="btn"
+          style={{ width: "auto", minHeight: 32, height: 32, padding: "0 12px", fontSize: 11.5 }}
+          disabled={saving}
+          onClick={save}
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
+        <button type="button" className="link-btn" disabled={saving} onClick={() => setEditing(false)}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** The other half of "pick actual dates and it ships automatically" —
+ * the daily cron (src/app/api/cron/drops) ships this drop, same
+ * auto-build-then-send path as a manual Ship click, once this date
+ * passes. Once-a-day precision, not exact-minute — the founder's own
+ * "thats fine" on that trade-off. */
+function ScheduleShipField({
+  scheduledShipAt,
+  onChanged,
+}: {
+  scheduledShipAt: string | null;
+  onChanged: () => void;
+}) {
+  const [value, setValue] = useState(scheduledShipAt ? toDatetimeLocalValue(scheduledShipAt) : "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save(next: string | null) {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/overview/schedule-ship", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scheduledShipAt: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Couldn't save that. Try again.");
+        return;
+      }
+      onChanged();
+    } catch {
+      setError("Couldn't save that. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <span className="mut" style={{ fontSize: 11.5 }}>
+        {scheduledShipAt
+          ? "Ships automatically — checked once a day:"
+          : "Auto-ship date (optional — otherwise ship manually below):"}
+      </span>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <input
+          type="datetime-local"
+          className="settings-input"
+          style={{ flex: 1, minWidth: 180 }}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        />
+        <button
+          type="button"
+          className="btn"
+          style={{ width: "auto", minHeight: 36, height: 36, padding: "0 14px", fontSize: 12 }}
+          disabled={saving || !value}
+          onClick={() => save(new Date(value).toISOString())}
+        >
+          {saving ? "Saving…" : "Set"}
+        </button>
+        {scheduledShipAt && (
+          <button
+            type="button"
+            className="link-btn"
+            disabled={saving}
+            onClick={() => {
+              setValue("");
+              save(null);
+            }}
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      {error && <p className="notice error">{error}</p>}
+    </div>
+  );
+}
+
+/** Reversible — nothing's deleted, curator-only visibility, the drop
+ * number stays used up either way (founder's own calls: "wouldnt want
+ * it to lose all the data... closed off for curators eyes only" /
+ * "can be uncancelled"). The un-cancel side lives in
+ * CanceledDropBanner above, shown instead of this once nothing's open. */
+function CancelDropControl({ dropNum, onChanged }: { dropNum: number; onChanged: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const [canceling, setCanceling] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function cancel() {
+    setCanceling(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/overview/cancel", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Couldn't cancel that. Try again.");
+        return;
+      }
+      onChanged();
+    } catch {
+      setError("Couldn't cancel that. Try again.");
+    } finally {
+      setCanceling(false);
+    }
+  }
+
+  if (!confirming) {
+    return (
+      <button type="button" className="link-btn" style={{ color: "var(--err)" }} onClick={() => setConfirming(true)}>
+        Cancel drop {dropNum}
+      </button>
+    );
+  }
+
+  return (
+    <div className="duplicate-notice gz-up">
+      <p style={{ fontSize: 12, lineHeight: 1.6 }}>
+        Cancel drop {dropNum}? Nothing&rsquo;s deleted — its picks stay put and a curator can
+        un-cancel it later. It just closes off from here on, and the drop number stays used up.
+      </p>
+      <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+        <button
+          type="button"
+          className="btn"
+          style={{ width: "auto", minHeight: 32, height: 32, padding: "0 12px", fontSize: 11.5 }}
+          disabled={canceling}
+          onClick={cancel}
+        >
+          {canceling ? "Canceling…" : "Yes, cancel it"}
+        </button>
+        <button type="button" className="link-btn" disabled={canceling} onClick={() => setConfirming(false)}>
+          Never mind
+        </button>
+      </div>
+      {error && (
+        <p className="notice error" style={{ marginTop: 8 }}>
           {error}
         </p>
       )}
@@ -309,9 +802,9 @@ function AddPick({ onAdded }: { onAdded: () => void }) {
       )}
 
       {!loading && trimmed && spotifyUnavailable && (
-        <div style={{ marginTop: 14 }}>
-          <ManualAddPick onAdded={handleAdded} />
-        </div>
+        <p className="mut" style={{ fontSize: 11.5, marginTop: 10 }}>
+          Spotify search isn&rsquo;t available right now — paste a link instead, below.
+        </p>
       )}
 
       {!loading && trimmed && !spotifyUnavailable && results && results.length === 0 && (
@@ -328,11 +821,17 @@ function AddPick({ onAdded }: { onAdded: () => void }) {
         </div>
       )}
 
-      {!trimmed && (
-        <p className="mut" style={{ fontSize: 11.5, marginTop: 10, lineHeight: 1.6 }}>
-          No links to paste — search finds the song, and its artwork, for you.
+      {/* Always visible now, not just an automatic fallback (2026-10-08
+          "drop control" round — founder's own ask: his actual curators
+          mostly paste Apple Music links, so that path needs to be
+          right there next to the search, not hidden until Spotify
+          happens to be unavailable — see claude/next-build.md). */}
+      <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--ln)" }}>
+        <p className="mut" style={{ fontSize: 11, marginBottom: 10 }}>
+          Or paste a Spotify/Apple Music link directly:
         </p>
-      )}
+        <ManualAddPick onAdded={handleAdded} />
+      </div>
     </div>
   );
 }
@@ -442,10 +941,10 @@ function SearchResultRow({ result, onAdded }: { result: SearchResult; onAdded: (
   );
 }
 
-/** The original paste-a-link flow, unchanged — now only reachable as
- * AddPick's fallback for whenever this club's Spotify connection isn't
- * available (no token yet, or it's been revoked). Posts to the same
- * /api/room/picks route it always has. */
+/** The original paste-a-link flow — always visible now, next to the
+ * search box, not just a fallback for when Spotify search is down
+ * (2026-10-08 "drop control" round — see claude/next-build.md). Posts
+ * to the same /api/room/picks route it always has. */
 function ManualAddPick({ onAdded }: { onAdded: () => void }) {
   const [link, setLink] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -495,9 +994,6 @@ function ManualAddPick({ onAdded }: { onAdded: () => void }) {
 
   return (
     <form onSubmit={handleSubmit} noValidate>
-      <p className="mut" style={{ fontSize: 11.5, lineHeight: 1.6, marginBottom: 10 }}>
-        Spotify search isn&rsquo;t available right now — add your pick by hand instead.
-      </p>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <input
           type="url"

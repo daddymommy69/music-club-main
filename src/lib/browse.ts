@@ -1,9 +1,9 @@
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, or, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { songs, drops, type Club } from "@/db/schema";
 import { normalizeArtistName } from "./normalize";
 import { getLikeCounts } from "./songLikes";
-import { getSongRatingSummary, type SongRatingSummary } from "./songRatings";
+import { getSongRatingSummary, getSongRatingSummaries, type SongRatingSummary } from "./songRatings";
 
 /**
  * /browse (2026-10-07 — see claude/next-build.md): replaces /submit.
@@ -120,4 +120,66 @@ export async function getSongSiteStats(club: Club, title: string, artist: string
 
   const [likeCounts, rating] = await Promise.all([getLikeCounts([row.id]), getSongRatingSummary(row.id)]);
   return { songId: row.id, dropNum: row.dropNum, likeCount: likeCounts.get(row.id) ?? 0, rating };
+}
+
+export type SiteSearchResult = {
+  songId: number;
+  title: string;
+  artist: string;
+  artworkUrl: string | null;
+  spotifyUri: string | null;
+  dropNum: number;
+  likeCount: number;
+  rating: SongRatingSummary;
+};
+
+/**
+ * Browse's "search this site" mode (2026-10-08 — see
+ * claude/next-build.md: the founder wants to check "have we already
+ * done this song/artist" without typing into Spotify's index first).
+ * Unlike the Spotify-search path, every result already has a real
+ * songId and real stats attached — there's no separate stats lookup to
+ * do, this IS the stats. Matches by a simple case-insensitive
+ * substring on title OR artist, same spirit as a quick filter rather
+ * than a full-text search engine — fine at this app's scale.
+ */
+export async function searchSiteSongs(clubId: number, query: string, limit = 12): Promise<SiteSearchResult[]> {
+  const db = getDb();
+  const like = `%${query.trim().toLowerCase()}%`;
+
+  const rows = await db
+    .select({
+      id: songs.id,
+      title: songs.title,
+      artist: songs.artist,
+      artworkUrl: songs.artworkUrl,
+      spotifyUri: songs.spotifyUri,
+      dropId: songs.dropId,
+      dropNum: drops.num,
+    })
+    .from(songs)
+    .innerJoin(drops, eq(songs.dropId, drops.id))
+    .where(
+      and(
+        eq(drops.clubId, clubId),
+        isNotNull(drops.publishedAt),
+        or(sql`lower(${songs.title}) LIKE ${like}`, sql`lower(${songs.artist}) LIKE ${like}`)
+      )
+    )
+    .orderBy(desc(drops.num))
+    .limit(limit);
+
+  const songIds = rows.map((r) => r.id);
+  const [likeCounts, ratings] = await Promise.all([getLikeCounts(songIds), getSongRatingSummaries(songIds)]);
+
+  return rows.map((r) => ({
+    songId: r.id,
+    title: r.title,
+    artist: r.artist,
+    artworkUrl: r.artworkUrl,
+    spotifyUri: r.spotifyUri,
+    dropNum: r.dropNum,
+    likeCount: likeCounts.get(r.id) ?? 0,
+    rating: ratings.get(r.id) ?? { average: null, count: 0 },
+  }));
 }
