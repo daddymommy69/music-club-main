@@ -1,5 +1,5 @@
 import { randomInt } from "crypto";
-import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { members, loginCodes, type Club, type Member } from "@/db/schema";
 import { normalizePhone, normalizeEmail, isUniqueViolation } from "./normalize";
@@ -7,6 +7,13 @@ import { sendEmail } from "./email";
 import { generateMemberToken } from "./memberToken";
 
 const CODE_TTL_MINUTES = 10;
+
+/** Wrong guesses allowed against a single outstanding code before it
+ * locks (2026-10-08 audit fix — see claude/next-build.md). Independent
+ * of the code's 10-minute expiry — previously that expiry was the ONLY
+ * protection a code had, which left a real brute-force window against
+ * the 6-digit space, including for curator/admin logins. */
+const LOCK_AFTER_ATTEMPTS = 8;
 
 /**
  * Unified account model (2026-10 decision — see claude/next-build.md).
@@ -142,13 +149,14 @@ export async function issueLoginCode(member: Member): Promise<void> {
 
 export type VerifyCodeResult =
   | { ok: true }
-  | { ok: false; reason: "no-code-issued" | "no-match" | "already-used" | "expired" };
+  | { ok: false; reason: "no-code-issued" | "no-match" | "already-used" | "expired" | "locked" };
 
 const VERIFY_FAILURE_MESSAGES: Record<Exclude<VerifyCodeResult, { ok: true }>["reason"], string> = {
   "no-code-issued": "No code was ever sent for this login — go back and request one.",
   "no-match": "That code isn't right — double-check the 6 digits.",
   "already-used": "That code was already used — send yourself a new one.",
   expired: "That code expired — send yourself a new one.",
+  locked: "Too many wrong tries on that code — send yourself a new one.",
 };
 
 /** The client-facing message for a VerifyCodeResult's failure reason — shared so every verify route says the same thing for the same cause. */
@@ -169,6 +177,32 @@ export function verifyCodeFailureMessage(reason: Exclude<VerifyCodeResult, { ok:
  */
 export async function verifyLoginCode(memberId: number, code: string): Promise<VerifyCodeResult> {
   const db = getDb();
+
+  // The single most recent still-live code for this member — used only
+  // to gate/track brute-force attempts (2026-10-08 audit fix — see
+  // claude/next-build.md), not to decide whether the typed `code` is
+  // actually right. A member can have more than one valid outstanding
+  // code at once (e.g. hit "resend" twice within the same 10 minutes),
+  // and correctly typing an older one still works below, same as
+  // before — the attempt counter is deliberately scoped to just the
+  // newest row, since that's the one a brute-force script would
+  // actually be hammering.
+  const [active] = await db
+    .select()
+    .from(loginCodes)
+    .where(
+      and(eq(loginCodes.memberId, memberId), isNull(loginCodes.consumedAt), gt(loginCodes.expiresAt, new Date()))
+    )
+    .orderBy(desc(loginCodes.createdAt))
+    .limit(1);
+
+  if (active && active.failedAttempts >= LOCK_AFTER_ATTEMPTS) {
+    console.warn(
+      `[login] verify blocked for member ${memberId}: code locked after ${active.failedAttempts} wrong attempts — send a new code to clear it`
+    );
+    return { ok: false, reason: "locked" };
+  }
+
   const [match] = await db
     .select()
     .from(loginCodes)
@@ -184,6 +218,17 @@ export async function verifyLoginCode(memberId: number, code: string): Promise<V
     .limit(1);
 
   if (!match) {
+    // Count this wrong guess toward the newest outstanding code's
+    // lockout, regardless of which reason it ends up classified as
+    // below — a typo, a stale code, and an actual guess all look the
+    // same from here, and all should count the same toward the limit.
+    if (active) {
+      await db
+        .update(loginCodes)
+        .set({ failedAttempts: sql`${loginCodes.failedAttempts} + 1` })
+        .where(eq(loginCodes.id, active.id));
+    }
+
     // Finds the row the strict query above couldn't, ignoring the
     // consumed/expired/code filters one at a time, so both the server
     // log and the person on the other end of the screen get the real

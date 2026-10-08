@@ -336,6 +336,14 @@ export const loginCodes = pgTable("login_codes", {
   code: varchar("code", { length: 6 }).notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  // Wrong-guess counter for THIS code specifically (2026-10-08 audit fix
+  // — see claude/next-build.md). Before this column existed, a code's
+  // only real protection was its 10-minute expiry — nothing stopped
+  // unlimited guesses against the 6-digit space within that window,
+  // which matters more than it sounds for a code that can log in as a
+  // curator/admin. src/lib/members.ts's verifyLoginCode locks a code out
+  // (independent of expiry) once this crosses LOCK_AFTER_ATTEMPTS.
+  failedAttempts: integer("failed_attempts").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

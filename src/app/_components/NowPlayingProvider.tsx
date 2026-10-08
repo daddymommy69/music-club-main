@@ -276,28 +276,6 @@ export default function NowPlayingProvider({ children }: { children: React.React
     }
   }, []);
 
-  /** Creates the one reused embed controller the first time it's
-   * needed, attached to the always-mounted hidden host div below.
-   * Later calls just hand back the same in-flight/resolved promise. */
-  const createEmbedController = useCallback((uri: string): Promise<SpotifyEmbedController> => {
-    if (embedCreatePromiseRef.current) return embedCreatePromiseRef.current;
-
-    embedCreatePromiseRef.current = loadSpotifyEmbedApi().then(
-      (IFrameAPI) =>
-        new Promise<SpotifyEmbedController>((resolve, reject) => {
-          if (!embedHostRef.current) {
-            reject(new Error("no embed host element"));
-            return;
-          }
-          IFrameAPI.createController(embedHostRef.current, { uri, width: 1, height: 1 }, (controller) => {
-            embedControllerRef.current = controller;
-            resolve(controller);
-          });
-        })
-    );
-    return embedCreatePromiseRef.current;
-  }, []);
-
   /** Position updates double as this preview's only "did it end"
    * signal — the embed API has no separate ended event. Also keeps
    * isPlaying honest if Spotify itself pauses/buffers for a reason
@@ -317,24 +295,66 @@ export default function NowPlayingProvider({ children }: { children: React.React
     [stop]
   );
 
+  /** Creates the one reused embed controller the first time it's
+   * needed, attached to the always-mounted hidden host div below.
+   * Later calls just hand back the same in-flight/resolved promise —
+   * the `uri` passed in only ever seeds the controller's FIRST track;
+   * every real play still goes through loadUri() in startPreview
+   * below, which is what keeps a second track clicked while this is
+   * still resolving from silently losing the race (see startPreview's
+   * own comment). Listeners are attached exactly once, right here,
+   * rather than by every caller that happens to be the one to create
+   * the controller (2026-10-08 audit fix — see claude/next-build.md):
+   * the earlier version attached them again whenever a concurrent
+   * startPreview() call saw embedControllerRef.current still null and
+   * went through the "create" branch too, double-firing the
+   * preview-ended handler. */
+  const createEmbedController = useCallback(
+    (uri: string): Promise<SpotifyEmbedController> => {
+      if (embedCreatePromiseRef.current) return embedCreatePromiseRef.current;
+
+      embedCreatePromiseRef.current = loadSpotifyEmbedApi().then(
+        (IFrameAPI) =>
+          new Promise<SpotifyEmbedController>((resolve, reject) => {
+            if (!embedHostRef.current) {
+              reject(new Error("no embed host element"));
+              return;
+            }
+            IFrameAPI.createController(embedHostRef.current, { uri, width: 1, height: 1 }, (controller) => {
+              embedControllerRef.current = controller;
+              attachPreviewListeners(controller);
+              resolve(controller);
+            });
+          })
+      );
+      return embedCreatePromiseRef.current;
+    },
+    [attachPreviewListeners]
+  );
+
   /** Loads + plays a track through the embed controller, creating it
    * on first use. Always ends with an explicit play() — loadUri()
    * alone doesn't reliably autoplay the newly-loaded track. */
   const startPreview = useCallback(
     async (track: PlayableTrack) => {
       const uri = `spotify:track:${track.id}`;
-      let controller = embedControllerRef.current;
-      if (!controller) {
-        controller = await createEmbedController(uri);
-        attachPreviewListeners(controller);
-      } else {
-        controller.loadUri(uri);
-      }
+      const controller = embedControllerRef.current ?? (await createEmbedController(uri));
+
+      // Always load THIS call's own uri, even when the controller
+      // already existed, or was still mid-creation for an earlier
+      // click's uri when this call started (2026-10-08 audit fix — see
+      // claude/next-build.md). createEmbedController's promise is
+      // shared across concurrent calls and only seeds the controller's
+      // initial track — without this, clicking a second track before
+      // the first one finished creating the controller left the bar
+      // showing the second track while the first one's audio kept
+      // playing underneath it.
+      controller.loadUri(uri);
       controller.play();
       setMode("preview");
       setIsPlaying(true);
     },
-    [createEmbedController, attachPreviewListeners]
+    [createEmbedController]
   );
 
   const play = useCallback(

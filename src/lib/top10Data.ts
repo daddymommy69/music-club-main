@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { drops, top10Entries, type Drop, type Top10Entry } from "@/db/schema";
 import { isUniqueViolation } from "./normalize";
@@ -115,18 +115,42 @@ export async function submitTop10Pick(entry: {
   }
 }
 
+export type SetTop10LinksResult = { drop: Drop; isFirstLink: boolean };
+
+/**
+ * Sets the Top 10 playlist link(s), reporting whether this specific
+ * call is the one that set the FIRST link ever for this drop's Top 10
+ * — that's the caller's (src/app/api/overview/top10/route.ts) signal
+ * to send the one-time announce. Done as one atomic, conditional
+ * UPDATE rather than a separate "check then write" (2026-10-08 audit
+ * fix — see claude/next-build.md): the old code read
+ * `wasAlreadySet` *before* writing, so a double-click or two curators
+ * both pasting a link within the same instant could both see "not set
+ * yet" and both trigger the subscriber announce. Only the request
+ * whose UPDATE actually flips both columns from null wins the claim;
+ * everyone else's write still applies normally, just without a second
+ * announce.
+ */
 export async function setTop10Links(
   dropId: number,
   changes: { spotifyUrl?: string | null; appleUrl?: string | null }
-): Promise<Drop> {
+): Promise<SetTop10LinksResult> {
   const db = getDb();
-  const [updated] = await db
+  const changeSet = {
+    ...(changes.spotifyUrl !== undefined ? { top10SpotifyUrl: changes.spotifyUrl } : {}),
+    ...(changes.appleUrl !== undefined ? { top10AppleUrl: changes.appleUrl } : {}),
+  };
+
+  const claimed = await db
     .update(drops)
-    .set({
-      ...(changes.spotifyUrl !== undefined ? { top10SpotifyUrl: changes.spotifyUrl } : {}),
-      ...(changes.appleUrl !== undefined ? { top10AppleUrl: changes.appleUrl } : {}),
-    })
-    .where(eq(drops.id, dropId))
+    .set(changeSet)
+    .where(and(eq(drops.id, dropId), isNull(drops.top10SpotifyUrl), isNull(drops.top10AppleUrl)))
     .returning();
-  return updated;
+
+  if (claimed[0]) {
+    return { drop: claimed[0], isFirstLink: true };
+  }
+
+  const [updated] = await db.update(drops).set(changeSet).where(eq(drops.id, dropId)).returning();
+  return { drop: updated, isFirstLink: false };
 }

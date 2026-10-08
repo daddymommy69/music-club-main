@@ -49,6 +49,26 @@ export async function sendDropToSubscribers(drop: Drop, shippedBy?: string) {
     return { sent: 0, skipped: "no playlist link set for this drop" };
   }
 
+  // Claim the ship atomically — set publishedAt now, before the send
+  // loop, and only if it's still null (2026-10-08 audit fix — see
+  // claude/next-build.md). Previously publishedAt was set only at the
+  // very end, so a double-click on Ship, a retried request, or the
+  // daily cron firing at the same moment a curator manually ships
+  // could both pass the "is this drop still open" check and both run
+  // the full send loop — every subscriber getting the release twice.
+  // Only the request whose UPDATE actually flips publishedAt from null
+  // gets to send; a second concurrent caller sees 0 rows affected and
+  // backs off instead of sending again.
+  const claimed = await db
+    .update(drops)
+    .set({ publishedAt: new Date(), ...(shippedBy ? { shippedBy } : {}) })
+    .where(and(eq(drops.id, drop.id), isNull(drops.publishedAt)))
+    .returning();
+
+  if (!claimed[0]) {
+    return { sent: 0, skipped: "already shipped (a concurrent request claimed it first)" };
+  }
+
   const active = await db
     .select()
     .from(members)
@@ -87,11 +107,6 @@ export async function sendDropToSubscribers(drop: Drop, shippedBy?: string) {
       errors.push(`${sub.id}: ${(err as Error).message}`);
     }
   }
-
-  await db
-    .update(drops)
-    .set({ publishedAt: new Date(), ...(shippedBy ? { shippedBy } : {}) })
-    .where(eq(drops.id, drop.id));
 
   return { sent, total: active.length, errors };
 }

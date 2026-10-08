@@ -55,21 +55,22 @@ export async function PUT(request: Request) {
     );
   }
 
-  const wasAlreadySet = !!(drop.top10SpotifyUrl || drop.top10AppleUrl);
-
-  const updated = await setTop10Links(drop.id, {
+  const { drop: updated, isFirstLink } = await setTop10Links(drop.id, {
     ...(spotifyUrl ? { spotifyUrl } : {}),
     ...(appleUrl ? { appleUrl } : {}),
   });
 
   // Announce once — the first time a link gets set for this drop's Top
   // 10, not on every subsequent edit (e.g. adding the Apple Music link
-  // a bit after the Spotify one shouldn't re-text everyone). Awaited,
+  // a bit after the Spotify one shouldn't re-text everyone). isFirstLink
+  // comes from setTop10Links' own atomic claim now (2026-10-08 audit fix
+  // — see claude/next-build.md), not a separate check-then-write, so a
+  // double-click or two concurrent requests can't both win it. Awaited,
   // same as sendDropToSubscribers's callers (/api/send, /api/cron/send)
   // — an unawaited send risks the serverless function freezing before
   // it finishes.
   let sendResult: Awaited<ReturnType<typeof sendTop10ToSubscribers>> | null = null;
-  if (!wasAlreadySet) {
+  if (isFirstLink) {
     try {
       sendResult = await sendTop10ToSubscribers(drop.num);
     } catch (err) {

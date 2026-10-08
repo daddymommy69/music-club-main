@@ -40,34 +40,54 @@ export async function GET(request: Request) {
   const now = new Date();
 
   let opened: { dropNum: number } | null = null;
+  let openError: string | null = null;
   let shipped: Awaited<ReturnType<typeof shipDrop>> | null = null;
+  let shipError: string | null = null;
 
-  const openDrop = await getOpenDrop(club);
+  // Nobody's watching this cron's log day to day, so it needs to tell
+  // its own story in the response instead of throwing a raw 500
+  // (2026-10-08 audit fix — see claude/next-build.md). Each step gets
+  // its own try/catch — a DB hiccup or a lost race on the new drop's
+  // number (see /api/overview/start-drop's own race guard) now shows
+  // up as `openError`/`shipError` in the response rather than crashing
+  // the whole invocation before the other step even runs.
+  let openDrop: Awaited<ReturnType<typeof getOpenDrop>> = null;
+  try {
+    openDrop = await getOpenDrop(club);
 
-  if (!openDrop && club.nextDropOpensAt && club.nextDropOpensAt <= now) {
-    const [last] = await db
-      .select()
-      .from(drops)
-      .where(eq(drops.clubId, club.id))
-      .orderBy(desc(drops.num))
-      .limit(1);
+    if (!openDrop && club.nextDropOpensAt && club.nextDropOpensAt <= now) {
+      const [last] = await db
+        .select()
+        .from(drops)
+        .where(eq(drops.clubId, club.id))
+        .orderBy(desc(drops.num))
+        .limit(1);
 
-    const [created] = await db
-      .insert(drops)
-      .values({
-        clubId: club.id,
-        num: (last?.num ?? 0) + 1,
-        startedBy: "Auto-open",
-      })
-      .returning();
+      const [created] = await db
+        .insert(drops)
+        .values({
+          clubId: club.id,
+          num: (last?.num ?? 0) + 1,
+          startedBy: "Auto-open",
+        })
+        .returning();
 
-    await db.update(clubs).set({ nextDropOpensAt: null }).where(eq(clubs.id, club.id));
-    opened = { dropNum: created.num };
+      await db.update(clubs).set({ nextDropOpensAt: null }).where(eq(clubs.id, club.id));
+      opened = { dropNum: created.num };
+    }
+  } catch (err) {
+    console.error("[cron/drops] auto-open step failed:", err);
+    openError = err instanceof Error ? err.message : String(err);
   }
 
-  if (openDrop && openDrop.scheduledShipAt && openDrop.scheduledShipAt <= now) {
-    shipped = await shipDrop(club, openDrop, { shippedBy: "Auto-ship" });
+  try {
+    if (openDrop && openDrop.scheduledShipAt && openDrop.scheduledShipAt <= now) {
+      shipped = await shipDrop(club, openDrop, { shippedBy: "Auto-ship" });
+    }
+  } catch (err) {
+    console.error("[cron/drops] auto-ship step failed:", err);
+    shipError = err instanceof Error ? err.message : String(err);
   }
 
-  return NextResponse.json({ ok: true, opened, shipped });
+  return NextResponse.json({ ok: true, opened, openError, shipped, shipError });
 }
