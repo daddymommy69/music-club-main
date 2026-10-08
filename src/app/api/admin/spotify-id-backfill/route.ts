@@ -8,16 +8,20 @@ import { resolveSongMetadata } from "@/lib/odesli";
 
 /**
  * One-off: catch up already-shipped songs that are missing a Spotify id
- * (no play icon on the site) using the same Odesli cross-platform match
- * the curator paste-a-pick route now does at add-time (2026-10-08 round
- * — see claude/next-build.md). Unlike /api/admin/spotify-backfill (which
+ * (no play icon on the site) using the same link resolution the
+ * curator paste-a-pick route now does at add-time (2026-10-08 round —
+ * see claude/next-build.md). Unlike /api/admin/spotify-backfill (which
  * builds a whole auto-build playlist via a fuzzy title/artist Spotify
  * search), this just re-resolves each song's own originally-submitted
- * link (songs.sourceUrl) through Odesli and fills in spotifyUri where
- * Odesli's graph has a Spotify match on file — same "re-resolving" use
- * sourceUrl's own column comment always called out. Never overwrites a
- * song that already has a spotifyUri, and never touches artworkUrl
- * (ship-time auto-build already owns backfilling that).
+ * link (songs.sourceUrl) — src/lib/odesli.ts, despite its name, now
+ * resolves a Spotify link by exact id and an Apple Music link through
+ * Apple's free lookup API plus a best-effort Spotify search, since the
+ * actual Odesli/song.link service it's named for shut down for good on
+ * 2026-07-31 — and fills in spotifyUri wherever that finds a match.
+ * Same "re-resolving" use sourceUrl's own column comment always called
+ * out. Never overwrites a song that already has a spotifyUri, and never
+ * touches artworkUrl (ship-time auto-build already owns backfilling
+ * that).
  *
  * curl -X POST https://yoursite/api/admin/spotify-id-backfill \
  *   -H "Authorization: Bearer <ADMIN_SECRET>" \

@@ -186,6 +186,39 @@ export async function searchSpotifyTrack(
   }
 }
 
+export type SpotifyTrackById = { uri: string; title: string; artist: string; artworkUrl: string | null };
+
+/** Direct id lookup — GET /tracks/{id} — used when a curator pastes a
+ * Spotify link itself (2026-10-08 "Odesli is dead" fix — see
+ * claude/next-build.md): the id is already right there in the URL, so
+ * this is an exact match, not a text search guess the way
+ * searchSpotifyTrack above has to be for anything that didn't start as
+ * a Spotify link. */
+export async function getSpotifyTrackById(accessToken: string, trackId: string): Promise<SpotifyTrackById | null> {
+  try {
+    const res = await fetch(`${API_BASE}/tracks/${trackId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      uri?: string;
+      name?: string;
+      artists?: { name: string }[];
+      album?: { images?: { url: string }[] };
+    };
+    if (!data.uri || !data.name) return null;
+    return {
+      uri: data.uri,
+      title: data.name,
+      artist: data.artists?.[0]?.name ?? "",
+      artworkUrl: data.album?.images?.[0]?.url ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export type SpotifyArtistMatch = { id: string; photoUrl: string | null };
 
 /** Best-effort artist-name search, taking the top result — same "no
