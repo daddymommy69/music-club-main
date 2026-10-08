@@ -34,6 +34,12 @@ export default function ShipDropCard({ dropNum, title: initialTitle, pickCount }
   const [error, setError] = useState<string | null>(null);
   const [shipped, setShipped] = useState<{ sent: number; total: number } | null>(null);
   const [spotifyAutoBuild, setSpotifyAutoBuild] = useState<SpotifyAutoBuild>(null);
+  // Collapsed by default (2026-10-08 curator tools redesign — see
+  // claude/next-build.md): most ships leave both links blank and let
+  // Spotify auto-build, so the two paste-a-link fields are clutter on
+  // every view that doesn't need them. The disclosure opens itself if
+  // there's already a link to show (e.g. after a validation error).
+  const [linksOpen, setLinksOpen] = useState(false);
 
   async function ship(e: React.FormEvent) {
     e.preventDefault();
@@ -64,11 +70,7 @@ export default function ShipDropCard({ dropNum, title: initialTitle, pickCount }
   }
 
   return (
-    <div style={{ marginTop: 32 }}>
-      <p className="label" style={{ marginBottom: 14 }}>
-        Ship drop {dropNum}
-      </p>
-
+    <>
       {shipped ? (
         <div className="acc-panel">
           <p style={{ fontSize: 13 }}>
@@ -89,46 +91,49 @@ export default function ShipDropCard({ dropNum, title: initialTitle, pickCount }
           )}
         </div>
       ) : (
-        <form onSubmit={ship} className="form">
-          <p className="mut" style={{ fontSize: 11.5, marginBottom: 10 }}>
+        <form onSubmit={ship} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <p className="mut" style={{ fontSize: 11.5, marginBottom: 2 }}>
             {pickCount} pick{pickCount === 1 ? "" : "s"} so far. Spotify builds itself
-            automatically from the picks — paste an Apple Music link below (and a Spotify link
-            too, only if you want to override the auto-build). Ship publishes this drop and
-            texts/emails everyone, no separate step after this.
+            automatically from the picks. Ship publishes this drop and texts/emails everyone, no
+            separate step after this.
           </p>
-          <label>
-            Title (optional)
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Give this drop a name"
-            />
-          </label>
-          <label>
-            Spotify link (optional — leave blank to auto-build)
-            <input
-              type="text"
-              value={spotifyUrl}
-              onChange={(e) => setSpotifyUrl(e.target.value)}
-              placeholder="https://open.spotify.com/playlist/..."
-            />
-          </label>
-          <label>
-            Apple Music link
-            <input
-              type="text"
-              value={appleUrl}
-              onChange={(e) => setAppleUrl(e.target.value)}
-              placeholder="https://music.apple.com/playlist/..."
-            />
-          </label>
+          <input
+            type="text"
+            className="settings-input"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Give this drop a name (optional)"
+          />
+
+          {linksOpen ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <input
+                type="text"
+                className="settings-input"
+                value={spotifyUrl}
+                onChange={(e) => setSpotifyUrl(e.target.value)}
+                placeholder="Spotify link (optional — leave blank to auto-build)"
+              />
+              <input
+                type="text"
+                className="settings-input"
+                value={appleUrl}
+                onChange={(e) => setAppleUrl(e.target.value)}
+                placeholder="Apple Music link (optional)"
+              />
+            </div>
+          ) : (
+            <button type="button" className="link-btn" onClick={() => setLinksOpen(true)} style={{ alignSelf: "flex-start" }}>
+              + add Spotify/Apple Music links manually
+            </button>
+          )}
+
           {error && <p className="notice error">{error}</p>}
           <button type="submit" className="btn btn-primary" disabled={shipping}>
             {shipping ? "Shipping…" : `Ship drop ${dropNum}`}
           </button>
         </form>
       )}
-    </div>
+    </>
   );
 }

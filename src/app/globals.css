@@ -981,190 +981,39 @@ input {
   line-height: 1.6;
 }
 
-.room-add-pick-wrap {
-  margin-bottom: 28px;
-}
+/* ---------- curator tools (2026-10-08 redesign, see claude/next-build.md) ----------
+ * Replaces the old paste-a-link / Columns-Stream-toggle / per-curator
+ * note / comment-thread treatment above (all deleted along with it —
+ * nobody on the team had actually used the note box, the comment
+ * thread, or either view toggle). The rule going forward: a plain
+ * .ct-card border for anything informational (pile, picks, curators),
+ * reserving .ct-card-emphasis (and a solid .btn-primary) for exactly
+ * one true call-to-action per screen state — Start drop / Ship drop —
+ * instead of every box in this section being teal. */
 
-.room-add-pick {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.room-add-pick input {
-  flex: 1;
-  min-width: 200px;
-  min-height: 44px;
+.ct-card {
   border: 1px solid var(--ln);
-  border-radius: 5px;
-  padding: 0 14px;
-  background: var(--fill);
-  font-size: 13px;
+  border-radius: 10px;
+  padding: 18px;
 }
 
-.room-add-pick button {
-  flex-shrink: 0;
-  min-height: 44px;
-  padding: 0 18px;
+.ct-card-emphasis {
+  border: 1.5px solid var(--accent);
+  border-radius: 10px;
+  padding: 18px;
 }
 
-.pill-tabs {
-  display: inline-flex;
-  border: 1px solid var(--ln);
-  border-radius: 999px;
-  padding: 3px;
-  gap: 2px;
-  margin-bottom: 24px;
-}
-
-.pill-tab {
-  border: none;
-  background: none;
-  color: var(--mut);
-  font-family: inherit;
-  font-size: 11.5px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  cursor: pointer;
-}
-
-.pill-tab.active {
-  background: var(--fill);
-  color: var(--fg);
-}
-
-.room-columns {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 28px;
-  margin-bottom: 36px;
-}
-
-.room-column-head {
+.ct-disclosure {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 6px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--ln);
-}
-
-.room-column-name {
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.room-column-meta {
-  font-size: 10.5px;
-  color: var(--mut);
-  white-space: nowrap;
-}
-
-.room-picks {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 14px;
-}
-
-.room-pick {
-  padding: 9px 0;
-  border-bottom: 1px solid var(--ln);
-}
-
-.room-pick:last-child {
-  border-bottom: none;
-}
-
-.room-note {
-  padding-top: 12px;
-  border-top: 1px dashed var(--ln);
-}
-
-.room-note textarea {
   width: 100%;
-  min-height: 64px;
-  border: 1px solid var(--ln);
-  border-radius: 5px;
-  padding: 8px 10px;
-  background: var(--fill);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
   font-family: inherit;
-  font-size: 12px;
-  line-height: 1.6;
-  resize: vertical;
-}
-
-.room-stream {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin-bottom: 36px;
-}
-
-.room-stream-item {
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--ln);
-}
-
-.room-stream-item .room-stream-who {
-  font-size: 10.5px;
-  color: var(--accent);
-  margin-bottom: 4px;
-}
-
-.comment-thread {
-  border-top: 1px solid var(--ln);
-  padding-top: 24px;
-}
-
-.comment-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin-bottom: 18px;
-}
-
-.comment-row .comment-head {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-  margin-bottom: 3px;
-  font-size: 10.5px;
-  color: var(--mut);
-}
-
-.comment-row .comment-head .who {
-  color: var(--accent);
-}
-
-.comment-row .comment-text {
-  font-size: 12.5px;
-  line-height: 1.6;
-}
-
-.comment-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.comment-form textarea {
-  flex: 1;
-  min-width: 200px;
-  min-height: 44px;
-  border: 1px solid var(--ln);
-  border-radius: 5px;
-  padding: 10px 12px;
-  background: var(--fill);
-  font-family: inherit;
-  font-size: 12.5px;
-  resize: vertical;
-}
-
-.comment-form button {
-  flex-shrink: 0;
-  min-height: 44px;
-  padding: 0 18px;
+  color: inherit;
 }
 
 /* ---------- curator overview ---------- */

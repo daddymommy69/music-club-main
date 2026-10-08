@@ -26,7 +26,6 @@ function daysUntil(iso: string): number {
  * counts — the "hide until every entry has 2+ votes" rule is a public-
  * facing courtesy, not something curators need shielded from. */
 export default function Top10Card({
-  dropNum,
   phase,
   opensAt,
   closesAt,
@@ -74,11 +73,7 @@ export default function Top10Card({
   }
 
   return (
-    <div style={{ marginTop: 32 }}>
-      <p className="label" style={{ marginBottom: 14 }}>
-        Subscriber Top 10 · drop {dropNum}
-      </p>
-
+    <>
       {phase === "pending" && (
         <div className="empty-state" style={{ padding: "16px 0" }}>
           Voting opens in {daysUntil(opensAt)} day{daysUntil(opensAt) === 1 ? "" : "s"}.
@@ -127,29 +122,25 @@ export default function Top10Card({
               Playlist link{spotifyUrl && appleUrl ? "s" : ""} saved — subscribers have been notified.
             </p>
           ) : (
-            <form onSubmit={savePlaylist} className="form">
-              <p className="mut" style={{ fontSize: 11.5, marginBottom: 10 }}>
+            <form onSubmit={savePlaylist} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <p className="mut" style={{ fontSize: 11.5, marginBottom: 2 }}>
                 10+ unique songs — build the playlist and paste the link(s) below. Saving sends the
                 Top 10 announcement to subscribers.
               </p>
-              <label>
-                Spotify link
-                <input
-                  type="text"
-                  value={spotifyUrl}
-                  onChange={(e) => setSpotifyUrl(e.target.value)}
-                  placeholder="https://open.spotify.com/playlist/..."
-                />
-              </label>
-              <label>
-                Apple Music link
-                <input
-                  type="text"
-                  value={appleUrl}
-                  onChange={(e) => setAppleUrl(e.target.value)}
-                  placeholder="https://music.apple.com/playlist/..."
-                />
-              </label>
+              <input
+                type="text"
+                className="settings-input"
+                value={spotifyUrl}
+                onChange={(e) => setSpotifyUrl(e.target.value)}
+                placeholder="Spotify link"
+              />
+              <input
+                type="text"
+                className="settings-input"
+                value={appleUrl}
+                onChange={(e) => setAppleUrl(e.target.value)}
+                placeholder="Apple Music link"
+              />
               {error && <p className="notice error">{error}</p>}
               <button type="submit" className="btn btn-primary" disabled={saving}>
                 {saving ? "Saving…" : "Save & notify subscribers"}
@@ -158,6 +149,6 @@ export default function Top10Card({
           )}
         </>
       )}
-    </div>
+    </>
   );
 }

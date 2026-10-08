@@ -25,7 +25,7 @@ const LIKED_SONGS_LIMIT = 20;
  * those pages were folded into /account (2026-10 account consolidation
  * — see claude/next-build.md).
  */
-async function getCuratorToolsProps(club: Club, openDrop: Drop | null, meId: number): Promise<CuratorToolsPanelProps> {
+async function getCuratorToolsProps(club: Club, openDrop: Drop | null): Promise<CuratorToolsPanelProps> {
   const [overview, room, top10Drop] = await Promise.all([
     getOverviewData(club),
     openDrop ? getRoomData(club, openDrop) : Promise.resolve(null),
@@ -34,6 +34,26 @@ async function getCuratorToolsProps(club: Club, openDrop: Drop | null, meId: num
   const top10Summary = top10Drop ? await getTop10Summary(top10Drop) : null;
   const top10Visible =
     top10Summary && top10Summary.phase !== "not-shipped" && top10Summary.window ? top10Summary : null;
+
+  // Flat, drop-ordered "this cycle's picks" list (2026-10-08 curator
+  // tools redesign, see claude/next-build.md) — replaces the old
+  // per-curator Columns/Stream breakdown, which nobody on the team had
+  // actually used. room.curators is still the source (one query, same
+  // as before), just flattened and re-sorted by when each pick was
+  // actually added rather than grouped by who added it.
+  const picks = room
+    ? room.curators
+        .flatMap((c) => c.picks.map((p) => ({ ...p, curatorName: c.curator.name ?? "" })))
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+        .map((p) => ({
+          id: p.id,
+          title: p.title,
+          artist: p.artist,
+          artworkUrl: p.artworkUrl,
+          sourceUrl: p.sourceUrl,
+          curatorCredit: p.curatorName,
+        }))
+    : [];
 
   return {
     dropNum: overview.dropNum,
@@ -45,6 +65,7 @@ async function getCuratorToolsProps(club: Club, openDrop: Drop | null, meId: num
       id: p.id,
       title: p.title,
       artist: p.artist,
+      artworkUrl: p.artworkUrl,
       link: p.link,
       submittedBy: p.submittedBy,
       submittedAt: p.submittedAt.toISOString(),
@@ -57,48 +78,7 @@ async function getCuratorToolsProps(club: Club, openDrop: Drop | null, meId: num
       picksLifetime: c.picksLifetime,
       joinedAt: c.joinedAt.toISOString(),
     })),
-    meId,
-    curators: room
-      ? room.curators.map((c) => ({
-          id: c.curator.id,
-          name: c.curator.name ?? "",
-          picks: c.picks.map((p) => ({
-            id: p.id,
-            title: p.title,
-            artist: p.artist,
-            sourceUrl: p.sourceUrl,
-          })),
-          note: c.note,
-          lastActivity: c.lastActivity ? c.lastActivity.toISOString() : null,
-        }))
-      : [],
-    comments: room
-      ? room.comments.map((c) => ({
-          id: c.id,
-          curatorId: c.curatorId,
-          curatorName: c.curatorName,
-          text: c.text,
-          createdAt: c.createdAt.toISOString(),
-        }))
-      : [],
-    stream: room
-      ? room.stream.map((item) =>
-          item.kind === "pick"
-            ? {
-                kind: "pick" as const,
-                at: item.at.toISOString(),
-                curatorName: item.curatorName,
-                title: item.pick.title,
-                artist: item.pick.artist,
-              }
-            : {
-                kind: "note" as const,
-                at: item.at.toISOString(),
-                curatorName: item.curatorName,
-                text: item.text,
-              }
-        )
-      : [],
+    picks,
     shipCandidate: overview.shipCandidate,
     top10: top10Visible
       ? {
@@ -210,7 +190,7 @@ export default async function AccountPage() {
       // real server-side gate (AccountBoard's own `member.isCurator`
       // check is just what decides whether to render it, not whether
       // the data exists at all).
-      member.isCurator ? getCuratorToolsProps(club, openDrop, member.id) : Promise.resolve(null),
+      member.isCurator ? getCuratorToolsProps(club, openDrop) : Promise.resolve(null),
     ]);
 
   return (

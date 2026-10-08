@@ -7,6 +7,12 @@ export type PileItem = {
   id: number;
   title: string | null;
   artist: string | null;
+  // Already selected off `submissions.artwork_url` (the `.select()`
+  // below has no column list) — just never typed/exposed until now
+  // (2026-10-08 curator tools redesign, see claude/next-build.md: the
+  // pile grows a thumbnail, same artwork a submission already carries
+  // when it came in via Browse's search).
+  artworkUrl: string | null;
   link: string;
   submittedBy: string | null;
   submittedAt: Date;

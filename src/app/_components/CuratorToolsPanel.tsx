@@ -1,10 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isValidMusicLink } from "@/lib/musicLink";
 import { formatRelativeTime } from "@/lib/relativeTime";
-import { useDirtyField } from "@/lib/useDirtyField";
+import FallbackImg from "./FallbackImg";
 import ShipDropCard from "./ShipDropCard";
 import Top10Card, { type Top10CardProps } from "./Top10Card";
 
@@ -12,41 +12,45 @@ import Top10Card, { type Top10CardProps } from "./Top10Card";
  * The curator workspace (formerly the standalone /room + /overview
  * pages), folded into a single collapsible section at the bottom of
  * /account (2026-10 "account consolidation" round — see
- * claude/next-build.md). Every control here is the same control that
- * used to live on those two pages, posting to the same API routes —
- * this component just relocates and re-chromes them (no wordmark, no
- * "private" badge, no separate CuratorNav/LogoutButton, since /account
- * already has its own). Collapsed by default so a curator who's just
- * here to check their own pick/rating/favorites isn't confronted with
- * the whole workspace every visit.
+ * claude/next-build.md). Every control here posts to the same API
+ * routes it always has.
+ *
+ * Redesigned 2026-10-08 (see claude/next-build.md, "curator tools
+ * redesign") after the founder found the previous version visually
+ * messy and genuinely confusing to even start using. Three structural
+ * changes from before:
+ *   1. Adding a pick is now a live Spotify search-and-select (same
+ *      pattern Browse's search bar already uses), not a paste-a-link
+ *      box — with artwork, and no dependence on the long-dead Odesli
+ *      lookup. Falls back to the old paste-a-link form automatically
+ *      if this club's Spotify connection isn't available.
+ *   2. The Columns/Stream view toggle, the per-curator note box, and
+ *      the curator comment thread are all gone — unused by this team,
+ *      per the founder's own answer during the redesign's requirements
+ *      round. "This cycle's picks" is now one flat, removable list.
+ *   3. One button-weight rule everywhere: a solid .btn-primary is
+ *      reserved for exactly one true call-to-action per card (Add,
+ *      Start drop, Ship drop); everything repeatable or secondary
+ *      (Quick-add, Remove) is outlined or plain text. Boxes follow the
+ *      same idea — .ct-card is a plain neutral card, .ct-card-emphasis
+ *      (teal border) is reserved for Start/Ship, and the pile/picks/
+ *      curators list no longer nest a second teal box inside another.
  */
 
-type RoomPick = { id: number; title: string; artist: string; sourceUrl: string | null };
-
-type RoomCurator = {
+type Pick = {
   id: number;
-  name: string;
-  picks: RoomPick[];
-  note: string;
-  lastActivity: string | null;
+  title: string;
+  artist: string;
+  artworkUrl: string | null;
+  sourceUrl: string | null;
+  curatorCredit: string;
 };
-
-type RoomComment = {
-  id: number;
-  curatorId: number;
-  curatorName: string;
-  text: string;
-  createdAt: string;
-};
-
-type RoomStreamItem =
-  | { kind: "pick"; at: string; curatorName: string; title: string; artist: string }
-  | { kind: "note"; at: string; curatorName: string; text: string };
 
 type PileItem = {
   id: number;
   title: string | null;
   artist: string | null;
+  artworkUrl: string | null;
   link: string;
   submittedBy: string | null;
   submittedAt: string;
@@ -69,15 +73,14 @@ export type CuratorToolsPanelProps = {
   daysUntilNext: number | null;
   hasOpenDrop: boolean;
   subscriberCount: number;
+  picks: Pick[];
   pile: PileItem[];
   roster: RosterCurator[];
-  meId: number;
-  curators: RoomCurator[];
-  comments: RoomComment[];
-  stream: RoomStreamItem[];
   shipCandidate: ShipCandidate | null;
   top10: Top10CardProps | null;
 };
+
+type DuplicateInfo = { title: string | null; artist: string | null };
 
 const LINK_ERROR = "That link doesn't look right — try pasting it again.";
 
@@ -98,18 +101,14 @@ export default function CuratorToolsPanel({
   daysUntilNext,
   hasOpenDrop,
   subscriberCount,
+  picks,
   pile,
   roster,
-  meId,
-  curators,
-  comments,
-  stream,
   shipCandidate,
   top10,
 }: CuratorToolsPanelProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<"columns" | "stream">("columns");
   const panelRef = useRef<HTMLDivElement>(null);
 
   function refresh() {
@@ -120,10 +119,7 @@ export default function CuratorToolsPanel({
   // report (2026-10-07 — see claude/next-build.md): toggling used to
   // just snap the content in/out with no animation and no regard for
   // where the panel ended up on screen afterward. Now both directions
-  // anchor the scroll position back to this panel's own header, so
-  // opening never leaves you staring at the wrong part of the page and
-  // closing never strands you somewhere the now-shorter page doesn't
-  // make sense from.
+  // anchor the scroll position back to this panel's own header.
   function toggle() {
     setOpen((o) => !o);
     requestAnimationFrame(() => {
@@ -132,7 +128,7 @@ export default function CuratorToolsPanel({
   }
 
   return (
-    <div className="acc-panel" style={{ marginBottom: 30 }} ref={panelRef}>
+    <div className="ct-card" style={{ marginBottom: 30 }} ref={panelRef}>
       <button
         type="button"
         onClick={toggle}
@@ -171,75 +167,28 @@ export default function CuratorToolsPanel({
           {hasOpenDrop && (
             <>
               <AddPick onAdded={refresh} />
-
-              <div className="pill-tabs" role="tablist" style={{ marginTop: 20 }}>
-                <button
-                  type="button"
-                  className={`pill-tab ${view === "columns" ? "active" : ""}`}
-                  onClick={() => setView("columns")}
-                  aria-pressed={view === "columns"}
-                >
-                  Columns
-                </button>
-                <button
-                  type="button"
-                  className={`pill-tab ${view === "stream" ? "active" : ""}`}
-                  onClick={() => setView("stream")}
-                  aria-pressed={view === "stream"}
-                >
-                  Stream
-                </button>
-              </div>
-
-              {view === "columns" ? (
-                <ColumnsView curators={curators} meId={meId} onChanged={refresh} />
-              ) : (
-                <StreamView stream={stream} />
-              )}
-
-              <CommentThread comments={comments} onPosted={refresh} />
+              <PicksCard picks={picks} onRemoved={refresh} />
             </>
           )}
 
-          <p className="label" style={{ margin: "32px 0 14px" }}>
-            Submission pile
-          </p>
-          {pile.length === 0 ? (
-            <div className="empty-state" style={{ padding: "24px 0" }}>
-              Nothing submitted for this drop yet.
-            </div>
-          ) : (
-            <div className="pile-list">
-              {pile.map((item) => (
-                <PileRow key={item.id} item={item} hasOpenDrop={hasOpenDrop} onAdded={refresh} />
-              ))}
-            </div>
-          )}
+          <PileCard pile={pile} hasOpenDrop={hasOpenDrop} onAdded={refresh} />
 
-          <p className="label" style={{ margin: "32px 0 14px" }}>
-            Curators
-          </p>
-          <div className="roster-list">
-            {roster.map((c) => (
-              <div key={c.id} className="roster-row">
-                <span className="roster-name">{c.name}</span>
-                <span className="roster-meta">
-                  {c.picksThisCycle} this cycle · {c.picksLifetime} lifetime · joined{" "}
-                  {joinedLabel(c.joinedAt)}
-                </span>
-              </div>
-            ))}
-          </div>
+          <CuratorsDisclosure roster={roster} />
 
           {shipCandidate && (
-            <ShipDropCard
-              dropNum={shipCandidate.dropNum}
-              title={shipCandidate.title}
-              pickCount={shipCandidate.pickCount}
-            />
+            <div className="ct-card-emphasis" style={{ marginTop: 20 }}>
+              <p className="label" style={{ marginBottom: 10 }}>
+                Ship drop {shipCandidate.dropNum}
+              </p>
+              <ShipDropCard
+                dropNum={shipCandidate.dropNum}
+                title={shipCandidate.title}
+                pickCount={shipCandidate.pickCount}
+              />
+            </div>
           )}
 
-          {top10 && <Top10Card {...top10} />}
+          {top10 && <Top10Disclosure top10={top10} />}
         </div>
       )}
     </div>
@@ -284,43 +233,256 @@ function StartDropCard({ dropNum, onStarted }: { dropNum: number; onStarted: () 
   }
 
   return (
-    <form onSubmit={start} className="acc-panel gz-up" style={{ marginTop: 20, marginBottom: 8 }}>
+    <div className="ct-card-emphasis gz-up" style={{ marginTop: 20 }}>
       <p className="label" style={{ marginBottom: 10 }}>
         Start drop {dropNum}
       </p>
       <p className="mut" style={{ fontSize: 12.5, lineHeight: 1.6, marginBottom: 12 }}>
-        Nothing&rsquo;s open right now — the submission pile and quick-add below stay off until a
+        Nothing&rsquo;s open right now — search and the submission pile below stay off until a
         drop exists to pick into.
       </p>
-      <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+      <form onSubmit={start} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <input
           className="settings-input"
-          style={{ flex: 1 }}
           placeholder="Title (optional, changeable later)"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
-        <button
-          type="submit"
-          className="btn btn-primary"
-          style={{ width: "auto", padding: "0 16px" }}
-          disabled={starting}
-        >
+        <button type="submit" className="btn btn-primary" disabled={starting}>
           {starting ? "Starting…" : `Start drop ${dropNum}`}
         </button>
-      </div>
+      </form>
       {error && (
         <p className="notice error" style={{ marginTop: 10 }}>
           {error}
         </p>
       )}
-    </form>
+    </div>
   );
 }
 
-type DuplicateInfo = { title: string | null; artist: string | null };
+type SearchResult = {
+  id: string;
+  title: string;
+  artist: string;
+  artworkUrl: string | null;
+  externalUrl: string | null;
+};
 
+/** Live Spotify search, debounced as you type — same pattern as
+ * Browse's search bar (src/app/_components/BrowseSearch.tsx). Falls
+ * back to ManualAddPick (the original paste-a-link flow) whenever this
+ * club's Spotify connection isn't available, so a curator is never
+ * stuck either way. */
 function AddPick({ onAdded }: { onAdded: () => void }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResult[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [spotifyUnavailable, setSpotifyUnavailable] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function handleQueryChange(value: string) {
+    setQuery(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    const q = value.trim();
+    if (!q) {
+      setResults(null);
+      return;
+    }
+
+    setLoading(true);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/room/search?q=${encodeURIComponent(q)}`);
+        const data = await res.json().catch(() => null);
+        if (data?.spotifyUnavailable) {
+          setSpotifyUnavailable(true);
+          setResults([]);
+        } else {
+          setSpotifyUnavailable(false);
+          setResults(data?.results ?? []);
+        }
+      } catch {
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 350);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
+  const trimmed = query.trim();
+
+  function handleAdded() {
+    setQuery("");
+    setResults(null);
+    onAdded();
+  }
+
+  return (
+    <div className="ct-card" style={{ marginTop: 20 }}>
+      <p className="label" style={{ marginBottom: 10 }}>
+        Add a pick
+      </p>
+      <input
+        type="text"
+        className="settings-input"
+        placeholder="Search Spotify for a song…"
+        value={query}
+        onChange={(e) => handleQueryChange(e.target.value)}
+      />
+
+      {loading && (
+        <p className="mut" style={{ fontSize: 11.5, marginTop: 10 }}>
+          Searching…
+        </p>
+      )}
+
+      {!loading && trimmed && spotifyUnavailable && (
+        <div style={{ marginTop: 14 }}>
+          <ManualAddPick onAdded={handleAdded} />
+        </div>
+      )}
+
+      {!loading && trimmed && !spotifyUnavailable && results && results.length === 0 && (
+        <p className="mut" style={{ fontSize: 11.5, marginTop: 10 }}>
+          No matches on Spotify for that.
+        </p>
+      )}
+
+      {!loading && trimmed && !spotifyUnavailable && results && results.length > 0 && (
+        <div className="roster-list" style={{ marginTop: 10 }}>
+          {results.map((r) => (
+            <SearchResultRow key={r.id} result={r} onAdded={handleAdded} />
+          ))}
+        </div>
+      )}
+
+      {!trimmed && (
+        <p className="mut" style={{ fontSize: 11.5, marginTop: 10, lineHeight: 1.6 }}>
+          No links to paste — search finds the song, and its artwork, for you.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function SearchResultRow({ result, onAdded }: { result: SearchResult; onAdded: () => void }) {
+  const [state, setState] = useState<"idle" | "adding" | "error">("idle");
+  const [error, setError] = useState<string | null>(null);
+  const [duplicate, setDuplicate] = useState<DuplicateInfo | null>(null);
+
+  async function add(force: boolean) {
+    setState("adding");
+    setError(null);
+    try {
+      const res = await fetch("/api/room/picks/spotify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          spotifyId: result.id,
+          title: result.title,
+          artist: result.artist,
+          artworkUrl: result.artworkUrl,
+          externalUrl: result.externalUrl,
+          force,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Something went wrong. Try again.");
+        setState("error");
+        return;
+      }
+      if (data.duplicate) {
+        setDuplicate(data.existing ?? {});
+        setState("idle");
+        return;
+      }
+      onAdded();
+    } catch {
+      setError("Something went wrong. Try again.");
+      setState("error");
+    }
+  }
+
+  return (
+    <div className="roster-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {result.artworkUrl ? (
+          <FallbackImg
+            src={result.artworkUrl}
+            className="track-row-art"
+            fallbackClassName="track-row-art track-row-art-empty"
+          />
+        ) : (
+          <div className="track-row-art track-row-art-empty" aria-hidden="true" />
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="track-title">{result.title}</div>
+          <div className="track-artist">{result.artist}</div>
+        </div>
+        {state === "idle" && (
+          <button
+            type="button"
+            className="btn"
+            style={{ width: "auto", minHeight: 32, height: 32, padding: "0 12px", fontSize: 11, flexShrink: 0 }}
+            onClick={() => add(false)}
+          >
+            Add
+          </button>
+        )}
+        {state === "adding" && (
+          <span className="mut" style={{ fontSize: 11, flexShrink: 0 }}>
+            Adding…
+          </span>
+        )}
+      </div>
+
+      {duplicate && (
+        <div className="duplicate-notice gz-up">
+          <p style={{ fontSize: 12, lineHeight: 1.6 }}>
+            {duplicate.title && duplicate.artist
+              ? `"${duplicate.title}" by ${duplicate.artist} is already in for this drop.`
+              : "This is already in for this drop."}{" "}
+            Still want to add it?
+          </p>
+          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+            <button
+              type="button"
+              className="btn"
+              style={{ width: "auto", minHeight: 32, height: 32, padding: "0 12px", fontSize: 11.5 }}
+              onClick={() => add(true)}
+            >
+              Add it anyway
+            </button>
+            <button type="button" className="link-btn" onClick={() => setDuplicate(null)}>
+              Never mind
+            </button>
+          </div>
+        </div>
+      )}
+
+      {state === "error" && error && (
+        <p className="notice error" style={{ marginTop: 0 }}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** The original paste-a-link flow, unchanged — now only reachable as
+ * AddPick's fallback for whenever this club's Spotify connection isn't
+ * available (no token yet, or it's been revoked). Posts to the same
+ * /api/room/picks route it always has. */
+function ManualAddPick({ onAdded }: { onAdded: () => void }) {
   const [link, setLink] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [shakeGen, setShakeGen] = useState(0);
@@ -368,11 +530,16 @@ function AddPick({ onAdded }: { onAdded: () => void }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="room-add-pick-wrap" noValidate style={{ marginTop: 20 }}>
-      <div className="room-add-pick">
+    <form onSubmit={handleSubmit} noValidate>
+      <p className="mut" style={{ fontSize: 11.5, lineHeight: 1.6, marginBottom: 10 }}>
+        Spotify search isn&rsquo;t available right now — add your pick by hand instead.
+      </p>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <input
           type="url"
-          placeholder="Paste a Spotify or Apple Music link to add a pick…"
+          className="settings-input"
+          style={{ flex: 1, minWidth: 200 }}
+          placeholder="Paste a Spotify or Apple Music link…"
           value={link}
           onChange={(e) => {
             setLink(e.target.value);
@@ -417,206 +584,105 @@ function AddPick({ onAdded }: { onAdded: () => void }) {
   );
 }
 
-function ColumnsView({
-  curators,
-  meId,
-  onChanged,
-}: {
-  curators: RoomCurator[];
-  meId: number;
-  onChanged: () => void;
-}) {
+function PicksCard({ picks, onRemoved }: { picks: Pick[]; onRemoved: () => void }) {
   return (
-    <div className="room-columns">
-      {curators.map((c) => (
-        <div key={c.id} className="room-column">
-          <div className="room-column-head">
-            <span className="room-column-name">{c.name}</span>
-            <span className="room-column-meta">
-              {String(c.picks.length).padStart(2, "0")}
-              {c.lastActivity ? ` · ${formatRelativeTime(new Date(c.lastActivity))}` : ""}
-            </span>
-          </div>
-
-          <div className="room-picks">
-            {c.picks.length === 0 ? (
-              <p className="mut" style={{ fontSize: 11.5 }}>
-                No picks yet.
-              </p>
-            ) : (
-              c.picks.map((p) => (
-                <div key={p.id} className="room-pick">
-                  <div className="track-title">{p.title}</div>
-                  <div className="track-artist">{p.artist}</div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="room-note">
-            {c.id === meId ? (
-              <NoteEditor initialText={c.note} onSaved={onChanged} />
-            ) : c.note.trim() ? (
-              <p className="note-text">{c.note}</p>
-            ) : (
-              <p className="mut" style={{ fontSize: 11.5 }}>
-                No note yet.
-              </p>
-            )}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function NoteEditor({ initialText, onSaved }: { initialText: string; onSaved: () => void }) {
-  const { value: text, setValue: setText, setSaved, dirty } = useDirtyField(initialText);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function save() {
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/room/note", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error ?? "Couldn't save your note. Try again.");
-        return;
-      }
-      setSaved(text);
-      onSaved();
-    } catch {
-      setError("Couldn't save your note. Try again.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div>
-      <textarea
-        aria-label="Your note for this drop"
-        value={text}
-        onChange={(e) => {
-          setText(e.target.value);
-          setError(null);
-        }}
-        placeholder="Your note for this drop…"
-      />
-      {error && (
-        <p className="notice error" style={{ marginTop: 6, fontSize: 11.5 }}>
-          {error}
-        </p>
-      )}
-      {dirty && (
-        <button
-          type="button"
-          className="btn"
-          style={{ marginTop: 8, minHeight: 32, height: 32, padding: "0 12px", fontSize: 11.5 }}
-          onClick={save}
-          disabled={saving}
-        >
-          {saving ? "Saving…" : "Save note"}
-        </button>
-      )}
-    </div>
-  );
-}
-
-function StreamView({ stream }: { stream: RoomStreamItem[] }) {
-  if (stream.length === 0) {
-    return <div className="empty-state">Nothing here yet — add a pick to get started.</div>;
-  }
-  return (
-    <div className="room-stream">
-      {stream.map((item, i) => (
-        <div key={i} className="room-stream-item">
-          <div className="room-stream-who">
-            {item.curatorName} · {formatRelativeTime(new Date(item.at))}
-          </div>
-          {item.kind === "pick" ? (
-            <div>
-              <div className="track-title">{item.title}</div>
-              <div className="track-artist">{item.artist}</div>
-            </div>
-          ) : (
-            <p className="note-text">{item.text}</p>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function CommentThread({ comments, onPosted }: { comments: RoomComment[]; onPosted: () => void }) {
-  const [text, setText] = useState("");
-  const [posting, setPosting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!text.trim()) return;
-    setPosting(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/room/comments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(data.error ?? "Something went wrong. Try again.");
-        return;
-      }
-      setText("");
-      onPosted();
-    } catch {
-      setError("Something went wrong. Try again.");
-    } finally {
-      setPosting(false);
-    }
-  }
-
-  return (
-    <div className="comment-thread">
-      <p className="label" style={{ marginBottom: 14 }}>
-        Comments
+    <div className="ct-card" style={{ marginTop: 20 }}>
+      <p className="label" style={{ marginBottom: 10 }}>
+        This cycle&rsquo;s picks ({picks.length})
       </p>
-      {comments.length > 0 && (
-        <div className="comment-list">
-          {comments.map((c) => (
-            <div key={c.id} className="comment-row">
-              <div className="comment-head">
-                <span className="who">{c.curatorName}</span>
-                <span>{formatRelativeTime(new Date(c.createdAt))}</span>
-              </div>
-              <p className="comment-text">{c.text}</p>
-            </div>
+      {picks.length === 0 ? (
+        <div className="empty-state" style={{ padding: "12px 0" }}>
+          No picks yet — search above to add one.
+        </div>
+      ) : (
+        <div className="pile-list">
+          {picks.map((p) => (
+            <PickRow key={p.id} pick={p} onRemoved={onRemoved} />
           ))}
         </div>
       )}
-      <form onSubmit={handleSubmit} className="comment-form" noValidate>
-        <textarea
-          aria-label="Comment to the other curators"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Say something to the other curators…"
-        />
-        <button type="submit" className="btn" style={{ width: "auto" }} disabled={posting}>
-          {posting ? "Posting…" : "Post"}
+    </div>
+  );
+}
+
+function PickRow({ pick, onRemoved }: { pick: Pick; onRemoved: () => void }) {
+  const [removing, setRemoving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function remove() {
+    setRemoving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/room/picks/${pick.id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Couldn't remove that. Try again.");
+        return;
+      }
+      onRemoved();
+    } catch {
+      setError("Couldn't remove that. Try again.");
+    } finally {
+      setRemoving(false);
+    }
+  }
+
+  return (
+    <div className="pile-row">
+      <div className="pile-info" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {pick.artworkUrl ? (
+          <FallbackImg
+            src={pick.artworkUrl}
+            className="track-row-art"
+            fallbackClassName="track-row-art track-row-art-empty"
+          />
+        ) : (
+          <div className="track-row-art track-row-art-empty" aria-hidden="true" />
+        )}
+        <div style={{ minWidth: 0 }}>
+          <div className="track-title">{pick.title}</div>
+          <div className="track-artist">{pick.artist}</div>
+          {pick.curatorCredit && <div className="pile-meta">picked by {pick.curatorCredit}</div>}
+        </div>
+      </div>
+      <div className="pile-action">
+        <button type="button" className="link-btn" onClick={remove} disabled={removing}>
+          {removing ? "Removing…" : "Remove"}
         </button>
-      </form>
-      {error && (
-        <p className="notice error" style={{ marginTop: 8 }}>
-          {error}
-        </p>
+        {error && (
+          <p className="notice error" style={{ marginTop: 6, maxWidth: 160 }}>
+            {error}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PileCard({
+  pile,
+  hasOpenDrop,
+  onAdded,
+}: {
+  pile: PileItem[];
+  hasOpenDrop: boolean;
+  onAdded: () => void;
+}) {
+  return (
+    <div className="ct-card" style={{ marginTop: 20 }}>
+      <p className="label" style={{ marginBottom: 10 }}>
+        Submission pile ({pile.length})
+      </p>
+      {pile.length === 0 ? (
+        <div className="empty-state" style={{ padding: "12px 0" }}>
+          Nothing submitted for this drop yet.
+        </div>
+      ) : (
+        <div className="pile-list">
+          {pile.map((item) => (
+            <PileRow key={item.id} item={item} hasOpenDrop={hasOpenDrop} onAdded={onAdded} />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -659,11 +725,22 @@ function PileRow({
 
   return (
     <div className="pile-row">
-      <div className="pile-info">
-        <div className="track-title">{item.title && item.artist ? item.title : item.link}</div>
-        {item.title && item.artist && <div className="track-artist">{item.artist}</div>}
-        <div className="pile-meta">
-          {item.submittedBy ?? "—"} · {formatRelativeTime(new Date(item.submittedAt))}
+      <div className="pile-info" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {item.artworkUrl ? (
+          <FallbackImg
+            src={item.artworkUrl}
+            className="track-row-art"
+            fallbackClassName="track-row-art track-row-art-empty"
+          />
+        ) : (
+          <div className="track-row-art track-row-art-empty" aria-hidden="true" />
+        )}
+        <div style={{ minWidth: 0 }}>
+          <div className="track-title">{item.title && item.artist ? item.title : item.link}</div>
+          {item.title && item.artist && <div className="track-artist">{item.artist}</div>}
+          <div className="pile-meta">
+            {item.submittedBy ?? "—"} · {formatRelativeTime(new Date(item.submittedAt))}
+          </div>
         </div>
       </div>
       <div className="pile-action">
@@ -687,6 +764,56 @@ function PileRow({
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+function CuratorsDisclosure({ roster }: { roster: RosterCurator[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="ct-card" style={{ marginTop: 20 }}>
+      <button type="button" className="ct-disclosure" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className="label" style={{ marginBottom: 0 }}>
+          Curators ({roster.length})
+        </span>
+        <span className="mut" style={{ fontSize: 11 }}>
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+      {open && (
+        <div className="roster-list" style={{ marginTop: 12 }}>
+          {roster.map((c) => (
+            <div key={c.id} className="roster-row">
+              <span className="roster-name">{c.name}</span>
+              <span className="roster-meta">
+                {c.picksThisCycle} this cycle · {c.picksLifetime} lifetime · joined{" "}
+                {joinedLabel(c.joinedAt)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Top10Disclosure({ top10 }: { top10: Top10CardProps }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="ct-card" style={{ marginTop: 20 }}>
+      <button type="button" className="ct-disclosure" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className="label" style={{ marginBottom: 0 }}>
+          Subscriber Top 10
+        </span>
+        <span className="mut" style={{ fontSize: 11 }}>
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+      {open && (
+        <div style={{ marginTop: 12 }}>
+          <Top10Card {...top10} />
+        </div>
+      )}
     </div>
   );
 }
