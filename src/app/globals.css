@@ -190,12 +190,21 @@ input {
   transform: translateY(1px);
 }
 
+/* Soft-tint treatment (2026-10-08 — founder's own report: the solid
+   neon-bright fill read as too loud next to the rest of the site's
+   quieter color language, specifically compared to the muted accent
+   pill SiteHeader's active nav tab/.acc-tab already use). Every solid
+   CTA button site-wide — .btn-primary and .btn-accent both — now uses
+   that same accent-text + --acc-soft-fill language instead of a solid
+   accent background, so a "primary" button reads as one consistent
+   family with every other accent-colored control already on the site,
+   not a brighter, separate style of its own. */
 .btn-primary {
   height: 52px;
   width: 100%;
   border: none;
-  background: var(--accent);
-  color: var(--bg);
+  background: var(--acc-soft);
+  color: var(--accent);
   font-weight: 500;
 }
 
@@ -212,8 +221,8 @@ input {
   height: 48px;
   width: 100%;
   border: none;
-  background: var(--accent);
-  color: var(--bg);
+  background: var(--acc-soft);
+  color: var(--accent);
   font-weight: 500;
 }
 
@@ -505,9 +514,11 @@ input {
   gap: 22px 16px;
 }
 
-/* "Liked songs" on /account only (2026-10-07 — the founder's own call:
-   about 25% smaller than the standard archive-grid cell). Same gap —
-   he said to leave the spacing as-is. */
+/* Smaller tiles than the standard archive-grid cell (2026-10-07 —
+   "Liked songs" on /account; reused 2026-10-08 for Browse's Songs
+   grid specifically — founder's own call, "shrink the song grid in
+   browse" — Browse's Artists grid stays on the regular .archive-grid
+   above). Same gap either way — leave the spacing as-is. */
 .archive-grid-sm {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
@@ -710,10 +721,34 @@ input {
   margin-bottom: 6px;
 }
 
-.drop-detail .share-url {
-  font-size: 11px;
-  color: var(--mut);
+/* Real share control, replacing the old plain-text share-url line
+   (2026-10-08 — see claude/next-build.md and ShareButton.tsx). Small
+   and left-aligned, same spirit/placement as the line it replaces —
+   this is a secondary action, not a full-width CTA like .btn-outline
+   below it. */
+.drop-detail .share-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
   margin-bottom: 20px;
+  border-radius: 999px;
+  border: 1px solid var(--ln);
+  background: transparent;
+  color: var(--mut);
+  font-size: 11px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.drop-detail .share-btn:hover {
+  color: var(--fg);
+  border-color: var(--fg);
+}
+
+.drop-detail .share-btn.is-copied {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .drop-detail .listen-row {
@@ -1312,6 +1347,21 @@ input {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* Lets PlayableArt (src/app/_components/PlayableArt.tsx) — everywhere
+   else used at a fixed pixel size (40px track rows, etc.) — fill this
+   tile's responsive, percentage-width square instead (2026-10-08 —
+   Browse's Songs grid: artwork should play like every other drop-page
+   row, see claude/next-build.md). .song-tile is already the sized,
+   position:relative box; this just stretches PlayableArt's own
+   position:relative wrapper to fill it edge-to-edge. PlayableArt.tsx
+   itself is untouched — every other caller keeps its fixed size. */
+.song-tile > .playable-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 /* Same gradient formula as .track-row-art-empty, so a liked song with

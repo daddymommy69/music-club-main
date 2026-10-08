@@ -2,6 +2,7 @@ import Link from "next/link";
 import SiteHeader from "@/app/_components/SiteHeader";
 import BrowseSearch from "@/app/_components/BrowseSearch";
 import FallbackImg from "@/app/_components/FallbackImg";
+import PlayableArt from "@/app/_components/PlayableArt";
 import { getDefaultClub } from "@/lib/club";
 import { getOpenDrop } from "@/lib/room";
 import { getSessionMember } from "@/lib/memberSession";
@@ -65,22 +66,26 @@ export default async function BrowsePage() {
             No songs yet — they&rsquo;ll show up here once a drop ships.
           </p>
         ) : (
-          <div className="archive-grid">
-            {/* Title + artist underneath, same .drop-card-wrap/.info
-                treatment as the Artists grid right above (2026-10-08 —
-                founder's own report: these tiles had no visible label at
-                all, just a hover tooltip — see claude/next-build.md).
-                Link/behavior unchanged — still goes to the artist page. */}
+          <div className="archive-grid-sm">
+            {/* Artwork = play target, title/artist = link to the artist
+                page — same split as every drop-page tracklist row
+                (2026-10-08 — founder's own ask: "the song links under
+                songs to act like the ones in the drops" — see
+                claude/next-build.md). Smaller tiles than the Artists
+                grid above, .archive-grid-sm, per the same request. */}
             {directory.songs.map((song) => (
               <div key={song.songId} className="drop-card-wrap">
+                <div className="song-tile">
+                  <PlayableArt
+                    spotifyUri={song.spotifyUri}
+                    artworkUrl={song.artworkUrl}
+                    title={song.title}
+                    artist={song.artist}
+                    className=""
+                    fallbackClassName="song-tile-empty"
+                  />
+                </div>
                 <Link href={artistHref(song.artist)} className="drop-card">
-                  <div className="song-tile">
-                    {song.artworkUrl ? (
-                      <FallbackImg src={song.artworkUrl} className="" fallbackClassName="song-tile-empty" />
-                    ) : (
-                      <div className="song-tile-empty" aria-hidden="true" />
-                    )}
-                  </div>
                   <div className="info">
                     <div className="title">{song.title}</div>
                     <div className="meta">{song.artist}</div>

@@ -5,6 +5,7 @@ import { artistHref } from "@/lib/artistLink";
 import CloseButton from "./CloseButton";
 import DropTile from "./DropTile";
 import PlayableArt from "./PlayableArt";
+import ShareButton from "./ShareButton";
 import LikeButton from "./LikeButton";
 import SongRatingControl from "./SongRatingControl";
 import DropLikeButton from "./DropLikeButton";
@@ -24,6 +25,10 @@ export default function DropDetail({
 }: {
   drop: PublicDropDetail;
   closable?: boolean;
+  /** A real, absolute, clickable URL — src/lib/site.ts's siteUrl(),
+   * never siteDisplayPath() (that one's display-text-only by its own
+   * comment) — fed straight into ShareButton's native share/clipboard
+   * flow below. */
   shareUrl: string;
   /** Song ids the current viewer has liked — empty for a logged-out
    * visitor (LikeButton still works for them; see its own comment). */
@@ -81,7 +86,7 @@ export default function DropDetail({
         {formatDropMonth(drop.publishedAt)} · {curatorSongs.length}{" "}
         {curatorSongs.length === 1 ? "song" : "songs"}
       </div>
-      <div className="share-url">{shareUrl}</div>
+      <ShareButton url={shareUrl} title={drop.title ?? `Drop ${drop.num}`} />
 
       {drop.rating.count > 0 && (
         <div className="drop-rating-line">

@@ -3,7 +3,8 @@
 import { createContext, useCallback, useContext, useRef, useState } from "react";
 
 /**
- * Site-wide playback (2026-10-08 "drop control + playback" round — see
+ * Site-wide playback (2026-10-08 "drop control + playback" round, then
+ * reworked the same day in the "custom bottom player" round — see
  * claude/next-build.md). The founder's ask was "clicking the artwork
  * of a song only, it plays from spotify" — a 30-second preview for
  * everyone, full tracks for a visitor who's connected their own
@@ -13,17 +14,23 @@ import { createContext, useCallback, useContext, useRef, useState } from "react"
  * PlayableArt instance (src/app/_components/PlayableArt.tsx) just
  * calls usePlayer().play() and lets this own the actual player.
  *
- * Deliberately two totally different playback mechanisms depending on
- * eligibility, not a graceful-degradation of one:
+ * Two totally different playback mechanisms depending on eligibility,
+ * not a graceful-degradation of one:
  *   - full: Spotify's Web Playback SDK (lazy-loaded, one reused
  *     Spotify.Player instance) + the Web API's /me/player/play — needs
  *     a connected + Premium visitor. No on-page UI for play/pause/seek
  *     exists for this, so the floating bar below draws its own.
- *   - preview: Spotify's own compact embed widget
- *     (open.spotify.com/embed/track/<id>) — chosen specifically because
- *     it ships its own play/pause/seek chrome, so this file never has
- *     to speak Spotify's postMessage IFrame API to control it. The
- *     floating bar just mounts/unmounts the iframe.
+ *   - preview: Spotify's Embed IFrame API
+ *     (open.spotify.com/embed/iframe-api/v1), driving one reused,
+ *     visually-hidden embed controller — chosen specifically so this
+ *     app's own floating bar can draw its own native play/pause
+ *     (matching the full-mode bar exactly) instead of showing
+ *     Spotify's own visible embed widget (2026-10-08 — founder's own
+ *     report: "i dont want it to open an embed... if possible... a
+ *     bottom player, like how it plays on spotify"). No progress/seek
+ *     UI either mode — re-clicking the SAME track's artwork restarts
+ *     its preview from 0 rather than toggling it off; the floating
+ *     bar's own button toggles play/pause instead, same as full mode.
  */
 
 export type PlayableTrack = {
@@ -45,7 +52,16 @@ type PlayerContextValue = {
    * plain "loading" state during this window. */
   mode: PlayMode;
   isPlaying: boolean;
+  /** Artwork's click handler — same track again restarts its preview
+   * (full mode: toggles, same as the bar's own button). A different
+   * track loads and plays it, full or preview, whichever this visitor
+   * is eligible for. */
   play: (track: PlayableTrack) => void;
+  /** The floating bar's own play/pause button — always toggles,
+   * regardless of mode. Separate from play() above on purpose, so
+   * re-clicking the artwork and clicking the bar's button can mean
+   * different things for a preview (restart vs. pause/resume). */
+  toggle: () => void;
   stop: () => void;
 };
 
@@ -56,7 +72,7 @@ const PlayerContext = createContext<PlayerContextValue | null>(null);
 export function usePlayer(): PlayerContextValue {
   const ctx = useContext(PlayerContext);
   if (!ctx) {
-    return { current: null, mode: null, isPlaying: false, play: () => {}, stop: () => {} };
+    return { current: null, mode: null, isPlaying: false, play: () => {}, toggle: () => {}, stop: () => {} };
   }
   return ctx;
 }
@@ -85,10 +101,45 @@ interface SpotifyPlayerConstructor {
   }): SpotifyPlayerInstance;
 }
 
+/* ---------- Embed IFrame API — minimal hand-written types ----------
+ * Same spirit as the SDK types above: typed only to what's actually
+ * used (create one controller, swap its track, play/pause/seek it,
+ * listen for position updates to notice a preview ending). */
+
+interface SpotifyEmbedPlaybackUpdate {
+  data: {
+    position: number;
+    duration: number;
+    isPaused: boolean;
+    isBuffering: boolean;
+  };
+}
+
+interface SpotifyEmbedController {
+  loadUri(uri: string): void;
+  play(): void;
+  pause(): void;
+  resume(): void;
+  togglePlay(): void;
+  seek(seconds: number): void;
+  destroy(): void;
+  addListener(event: "ready", cb: () => void): void;
+  addListener(event: "playback_update", cb: (update: SpotifyEmbedPlaybackUpdate) => void): void;
+}
+
+interface SpotifyIframeApi {
+  createController(
+    element: HTMLElement,
+    options: { uri: string; width?: string | number; height?: string | number },
+    callback: (controller: SpotifyEmbedController) => void
+  ): void;
+}
+
 declare global {
   interface Window {
     Spotify?: { Player: SpotifyPlayerConstructor };
     onSpotifyWebPlaybackSDKReady?: () => void;
+    onSpotifyIframeApiReady?: (IFrameAPI: SpotifyIframeApi) => void;
   }
 }
 
@@ -113,6 +164,24 @@ function loadSpotifyPlaybackSdk(): Promise<void> {
   return sdkLoadPromise;
 }
 
+/** Same page-wide-singleton reasoning as loadSpotifyPlaybackSdk above,
+ * for the other Spotify script this file loads. */
+let embedApiLoadPromise: Promise<SpotifyIframeApi> | null = null;
+
+function loadSpotifyEmbedApi(): Promise<SpotifyIframeApi> {
+  if (typeof window === "undefined") return Promise.reject(new Error("no window"));
+  if (embedApiLoadPromise) return embedApiLoadPromise;
+
+  embedApiLoadPromise = new Promise((resolve) => {
+    window.onSpotifyIframeApiReady = (IFrameAPI) => resolve(IFrameAPI);
+    const script = document.createElement("script");
+    script.src = "https://open.spotify.com/embed/iframe-api/v1";
+    script.async = true;
+    document.body.appendChild(script);
+  });
+  return embedApiLoadPromise;
+}
+
 export default function NowPlayingProvider({ children }: { children: React.ReactNode }) {
   const [current, setCurrent] = useState<PlayableTrack | null>(null);
   const [mode, setMode] = useState<PlayMode>(null);
@@ -128,10 +197,22 @@ export default function NowPlayingProvider({ children }: { children: React.React
   // route's own comment).
   const eligibleRef = useRef<boolean | null>(null);
 
+  // One embed controller, reused for every preview this session (just
+  // loadUri() to swap tracks) rather than creating a fresh iframe per
+  // click — embedHostRef is the hidden <div> it attaches to, always
+  // mounted below regardless of whether anything's playing yet.
+  const embedHostRef = useRef<HTMLDivElement | null>(null);
+  const embedControllerRef = useRef<SpotifyEmbedController | null>(null);
+  const embedCreatePromiseRef = useRef<Promise<SpotifyEmbedController> | null>(null);
+
   const stop = useCallback((pauseFull: boolean) => {
     if (pauseFull && playerRef.current) {
       playerRef.current.pause().catch(() => {});
     }
+    // Always pause the embed controller on stop, full-mode or not —
+    // it's reused rather than torn down, so if this didn't run, a
+    // preview would keep playing silently behind a closed bar.
+    embedControllerRef.current?.pause();
     setCurrent(null);
     setMode(null);
     setIsPlaying(false);
@@ -195,17 +276,89 @@ export default function NowPlayingProvider({ children }: { children: React.React
     }
   }, []);
 
+  /** Creates the one reused embed controller the first time it's
+   * needed, attached to the always-mounted hidden host div below.
+   * Later calls just hand back the same in-flight/resolved promise. */
+  const createEmbedController = useCallback((uri: string): Promise<SpotifyEmbedController> => {
+    if (embedCreatePromiseRef.current) return embedCreatePromiseRef.current;
+
+    embedCreatePromiseRef.current = loadSpotifyEmbedApi().then(
+      (IFrameAPI) =>
+        new Promise<SpotifyEmbedController>((resolve, reject) => {
+          if (!embedHostRef.current) {
+            reject(new Error("no embed host element"));
+            return;
+          }
+          IFrameAPI.createController(embedHostRef.current, { uri, width: 1, height: 1 }, (controller) => {
+            embedControllerRef.current = controller;
+            resolve(controller);
+          });
+        })
+    );
+    return embedCreatePromiseRef.current;
+  }, []);
+
+  /** Position updates double as this preview's only "did it end"
+   * signal — the embed API has no separate ended event. Also keeps
+   * isPlaying honest if Spotify itself pauses/buffers for a reason
+   * this tab didn't cause. */
+  const attachPreviewListeners = useCallback(
+    (controller: SpotifyEmbedController) => {
+      controller.addListener("playback_update", ({ data }) => {
+        setIsPlaying(!data.isPaused);
+        if (data.duration > 0 && data.position >= data.duration - 0.3) {
+          // Preview reached its end — close the bar entirely, same as
+          // the visitor hitting ✕, rather than leaving it sitting there
+          // paused at the end (2026-10-08 — see claude/next-build.md).
+          stop(false);
+        }
+      });
+    },
+    [stop]
+  );
+
+  /** Loads + plays a track through the embed controller, creating it
+   * on first use. Always ends with an explicit play() — loadUri()
+   * alone doesn't reliably autoplay the newly-loaded track. */
+  const startPreview = useCallback(
+    async (track: PlayableTrack) => {
+      const uri = `spotify:track:${track.id}`;
+      let controller = embedControllerRef.current;
+      if (!controller) {
+        controller = await createEmbedController(uri);
+        attachPreviewListeners(controller);
+      } else {
+        controller.loadUri(uri);
+      }
+      controller.play();
+      setMode("preview");
+      setIsPlaying(true);
+    },
+    [createEmbedController, attachPreviewListeners]
+  );
+
   const play = useCallback(
     (track: PlayableTrack) => {
       if (current?.id === track.id) {
         if (mode === "full" && playerRef.current) {
           playerRef.current.togglePlay().catch(() => {});
           setIsPlaying((p) => !p);
-        } else if (mode === "preview") {
-          stop(false);
+        } else if (mode === "preview" && embedControllerRef.current) {
+          // Re-clicking the same track's artwork restarts its preview
+          // from 0 rather than toggling it off (2026-10-08 — founder's
+          // own call: "click should restart it") — the bar's own
+          // button (toggle(), below) is where pause/resume lives now.
+          embedControllerRef.current.seek(0);
+          embedControllerRef.current.play();
+          setIsPlaying(true);
         }
         return;
       }
+
+      // Switching to a different track — pause whatever the embed
+      // controller was doing first so a mid-flight preview can't keep
+      // playing underneath while the new track resolves.
+      embedControllerRef.current?.pause();
 
       setCurrent(track);
       setMode(null);
@@ -235,16 +388,59 @@ export default function NowPlayingProvider({ children }: { children: React.React
             // fall through to preview
           }
         }
-        setMode("preview");
-        setIsPlaying(true);
+        try {
+          await startPreview(track);
+        } catch {
+          // Couldn't even get a preview going — don't leave the bar
+          // stuck showing "Loading…" forever.
+          stop(false);
+        }
       })();
     },
-    [current, mode, stop, ensureFullPlaybackReady]
+    [current, mode, stop, ensureFullPlaybackReady, startPreview]
   );
 
+  /** The floating bar's own play/pause button — always a toggle,
+   * whichever mode is active. Deliberately separate from play() above
+   * (see its own comment). */
+  const toggle = useCallback(() => {
+    if (mode === "full" && playerRef.current) {
+      playerRef.current.togglePlay().catch(() => {});
+      setIsPlaying((p) => !p);
+    } else if (mode === "preview" && embedControllerRef.current) {
+      embedControllerRef.current.togglePlay();
+      setIsPlaying((p) => !p);
+    }
+  }, [mode]);
+
   return (
-    <PlayerContext.Provider value={{ current, mode, isPlaying, play, stop: () => stop(true) }}>
+    <PlayerContext.Provider value={{ current, mode, isPlaying, play, toggle, stop: () => stop(true) }}>
       {children}
+
+      {/* Hidden host for Spotify's Embed IFrame API (2026-10-08 — see
+          claude/next-build.md): drives real preview audio invisibly so
+          the floating bar below can draw its own native play/pause
+          instead of Spotify's visible embed widget. Not display:none —
+          some browsers suspend media inside a display:none iframe —
+          just clipped to nothing and click-through. Always mounted
+          (not conditional on `current`) so the one controller, once
+          created, persists across every track change. */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          bottom: 0,
+          right: 0,
+          width: 1,
+          height: 1,
+          opacity: 0,
+          overflow: "hidden",
+          pointerEvents: "none",
+        }}
+      >
+        <div ref={embedHostRef} />
+      </div>
+
       {current && <NowPlayingBar track={current} mode={mode} isPlaying={isPlaying} onStop={() => stop(true)} />}
     </PlayerContext.Provider>
   );
@@ -261,7 +457,7 @@ function NowPlayingBar({
   isPlaying: boolean;
   onStop: () => void;
 }) {
-  const { play } = usePlayer();
+  const { toggle } = usePlayer();
 
   return (
     <div className="now-playing-bar" role="region" aria-label="Now playing">
@@ -279,27 +475,21 @@ function NowPlayingBar({
 
       {mode === null && <span className="mut now-playing-status">Loading…</span>}
 
-      {mode === "full" && (
+      {/* Same native play/pause control either mode now — full and
+          preview both just toggle here (2026-10-08 — the founder's own
+          ask: a custom bottom player "like how it plays on spotify"
+          instead of Spotify's visible preview embed). No progress/seek
+          UI in either mode, matching how the full-mode bar always
+          looked. */}
+      {(mode === "full" || mode === "preview") && (
         <button
           type="button"
           className="now-playing-btn"
-          onClick={() => play(track)}
+          onClick={toggle}
           aria-label={isPlaying ? "Pause" : "Play"}
         >
           {isPlaying ? "❙❙" : "▶"}
         </button>
-      )}
-
-      {mode === "preview" && (
-        <iframe
-          title="Spotify preview"
-          src={`https://open.spotify.com/embed/track/${track.id}?theme=0`}
-          width="240"
-          height="80"
-          style={{ border: 0, borderRadius: 8 }}
-          allow="autoplay; encrypted-media; clipboard-write"
-          loading="lazy"
-        />
       )}
 
       <button type="button" className="now-playing-close" onClick={onStop} aria-label="Close player">
