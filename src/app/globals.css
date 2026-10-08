@@ -1016,6 +1016,37 @@ input {
   color: inherit;
 }
 
+/* Account page tabs (2026-10-08 — curator tools became its own tab
+ * instead of a collapsible section at the bottom of /account; see
+ * claude/next-build.md). Only ever rendered for a curator — a regular
+ * member's /account has one tab's worth of content and no tab bar at
+ * all. Same active-pill convention SiteHeader's top nav already uses
+ * (accent text + --acc-soft fill), so it reads as the same kind of
+ * control, just one level down. */
+.acc-tabs {
+  display: flex;
+  gap: 6px;
+  border-bottom: 1px solid var(--ln);
+  padding-bottom: 14px;
+  margin-bottom: 26px;
+}
+
+.acc-tab {
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--mut);
+}
+
+.acc-tab.active {
+  color: var(--accent);
+  background: var(--acc-soft);
+}
+
 /* ---------- curator overview ---------- */
 
 .stat-row {

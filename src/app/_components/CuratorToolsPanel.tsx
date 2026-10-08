@@ -10,14 +10,14 @@ import Top10Card, { type Top10CardProps } from "./Top10Card";
 
 /**
  * The curator workspace (formerly the standalone /room + /overview
- * pages), folded into a single collapsible section at the bottom of
- * /account (2026-10 "account consolidation" round — see
- * claude/next-build.md). Every control here posts to the same API
- * routes it always has.
+ * pages). Rendered as its own "Curator tools" tab on /account
+ * (2026-10-08, this round — see claude/next-build.md), shown only to
+ * approved curators. Every control here posts to the same API routes
+ * it always has.
  *
  * Redesigned 2026-10-08 (see claude/next-build.md, "curator tools
  * redesign") after the founder found the previous version visually
- * messy and genuinely confusing to even start using. Three structural
+ * messy and genuinely confusing to even start using. Structural
  * changes from before:
  *   1. Adding a pick is now a live Spotify search-and-select (same
  *      pattern Browse's search bar already uses), not a paste-a-link
@@ -35,6 +35,12 @@ import Top10Card, { type Top10CardProps } from "./Top10Card";
  *      same idea — .ct-card is a plain neutral card, .ct-card-emphasis
  *      (teal border) is reserved for Start/Ship, and the pile/picks/
  *      curators list no longer nest a second teal box inside another.
+ *   4. No longer its own collapsible section with a "Curator tools"
+ *      header of its own — now that it lives on a dedicated tab, that
+ *      header/collapse was a redundant second toggle on top of the tab
+ *      switch itself. Add/picks/pile/Start/Ship always render as soon
+ *      as the tab is open; only Curators and Top 10 (checked less
+ *      often) stay as their own small disclosures.
  */
 
 type Pick = {
@@ -108,89 +114,47 @@ export default function CuratorToolsPanel({
   top10,
 }: CuratorToolsPanelProps) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
 
   function refresh() {
     router.refresh();
   }
 
-  // Fixes the founder's "opens in different positions, closes weird"
-  // report (2026-10-07 — see claude/next-build.md): toggling used to
-  // just snap the content in/out with no animation and no regard for
-  // where the panel ended up on screen afterward. Now both directions
-  // anchor the scroll position back to this panel's own header.
-  function toggle() {
-    setOpen((o) => !o);
-    requestAnimationFrame(() => {
-      panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  }
-
   return (
-    <div className="ct-card" style={{ marginBottom: 30 }} ref={panelRef}>
-      <button
-        type="button"
-        onClick={toggle}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          width: "100%",
-          padding: 0,
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          fontFamily: "inherit",
-        }}
-        aria-expanded={open}
-      >
-        <span className="label" style={{ marginBottom: 0 }}>
-          Curator tools
-        </span>
-        <span className="mut" style={{ fontSize: 11 }}>
-          {open ? "▲ collapse" : "▼ expand"}
-        </span>
-      </button>
+    <div className="gz-up">
+      <div className="stat-row gz-up">
+        <Stat label="Drop" value={String(dropNum)} />
+        <Stat label="Remaining" value={timeLabel(isManual, daysUntilNext)} />
+        <Stat label="Subscribers" value={String(subscriberCount)} />
+        <Stat label="Submissions" value={String(pile.length)} />
+      </div>
 
-      {open && (
-        <div className="gz-up" style={{ marginTop: 18 }}>
-          <div className="stat-row gz-up">
-            <Stat label="Drop" value={String(dropNum)} />
-            <Stat label="Remaining" value={timeLabel(isManual, daysUntilNext)} />
-            <Stat label="Subscribers" value={String(subscriberCount)} />
-            <Stat label="Submissions" value={String(pile.length)} />
-          </div>
+      {!hasOpenDrop && <StartDropCard dropNum={dropNum} onStarted={refresh} />}
 
-          {!hasOpenDrop && <StartDropCard dropNum={dropNum} onStarted={refresh} />}
+      {hasOpenDrop && (
+        <>
+          <AddPick onAdded={refresh} />
+          <PicksCard picks={picks} onRemoved={refresh} />
+        </>
+      )}
 
-          {hasOpenDrop && (
-            <>
-              <AddPick onAdded={refresh} />
-              <PicksCard picks={picks} onRemoved={refresh} />
-            </>
-          )}
+      <PileCard pile={pile} hasOpenDrop={hasOpenDrop} onAdded={refresh} />
 
-          <PileCard pile={pile} hasOpenDrop={hasOpenDrop} onAdded={refresh} />
+      <CuratorsDisclosure roster={roster} />
 
-          <CuratorsDisclosure roster={roster} />
-
-          {shipCandidate && (
-            <div className="ct-card-emphasis" style={{ marginTop: 20 }}>
-              <p className="label" style={{ marginBottom: 10 }}>
-                Ship drop {shipCandidate.dropNum}
-              </p>
-              <ShipDropCard
-                dropNum={shipCandidate.dropNum}
-                title={shipCandidate.title}
-                pickCount={shipCandidate.pickCount}
-              />
-            </div>
-          )}
-
-          {top10 && <Top10Disclosure top10={top10} />}
+      {shipCandidate && (
+        <div className="ct-card-emphasis" style={{ marginTop: 20 }}>
+          <p className="label" style={{ marginBottom: 10 }}>
+            Ship drop {shipCandidate.dropNum}
+          </p>
+          <ShipDropCard
+            dropNum={shipCandidate.dropNum}
+            title={shipCandidate.title}
+            pickCount={shipCandidate.pickCount}
+          />
         </div>
       )}
+
+      {top10 && <Top10Disclosure top10={top10} />}
     </div>
   );
 }
