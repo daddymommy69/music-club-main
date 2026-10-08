@@ -3,7 +3,7 @@ import DropModalShell from "@/app/_components/DropModalShell";
 import DropDetail from "@/app/_components/DropDetail";
 import { getDefaultClub } from "@/lib/club";
 import { getPublicDrop } from "@/lib/archive";
-import { siteDisplayPath } from "@/lib/site";
+import { siteUrl } from "@/lib/site";
 import { getSessionMember } from "@/lib/memberSession";
 import { getMemberLikedSongIds } from "@/lib/songLikes";
 import { getMemberDropRating } from "@/lib/ratings";
@@ -40,7 +40,7 @@ export default async function InterceptedDropModal({
       <DropDetail
         drop={drop}
         closable
-        shareUrl={siteDisplayPath(`/drop/${drop.num}`)}
+        shareUrl={siteUrl(`/drop/${drop.num}`)}
         likedSongIds={likedSongIds}
         viewerRating={viewerRating}
         viewerDropLiked={viewerDropLiked}
