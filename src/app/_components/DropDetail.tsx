@@ -5,7 +5,8 @@ import { artistHref } from "@/lib/artistLink";
 import CloseButton from "./CloseButton";
 import DropTile from "./DropTile";
 import PlayableArt from "./PlayableArt";
-import { PlayQueue } from "./NowPlayingProvider";
+import { PlayQueue, type QueueSong } from "./NowPlayingProvider";
+import PlayDropButton from "./PlayDropButton";
 import ShareButton from "./ShareButton";
 import LikeButton from "./LikeButton";
 import SongRatingControl from "./SongRatingControl";
@@ -70,6 +71,18 @@ export default function DropDetail({
   // (e.g. the listener-picks page) need the full set.
   const curatorSongs = drop.songs.filter((s) => s.pickType === "curator");
 
+  // Same mapping Tracklist's own <PlayQueue> below builds — kept here too
+  // so the new primary Play button (design-pass round, 2026-10-09 — see
+  // claude/next-build.md) can start that exact queue without waiting for
+  // a track click first.
+  const queueSongs: QueueSong[] = curatorSongs.map((s) => ({
+    songId: s.id,
+    spotifyUri: s.spotifyUri,
+    artworkUrl: s.artworkUrl,
+    title: s.title,
+    artist: s.artist,
+  }));
+
   return (
     <div className="drop-detail">
       <div className="top-row">
@@ -87,6 +100,7 @@ export default function DropDetail({
         {formatDropMonth(drop.publishedAt)} · {curatorSongs.length}{" "}
         {curatorSongs.length === 1 ? "song" : "songs"}
       </div>
+      <PlayDropButton songs={queueSongs} />
       <ShareButton url={shareUrl} title={drop.title ?? `Drop ${drop.num}`} />
 
       {drop.rating.count > 0 && (
@@ -206,9 +220,15 @@ function Tracklist({
 }) {
   return (
     <>
+      {/* Used to also have a right-aligned "Picked by" label here, but
+          that column never actually rendered curator credit — it's the
+          like button + star rating (see track-row-controls below). The
+          real curator credit already shows inline per-track
+          (.track-credit); fixing the mislabel rather than relabeling it
+          to match, since the icons read fine without a header
+          (2026-10-09 design-pass round — see claude/next-build.md). */}
       <div className="tracklist-header">
         <span className="label">The songs</span>
-        <span className="label">Picked by</span>
       </div>
       <hr className="hairline" style={{ margin: "0 0 4px" }} />
       {/* Player revamp (2026-10-08 — see claude/next-build.md): this

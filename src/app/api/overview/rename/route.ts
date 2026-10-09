@@ -36,21 +36,31 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "No drop in progress right now." }, { status: 400 });
   }
 
-  const db = getDb();
-  const [updated] = await db
-    .update(drops)
-    .set({
-      title: title?.trim() || null,
-      titleUpdatedBy: curator.name || "A curator",
-      titleUpdatedAt: new Date(),
-    })
-    .where(eq(drops.id, drop.id))
-    .returning();
+  // 2026-10-09 audit fix (see claude/next-build.md): this write had no
+  // error handling at all — a DB hiccup threw uncaught instead of
+  // returning a real message, same class of bug as the "five silent
+  // mutations" fixed earlier in this project, just in a route added
+  // after that fix.
+  try {
+    const db = getDb();
+    const [updated] = await db
+      .update(drops)
+      .set({
+        title: title?.trim() || null,
+        titleUpdatedBy: curator.name || "A curator",
+        titleUpdatedAt: new Date(),
+      })
+      .where(eq(drops.id, drop.id))
+      .returning();
 
-  return NextResponse.json({
-    ok: true,
-    title: updated.title,
-    titleUpdatedBy: updated.titleUpdatedBy,
-    titleUpdatedAt: updated.titleUpdatedAt,
-  });
+    return NextResponse.json({
+      ok: true,
+      title: updated.title,
+      titleUpdatedBy: updated.titleUpdatedBy,
+      titleUpdatedAt: updated.titleUpdatedAt,
+    });
+  } catch (err) {
+    console.error("Drop rename failed:", err);
+    return NextResponse.json({ error: "Couldn't rename that. Try again." }, { status: 500 });
+  }
 }

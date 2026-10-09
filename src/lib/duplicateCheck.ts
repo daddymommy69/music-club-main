@@ -1,28 +1,13 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { submissions, songs } from "@/db/schema";
+import { sameSongByTitleArtist } from "./songMatch";
 
 export type DuplicateInfo = {
   title: string | null;
   artist: string | null;
   link: string;
 };
-
-/** Same song if both sides have resolved title+artist and they match
- * (case/whitespace-insensitive) — catches a Spotify link and an Apple
- * Music link for the same track, which won't share a URL. */
-function sameSong(
-  aTitle: string | null,
-  aArtist: string | null,
-  bTitle: string | null,
-  bArtist: string | null
-): boolean {
-  if (!aTitle || !aArtist || !bTitle || !bArtist) return false;
-  return (
-    aTitle.trim().toLowerCase() === bTitle.trim().toLowerCase() &&
-    aArtist.trim().toLowerCase() === bArtist.trim().toLowerCase()
-  );
-}
 
 /**
  * Looks for the same link (exact match) or the same resolved song already
@@ -54,7 +39,7 @@ export async function findDuplicateInDrop(opts: {
 
   for (const row of subRows) {
     if (opts.excludeSubmissionId && row.id === opts.excludeSubmissionId) continue;
-    if (row.link.trim() === link || sameSong(row.title, row.artist, opts.title, opts.artist)) {
+    if (row.link.trim() === link || sameSongByTitleArtist(row.title, row.artist, opts.title, opts.artist)) {
       return { title: row.title, artist: row.artist, link: row.link };
     }
   }
@@ -67,7 +52,7 @@ export async function findDuplicateInDrop(opts: {
 
     for (const row of songRows) {
       const rowLink = row.sourceUrl?.trim() ?? null;
-      if (rowLink === link || sameSong(row.title, row.artist, opts.title, opts.artist)) {
+      if (rowLink === link || sameSongByTitleArtist(row.title, row.artist, opts.title, opts.artist)) {
         return { title: row.title, artist: row.artist, link: rowLink ?? link };
       }
     }

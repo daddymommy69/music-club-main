@@ -51,43 +51,53 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: `No drop #${dropNum} in this club.` }, { status: 404 });
   }
 
-  const candidates = await db
-    .select()
-    .from(songs)
-    .where(and(eq(songs.dropId, drop.id), isNull(songs.spotifyUri), isNotNull(songs.sourceUrl)))
-    .orderBy(asc(songs.position), asc(songs.createdAt));
+  // 2026-10-09 audit fix (see claude/next-build.md): no error handling
+  // around any of this before now — same class of bug as the other
+  // newer curator-controls routes. resolveSongMetadata already never
+  // throws on its own (see odesli.ts), so the realistic failure here is
+  // the DB read/writes around it.
+  try {
+    const candidates = await db
+      .select()
+      .from(songs)
+      .where(and(eq(songs.dropId, drop.id), isNull(songs.spotifyUri), isNotNull(songs.sourceUrl)))
+      .orderBy(asc(songs.position), asc(songs.createdAt));
 
-  if (candidates.length === 0) {
+    if (candidates.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        dropNum: drop.num,
+        checked: 0,
+        matchedCount: 0,
+        stillUnmatched: [],
+      });
+    }
+
+    const results = await Promise.all(
+      candidates.map(async (song) => {
+        const metadata = await resolveSongMetadata(song.sourceUrl as string);
+        return { song, spotifyUri: metadata?.spotifyUri ?? null };
+      })
+    );
+
+    const matched = results.filter((r): r is { song: Song; spotifyUri: string } => !!r.spotifyUri);
+    await Promise.all(
+      matched.map(({ song, spotifyUri }) => db.update(songs).set({ spotifyUri }).where(eq(songs.id, song.id)))
+    );
+
+    const stillUnmatched = results
+      .filter((r) => !r.spotifyUri)
+      .map((r) => `${r.song.title} — ${r.song.artist}`);
+
     return NextResponse.json({
       ok: true,
       dropNum: drop.num,
-      checked: 0,
-      matchedCount: 0,
-      stillUnmatched: [],
+      checked: candidates.length,
+      matchedCount: matched.length,
+      stillUnmatched,
     });
+  } catch (err) {
+    console.error("Spotify id backfill failed:", err);
+    return NextResponse.json({ error: "Backfill failed partway through. Try again." }, { status: 500 });
   }
-
-  const results = await Promise.all(
-    candidates.map(async (song) => {
-      const metadata = await resolveSongMetadata(song.sourceUrl as string);
-      return { song, spotifyUri: metadata?.spotifyUri ?? null };
-    })
-  );
-
-  const matched = results.filter((r): r is { song: Song; spotifyUri: string } => !!r.spotifyUri);
-  await Promise.all(
-    matched.map(({ song, spotifyUri }) => db.update(songs).set({ spotifyUri }).where(eq(songs.id, song.id)))
-  );
-
-  const stillUnmatched = results
-    .filter((r) => !r.spotifyUri)
-    .map((r) => `${r.song.title} — ${r.song.artist}`);
-
-  return NextResponse.json({
-    ok: true,
-    dropNum: drop.num,
-    checked: candidates.length,
-    matchedCount: matched.length,
-    stillUnmatched,
-  });
 }

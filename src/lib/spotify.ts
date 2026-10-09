@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { clubs, type Club } from "@/db/schema";
 import { siteUrl } from "./site";
+import { spotifyClientCreds, spotifyBasicAuthHeader, refreshSpotifyAccessToken } from "./spotifyTokenRefresh";
 
 /**
  * Spotify auto-build (2026-10 decision, see plan.md): a single Spotify
@@ -24,12 +25,11 @@ const TOKEN_URL = "https://accounts.spotify.com/api/token";
 const AUTHORIZE_URL = "https://accounts.spotify.com/authorize";
 const API_BASE = "https://api.spotify.com/v1";
 
-function clientCreds(): { clientId: string; clientSecret: string } | null {
-  const clientId = process.env.SPOTIFY_CLIENT_ID;
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return null;
-  return { clientId, clientSecret };
-}
+// Client-credentials lookup + refresh-token exchange both now live in
+// spotifyTokenRefresh.ts, shared with visitorSpotify.ts (2026-10-09
+// audit consolidation — see claude/next-build.md and that file's own
+// header comment).
+const clientCreds = spotifyClientCreds;
 
 /** Same redirect path every time — derived from NEXT_PUBLIC_SITE_URL like
  * every other absolute URL in this app, so there's no separate env var to
@@ -70,7 +70,7 @@ export async function exchangeSpotifyCode(code: string): Promise<string> {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
-      Authorization: `Basic ${Buffer.from(`${creds.clientId}:${creds.clientSecret}`).toString("base64")}`,
+      Authorization: spotifyBasicAuthHeader(creds),
     },
     body: new URLSearchParams({
       grant_type: "authorization_code",
@@ -109,37 +109,9 @@ export async function disconnectSpotify(clubId: number): Promise<void> {
  */
 export async function getSpotifyAccessToken(club: Club): Promise<string | null> {
   if (!club.spotifyRefreshToken) return null;
-  const creds = clientCreds();
-  if (!creds) return null;
-
-  try {
-    const res = await fetch(TOKEN_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: `Basic ${Buffer.from(`${creds.clientId}:${creds.clientSecret}`).toString("base64")}`,
-      },
-      body: new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: club.spotifyRefreshToken,
-      }),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { access_token?: string; refresh_token?: string };
-    if (!data.access_token) return null;
-
-    // Spotify sometimes rotates the refresh token on use — persist the
-    // new one if given, or the next refresh would fail against a stale
-    // value.
-    if (data.refresh_token && data.refresh_token !== club.spotifyRefreshToken) {
-      await saveSpotifyRefreshToken(club.id, data.refresh_token);
-    }
-
-    return data.access_token;
-  } catch {
-    return null;
-  }
+  return refreshSpotifyAccessToken(club.spotifyRefreshToken, (newToken) =>
+    saveSpotifyRefreshToken(club.id, newToken)
+  );
 }
 
 export type SpotifyTrackMatch = { uri: string; id: string; artworkUrl: string | null };

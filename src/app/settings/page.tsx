@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getSessionMember } from "@/lib/memberSession";
 import { getDefaultClub } from "@/lib/club";
 import { isCycleValue } from "@/lib/cycle";
-import { listCurators } from "@/lib/members";
+import { listCurators, listPendingCurators } from "@/lib/members";
 import LogoutButton from "@/app/_components/LogoutButton";
 import SettingsBoard from "@/app/_components/SettingsBoard";
 
@@ -35,6 +35,7 @@ export default async function SettingsPage({
   // session can even see this list — a plain curator gets everything
   // above, nothing below.
   const curators = curator.isAdmin ? await listCurators(club.id) : [];
+  const pendingCurators = curator.isAdmin ? await listPendingCurators(club.id) : [];
 
   return (
     <main className="shell page">
@@ -53,6 +54,7 @@ export default async function SettingsPage({
         spotifyCallbackStatus={spotifyStatus ?? null}
         isAdmin={curator.isAdmin}
         curators={curators.map((c) => ({ id: c.id, name: c.name, email: c.email }))}
+        pendingCurators={pendingCurators.map((p) => ({ id: p.id, email: p.email, invitedBy: p.invitedBy }))}
       />
 
       <div style={{ marginTop: 28 }}>

@@ -1,7 +1,7 @@
 import { randomInt } from "crypto";
-import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { members, loginCodes, type Club, type Member } from "@/db/schema";
+import { members, loginCodes, pendingCurators, type Club, type Member } from "@/db/schema";
 import { normalizePhone, normalizeEmail, isUniqueViolation } from "./normalize";
 import { sendEmail } from "./email";
 import { generateMemberToken } from "./memberToken";
@@ -88,6 +88,8 @@ export async function findOrCreateMember(club: Club, input: NewMemberInput): Pro
   const existing = await findMemberByEmail(club, input.email);
   if (existing) return existing;
 
+  const emailKey = normalizeEmail(input.email);
+
   try {
     const [created] = await db
       .insert(members)
@@ -95,7 +97,7 @@ export async function findOrCreateMember(club: Club, input: NewMemberInput): Pro
         clubId: club.id,
         name: input.name?.trim() || null,
         email: input.email.trim(),
-        emailKey: normalizeEmail(input.email),
+        emailKey,
         phone: input.phone?.trim() || null,
         phoneKey: input.phone ? normalizePhone(input.phone) : null,
         wantsText: input.wantsText ?? false,
@@ -105,6 +107,35 @@ export async function findOrCreateMember(club: Club, input: NewMemberInput): Pro
         memberToken: generateMemberToken(),
       })
       .returning();
+
+    // Consume a pending curator invite, if an admin typed this exact
+    // email into Settings' Curators panel before this person ever
+    // signed up (2026-10-09 — see claude/next-build.md and
+    // addPendingCurator/listPendingCurators below). The DELETE...
+    // RETURNING is the "claim" — only this signup gets to consume a
+    // given invite, same atomic-claim pattern as Round 9's double-ship
+    // fix, so two near-simultaneous signups for the same email can't
+    // both see the invite and both grant themselves curator. Best
+    // effort: a failure here shouldn't fail the signup itself — it
+    // would just leave the invite sitting there for the admin to
+    // notice and grant by hand instead.
+    try {
+      const [claimed] = await db
+        .delete(pendingCurators)
+        .where(and(eq(pendingCurators.clubId, club.id), eq(pendingCurators.emailKey, emailKey)))
+        .returning();
+      if (claimed) {
+        const [promoted] = await db
+          .update(members)
+          .set({ isCurator: true })
+          .where(eq(members.id, created.id))
+          .returning();
+        return promoted;
+      }
+    } catch (err) {
+      console.error("Pending-curator invite consume failed (member still created fine):", err);
+    }
+
     return created;
   } catch (err) {
     // Lost a race with another request creating the same member between
@@ -116,6 +147,67 @@ export async function findOrCreateMember(club: Club, input: NewMemberInput): Pro
     }
     throw err;
   }
+}
+
+/**
+ * Pre-authorizes an email for curator status before that person has
+ * signed up (2026-10-09 — see claude/next-build.md and
+ * findOrCreateMember above, which consumes this the moment they do).
+ * Caller (the admin route) is responsible for checking the email
+ * doesn't already belong to an existing member first — this function
+ * doesn't look, it just inserts. Idempotent: adding the same pending
+ * email twice is a no-op, same "already in progress" spirit as every
+ * other insert-and-catch-the-unique-violation path in this app.
+ */
+export async function addPendingCurator(
+  club: Club,
+  email: string,
+  invitedBy: string | null
+): Promise<{ id: number; email: string }> {
+  const db = getDb();
+  const emailKey = normalizeEmail(email);
+  try {
+    const [created] = await db
+      .insert(pendingCurators)
+      .values({ clubId: club.id, email: email.trim(), emailKey, invitedBy })
+      .returning();
+    return { id: created.id, email: created.email };
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err;
+    // Already pending — hand back the existing row's id so the caller
+    // (the admin panel) still has something real to show/cancel.
+    const [existing] = await db
+      .select({ id: pendingCurators.id, email: pendingCurators.email })
+      .from(pendingCurators)
+      .where(and(eq(pendingCurators.clubId, club.id), eq(pendingCurators.emailKey, emailKey)))
+      .limit(1);
+    return existing ?? { id: -1, email: email.trim() };
+  }
+}
+
+/** Every pending curator invite for the admin panel's own list — see
+ * SettingsBoard.tsx's AdminSection. */
+export async function listPendingCurators(
+  clubId: number
+): Promise<{ id: number; email: string; invitedBy: string | null; createdAt: Date }[]> {
+  const db = getDb();
+  return db
+    .select({
+      id: pendingCurators.id,
+      email: pendingCurators.email,
+      invitedBy: pendingCurators.invitedBy,
+      createdAt: pendingCurators.createdAt,
+    })
+    .from(pendingCurators)
+    .where(eq(pendingCurators.clubId, clubId))
+    .orderBy(asc(pendingCurators.createdAt));
+}
+
+/** Cancels a pending invite before that person ever signs up — the
+ * admin panel's "Cancel" link on a pending row. */
+export async function removePendingCurator(id: number): Promise<void> {
+  const db = getDb();
+  await db.delete(pendingCurators).where(eq(pendingCurators.id, id));
 }
 
 /** Masks an email for display on the code-entry step, e.g. "j•••@example.com". */

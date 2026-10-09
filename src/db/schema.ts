@@ -322,6 +322,38 @@ export const members = pgTable(
 );
 
 /**
+ * An admin-typed email, pre-authorized for curator status before that
+ * person has ever signed up (2026-10-09 — see claude/next-build.md:
+ * the founder's own ask, "i type an email and when they sign up they
+ * are a curator," so he isn't stuck hardcoding people). Consumed
+ * automatically the moment a member row is created for a matching
+ * email (see members.ts's findOrCreateMember) — this table only ever
+ * holds emails that HAVEN'T signed up yet; the moment they do, the row
+ * here is deleted and `members.isCurator` is set instead. If the email
+ * already belongs to an existing member when an admin adds it, nothing
+ * goes here at all — the existing grant-by-email path just promotes
+ * them immediately, same as before this table existed.
+ */
+export const pendingCurators = pgTable(
+  "pending_curators",
+  {
+    id: serial("id").primaryKey(),
+    clubId: integer("club_id")
+      .notNull()
+      .references(() => clubs.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    emailKey: text("email_key").notNull(),
+    // The admin who added this invite, for display only — no FK, same
+    // free-text "who did this" spirit as drops.titleUpdatedBy/startedBy.
+    invitedBy: text("invited_by"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [unique().on(table.clubId, table.emailKey)],
+);
+
+/**
  * One-time six-digit codes for the unified email-code login (replaces
  * the old curator-only phone/email code — every member logs in this
  * way now, not just curators). Not part of the README's literal data

@@ -45,8 +45,15 @@ export async function PUT(request: Request) {
     );
   }
 
-  const db = getDb();
-  await db.update(clubs).set({ nextDropOpensAt: parsed }).where(eq(clubs.id, club.id));
+  // 2026-10-09 audit fix (see claude/next-build.md): no error handling
+  // around this write before now — same class of bug as rename/cancel.
+  try {
+    const db = getDb();
+    await db.update(clubs).set({ nextDropOpensAt: parsed }).where(eq(clubs.id, club.id));
 
-  return NextResponse.json({ ok: true, nextDropOpensAt: parsed });
+    return NextResponse.json({ ok: true, nextDropOpensAt: parsed });
+  } catch (err) {
+    console.error("Schedule-open save failed:", err);
+    return NextResponse.json({ error: "Couldn't save that. Try again." }, { status: 500 });
+  }
 }

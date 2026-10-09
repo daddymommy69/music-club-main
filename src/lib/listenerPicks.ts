@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { songs, type Song } from "@/db/schema";
+import { songs, drops, type Song } from "@/db/schema";
 import { isUniqueViolation } from "./normalize";
 
 /**
@@ -39,11 +39,38 @@ export async function getListenerPick(dropId: number, memberId: number): Promise
   return row ?? null;
 }
 
+/**
+ * True only while the drop is still open for new/edited picks — not
+ * shipped and not canceled. Re-checked right before the actual write
+ * (2026-10-09 audit fix — see claude/next-build.md): the caller's own
+ * getOpenDrop() lookup happens earlier in the request (page load or the
+ * top of the route handler), so without this, a Listener Pick submitted
+ * in the handful of milliseconds while a Ship click is already running
+ * could save successfully but never make it into the playlist that
+ * already went out — no error, just quietly missing. This narrows that
+ * window down to essentially nothing rather than closing it completely
+ * with a single atomic INSERT...WHERE EXISTS — not worth that extra
+ * complexity for a window this small, same "accepted tradeoff" spirit
+ * as the ship-claim fix in Round 9.
+ */
+async function dropIsOpenForSubmission(dropId: number): Promise<boolean> {
+  const db = getDb();
+  const [drop] = await db
+    .select({ publishedAt: drops.publishedAt, canceledAt: drops.canceledAt })
+    .from(drops)
+    .where(eq(drops.id, dropId))
+    .limit(1);
+  return !!drop && drop.publishedAt == null && drop.canceledAt == null;
+}
+
 export type SubmitListenerPickResult =
   | { ok: true; song: Song }
-  | { ok: false; reason: "already-submitted" };
+  | { ok: false; reason: "already-submitted" | "drop-closed" };
 
 export async function submitListenerPick(input: ListenerPickInput): Promise<SubmitListenerPickResult> {
+  if (!(await dropIsOpenForSubmission(input.dropId))) {
+    return { ok: false, reason: "drop-closed" };
+  }
   const db = getDb();
   try {
     const [created] = await db
@@ -73,12 +100,19 @@ export async function submitListenerPick(input: ListenerPickInput): Promise<Subm
   }
 }
 
-/** Edits the member's existing Listener Pick for this drop. Null if they don't have one to edit. */
+export type EditListenerPickResult =
+  | { ok: true; song: Song }
+  | { ok: false; reason: "not-found" | "drop-closed" };
+
+/** Edits the member's existing Listener Pick for this drop. */
 export async function editListenerPick(
   dropId: number,
   memberId: number,
   changes: { link: string; title: string; artist: string; artworkUrl: string | null }
-): Promise<Song | null> {
+): Promise<EditListenerPickResult> {
+  if (!(await dropIsOpenForSubmission(dropId))) {
+    return { ok: false, reason: "drop-closed" };
+  }
   const db = getDb();
   const [updated] = await db
     .update(songs)
@@ -96,7 +130,7 @@ export async function editListenerPick(
       )
     )
     .returning();
-  return updated ?? null;
+  return updated ? { ok: true, song: updated } : { ok: false, reason: "not-found" };
 }
 
 /** Withdraws (deletes) the member's Listener Pick for this drop. Returns false if they had none. */

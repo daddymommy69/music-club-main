@@ -639,11 +639,17 @@ input {
   justify-content: center;
 }
 
+/* Vignette instead of a flat tint (2026-10-09 design-pass round — see
+   claude/next-build.md): a flat 40% black over the whole tile washed
+   out all four quadrants evenly, including the corners where there's
+   no number to read against — darkest at the center, where the number
+   actually needs the contrast, fading out toward the edges so the
+   collage's own artwork still shows through there. */
 .drop-tile-num::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: radial-gradient(circle at center, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.12) 72%);
 }
 
 .drop-tile-num span {
@@ -656,10 +662,14 @@ input {
 }
 
 /* Large variant for the drop-detail header, where the tile stands
-   alone above the title rather than sitting in a grid of cards. */
+   alone above the title rather than sitting in a grid of cards.
+   Centered (2026-10-09 design-pass round — founder's own report: "the
+   top" read as left-leaning/off-balance) via the auto side margins
+   below, paired with .top-row's centering fix — see that rule's own
+   comment. */
 .drop-tile-hero {
   max-width: 220px;
-  margin-bottom: 16px;
+  margin: 0 auto 16px;
 }
 
 .empty-state {
@@ -697,14 +707,27 @@ input {
   padding: 24px 20px 32px;
 }
 
+/* Centered now (2026-10-09 design-pass round — founder's own report:
+   "the top... looks weird left leaning"). Previously a two-item flex
+   row (hero tile + close ✕) with justify-content: space-between — with
+   only the hero tile actually filling space, that left it pinned to
+   the left edge whenever the ✕ wasn't rendered (every non-modal drop
+   page), and even with the ✕ present space-between doesn't center
+   anything, it just pushes the two ends apart. The ✕ is pulled out of
+   flow into its own corner overlay instead, so centering the one
+   remaining flex item (the hero tile) is unconditional — true whether
+   or not `closable` is set. */
 .drop-detail .top-row {
+  position: relative;
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  justify-content: center;
   margin-bottom: 4px;
 }
 
 .drop-detail .close-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
   background: none;
   border: none;
   color: var(--mut);
@@ -726,6 +749,14 @@ input {
    and left-aligned, same spirit/placement as the line it replaces —
    this is a secondary action, not a full-width CTA like .btn-outline
    below it. */
+/* New primary CTA (2026-10-09 design-pass round — founder's own
+   report: "no clear primary action" — see PlayDropButton.tsx). Sits
+   right above the share control, which stays the small secondary
+   action it always was. */
+.drop-detail .play-drop-btn {
+  margin: 12px 0 14px;
+}
+
 .drop-detail .share-btn {
   display: inline-flex;
   align-items: center;
@@ -1402,10 +1433,16 @@ input {
   color: var(--accent);
 }
 
+/* Tightened (2026-10-09 design-pass round — founder's own report of an
+   "odd dead gap"): this line and .rate-control right below it are one
+   visual unit — the average rating, then the control for adding your
+   own — so they now sit close together, with the larger breathing room
+   (.rate-control's own margin-bottom) kept for the gap AFTER that whole
+   unit, before the listen-row that follows. */
 .drop-rating-line {
   font-size: 11.5px;
   color: var(--mut);
-  margin-bottom: 14px;
+  margin-bottom: 6px;
 }
 
 .rate-control {

@@ -5,6 +5,7 @@ import { CYCLE_OPTIONS, type CycleValue } from "@/lib/cycle";
 import { useDirtyField } from "@/lib/useDirtyField";
 
 type CuratorRow = { id: number; name: string | null; email: string | null };
+type PendingCuratorRow = { id: number; email: string; invitedBy: string | null };
 
 type SettingsBoardProps = {
   clubName: string;
@@ -14,6 +15,7 @@ type SettingsBoardProps = {
   spotifyCallbackStatus: string | null;
   isAdmin: boolean;
   curators: CuratorRow[];
+  pendingCurators: PendingCuratorRow[];
 };
 
 export default function SettingsBoard({
@@ -24,13 +26,14 @@ export default function SettingsBoard({
   spotifyCallbackStatus,
   isAdmin,
   curators,
+  pendingCurators,
 }: SettingsBoardProps) {
   return (
     <div className="gz-up">
       <ClubNameSection initialName={clubName} />
       <CycleSection initialCycle={cycle} initialCustomDays={cycleCustomDays} />
       <SpotifySection initialConnected={spotifyConnected} callbackStatus={spotifyCallbackStatus} />
-      {isAdmin && <AdminSection initialCurators={curators} />}
+      {isAdmin && <AdminSection initialCurators={curators} initialPending={pendingCurators} />}
     </div>
   );
 }
@@ -322,16 +325,26 @@ function SpotifySection({
 /**
  * Admin-only (2026-10-06 — see claude/next-build.md): grant/revoke
  * curator status by email, without curling /api/admin/members/curator
- * by hand. That route still does the real enforcement (requires the
- * caller's own session to be isAdmin, and only ever promotes an
- * EXISTING member — it 404s on an email with no member row at all), so
- * someone has to sign up as a member first (at /signup or /account)
- * before they can be made a curator from here. The one exception —
- * FOUNDER_EMAIL bootstrapping itself in with no prior signup — lives
- * entirely in /api/curators/lookup, not here.
+ * by hand.
+ *
+ * Typing an email with no member yet (2026-10-09 — the founder's own
+ * "i type an email and when they sign up they are a curator") no
+ * longer fails — it lands in the Pending list below instead, and is
+ * consumed automatically the moment that email actually signs up (see
+ * members.ts's findOrCreateMember). A pending invite can be canceled
+ * before then via /api/admin/pending-curators; the FOUNDER_EMAIL
+ * bootstrap (no prior signup needed at all) still lives entirely in
+ * /api/curators/lookup, unrelated to either list here.
  */
-function AdminSection({ initialCurators }: { initialCurators: CuratorRow[] }) {
+function AdminSection({
+  initialCurators,
+  initialPending,
+}: {
+  initialCurators: CuratorRow[];
+  initialPending: PendingCuratorRow[];
+}) {
   const [curators, setCurators] = useState(initialCurators);
+  const [pending, setPending] = useState(initialPending);
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -354,11 +367,19 @@ function AdminSection({ initialCurators }: { initialCurators: CuratorRow[] }) {
         setError(data.error ?? "Something went wrong. Try again.");
         return;
       }
-      setCurators((prev) =>
-        prev.some((c) => c.id === data.id)
-          ? prev
-          : [...prev, { id: data.id, name: data.name ?? null, email: target }]
-      );
+      if (data.pending) {
+        setPending((prev) =>
+          prev.some((p) => p.email.toLowerCase() === target.toLowerCase())
+            ? prev
+            : [...prev, { id: data.pendingId ?? -Date.now(), email: data.email ?? target, invitedBy: null }]
+        );
+      } else {
+        setCurators((prev) =>
+          prev.some((c) => c.id === data.id)
+            ? prev
+            : [...prev, { id: data.id, name: data.name ?? null, email: target }]
+        );
+      }
       setEmail("");
     } catch {
       setError("Something went wrong. Try again.");
@@ -382,6 +403,28 @@ function AdminSection({ initialCurators }: { initialCurators: CuratorRow[] }) {
         return;
       }
       setCurators((prev) => prev.filter((c) => c.id !== curator.id));
+    } catch {
+      setError("Something went wrong. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancelPending(row: PendingCuratorRow) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/pending-curators", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: row.id }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Something went wrong. Try again.");
+        return;
+      }
+      setPending((prev) => prev.filter((p) => p.id !== row.id));
     } catch {
       setError("Something went wrong. Try again.");
     } finally {
@@ -418,6 +461,30 @@ function AdminSection({ initialCurators }: { initialCurators: CuratorRow[] }) {
         </div>
       )}
 
+      {pending.length > 0 && (
+        <div className="roster-list" style={{ marginBottom: 12 }}>
+          {pending.map((p) => (
+            <div className="roster-row" key={p.id}>
+              <span className="roster-name">
+                {p.email}
+                <span className="mut" style={{ fontSize: 10.5, marginLeft: 6 }}>
+                  pending — becomes curator on signup
+                </span>
+              </span>
+              <button
+                type="button"
+                className="link-btn"
+                style={{ fontSize: 11.5 }}
+                onClick={() => cancelPending(p)}
+                disabled={busy}
+              >
+                Cancel
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <form onSubmit={grant} style={{ display: "flex", gap: 8 }}>
         <input
           className="settings-input"
@@ -439,8 +506,8 @@ function AdminSection({ initialCurators }: { initialCurators: CuratorRow[] }) {
         </button>
       </form>
       <p className="mut" style={{ fontSize: 11, marginTop: 8 }}>
-        They need to have signed up as a member first (at /signup or /account) — this only
-        promotes an existing member to curator, it doesn&rsquo;t create one.
+        Already signed up? They become a curator right away. Haven&rsquo;t signed up yet? It&rsquo;s
+        saved here and applies automatically the moment they do.
       </p>
       {error && (
         <p className="notice error" style={{ marginTop: 10 }}>

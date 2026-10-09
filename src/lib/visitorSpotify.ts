@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { members, type Member } from "@/db/schema";
 import { siteUrl } from "./site";
+import { spotifyClientCreds, spotifyBasicAuthHeader, refreshSpotifyAccessToken } from "./spotifyTokenRefresh";
 
 /**
  * A VISITOR'S OWN Spotify connection (2026-10-08 "drop control +
@@ -28,12 +29,11 @@ const SCOPE = "streaming user-read-email user-read-private user-read-playback-st
 const TOKEN_URL = "https://accounts.spotify.com/api/token";
 const AUTHORIZE_URL = "https://accounts.spotify.com/authorize";
 
-function clientCreds(): { clientId: string; clientSecret: string } | null {
-  const clientId = process.env.SPOTIFY_CLIENT_ID;
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return null;
-  return { clientId, clientSecret };
-}
+// Client-credentials lookup + refresh-token exchange both now live in
+// spotifyTokenRefresh.ts, shared with spotify.ts (2026-10-09 audit
+// consolidation — see claude/next-build.md and that file's own header
+// comment).
+const clientCreds = spotifyClientCreds;
 
 export function visitorSpotifyRedirectUri(): string {
   return siteUrl("/api/account/spotify/callback");
@@ -64,7 +64,7 @@ export async function exchangeVisitorSpotifyCode(code: string): Promise<string> 
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
-      Authorization: `Basic ${Buffer.from(`${creds.clientId}:${creds.clientSecret}`).toString("base64")}`,
+      Authorization: spotifyBasicAuthHeader(creds),
     },
     body: new URLSearchParams({
       grant_type: "authorization_code",
@@ -105,34 +105,9 @@ export async function disconnectMemberSpotify(memberId: number): Promise<void> {
  */
 export async function getMemberSpotifyAccessToken(member: Member): Promise<string | null> {
   if (!member.spotifyRefreshToken) return null;
-  const creds = clientCreds();
-  if (!creds) return null;
-
-  try {
-    const res = await fetch(TOKEN_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: `Basic ${Buffer.from(`${creds.clientId}:${creds.clientSecret}`).toString("base64")}`,
-      },
-      body: new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: member.spotifyRefreshToken,
-      }),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { access_token?: string; refresh_token?: string };
-    if (!data.access_token) return null;
-
-    if (data.refresh_token && data.refresh_token !== member.spotifyRefreshToken) {
-      await saveMemberSpotifyRefreshToken(member.id, data.refresh_token);
-    }
-
-    return data.access_token;
-  } catch {
-    return null;
-  }
+  return refreshSpotifyAccessToken(member.spotifyRefreshToken, (newToken) =>
+    saveMemberSpotifyRefreshToken(member.id, newToken)
+  );
 }
 
 /** Spotify's own answer to "can this account actually play full

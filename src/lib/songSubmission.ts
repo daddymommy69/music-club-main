@@ -61,14 +61,20 @@ export async function resolveAndSubmitListenerPick(params: {
       artist,
       artworkUrl,
     });
-    // editListenerPick only returns null if the row it was just told
-    // exists vanished between the two queries (a withdraw racing this
-    // request) — vanishingly rare for a 3-person club, but report it
-    // honestly rather than claiming success.
-    if (!updated) {
+    if (!updated.ok) {
+      // "drop-closed" (2026-10-09 audit fix — see claude/next-build.md
+      // and listenerPicks.ts's dropIsOpenForSubmission): the drop
+      // shipped or got canceled in the moment between this request
+      // starting and reaching the actual write. "not-found" is the
+      // pre-existing race this comment used to describe alone — the
+      // row it was just told exists vanished between the two queries
+      // (a withdraw racing this request).
+      if (updated.reason === "drop-closed") {
+        return { ok: false, status: 409, error: "This drop just shipped — too late to change your pick." };
+      }
       return { ok: false, status: 409, error: "Your pick was withdrawn just now — try submitting again." };
     }
-    return { ok: true, mode: "edited", song: updated };
+    return { ok: true, mode: "edited", song: updated.song };
   }
 
   const result = await submitListenerPick({
@@ -80,6 +86,9 @@ export async function resolveAndSubmitListenerPick(params: {
     artworkUrl,
   });
   if (!result.ok) {
+    if (result.reason === "drop-closed") {
+      return { ok: false, status: 409, error: "This drop just shipped — too late to add a pick." };
+    }
     return { ok: false, status: 409, error: "You've already got a pick in for this drop." };
   }
   return { ok: true, mode: "created", song: result.song };

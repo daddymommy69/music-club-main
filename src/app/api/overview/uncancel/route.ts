@@ -28,22 +28,29 @@ export async function POST() {
     return NextResponse.json({ error: "Not logged in" }, { status: 401 });
   }
 
-  const db = getDb();
-  const [latest] = await db
-    .select()
-    .from(drops)
-    .where(eq(drops.clubId, club.id))
-    .orderBy(desc(drops.num))
-    .limit(1);
+  // 2026-10-09 audit fix (see claude/next-build.md): no error handling
+  // around this write before now — same class of bug as rename/cancel.
+  try {
+    const db = getDb();
+    const [latest] = await db
+      .select()
+      .from(drops)
+      .where(eq(drops.clubId, club.id))
+      .orderBy(desc(drops.num))
+      .limit(1);
 
-  if (!latest || !latest.canceledAt) {
-    return NextResponse.json({ error: "Nothing to un-cancel right now." }, { status: 400 });
+    if (!latest || !latest.canceledAt) {
+      return NextResponse.json({ error: "Nothing to un-cancel right now." }, { status: 400 });
+    }
+
+    await db
+      .update(drops)
+      .set({ canceledAt: null, canceledBy: null })
+      .where(eq(drops.id, latest.id));
+
+    return NextResponse.json({ ok: true, dropNum: latest.num });
+  } catch (err) {
+    console.error("Drop un-cancel failed:", err);
+    return NextResponse.json({ error: "Couldn't un-cancel that. Try again." }, { status: 500 });
   }
-
-  await db
-    .update(drops)
-    .set({ canceledAt: null, canceledBy: null })
-    .where(eq(drops.id, latest.id));
-
-  return NextResponse.json({ ok: true, dropNum: latest.num });
 }

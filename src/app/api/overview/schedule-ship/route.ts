@@ -42,12 +42,19 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "No drop in progress right now." }, { status: 400 });
   }
 
-  const db = getDb();
-  const [updated] = await db
-    .update(drops)
-    .set({ scheduledShipAt: parsed })
-    .where(eq(drops.id, drop.id))
-    .returning();
+  // 2026-10-09 audit fix (see claude/next-build.md): no error handling
+  // around this write before now — same class of bug as rename/cancel.
+  try {
+    const db = getDb();
+    const [updated] = await db
+      .update(drops)
+      .set({ scheduledShipAt: parsed })
+      .where(eq(drops.id, drop.id))
+      .returning();
 
-  return NextResponse.json({ ok: true, scheduledShipAt: updated.scheduledShipAt });
+    return NextResponse.json({ ok: true, scheduledShipAt: updated.scheduledShipAt });
+  } catch (err) {
+    console.error("Schedule-ship save failed:", err);
+    return NextResponse.json({ error: "Couldn't save that. Try again." }, { status: 500 });
+  }
 }

@@ -1,4 +1,5 @@
 import type { Drop } from "@/db/schema";
+import { sameSongByTitleArtist } from "./songMatch";
 
 /**
  * Subscriber Top 10 — old plan.md Phase 3, confirmed still wanted,
@@ -72,16 +73,14 @@ export type Top10TallyRow = {
   earliestAt: Date;
 };
 
+/** Thin wrapper over the shared title+artist comparison (songMatch.ts —
+ * 2026-10-09 audit consolidation, see claude/next-build.md), plus this
+ * function's own fallback for when neither side has resolved metadata
+ * (Odesli lookup failed/unreachable): exact-link matching, so an
+ * unresolved song can still collect more than one vote instead of
+ * always counting as 1. */
 function sameSong(a: Top10Vote, b: Top10TallyRow): boolean {
-  if (a.title && a.artist && b.title && b.artist) {
-    return (
-      a.title.trim().toLowerCase() === b.title.trim().toLowerCase() &&
-      a.artist.trim().toLowerCase() === b.artist.trim().toLowerCase()
-    );
-  }
-  // Neither side has resolved metadata (Odesli lookup failed/unreachable)
-  // — fall back to exact-link matching so an unresolved song can still
-  // collect more than one vote instead of always counting as 1.
+  if (sameSongByTitleArtist(a.title, a.artist, b.title, b.artist)) return true;
   return !a.title && !b.title && a.link.trim() === b.link.trim();
 }
 
