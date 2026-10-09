@@ -116,13 +116,35 @@ input {
 
 /* padding-top/-bottom only — .page is combined with .col on the same
    element in several places, and .col owns the horizontal padding.
-   Setting the `padding` shorthand here would silently clobber it. */
+   Setting the `padding` shorthand here would silently clobber it.
+   padding-bottom bumped 64px -> 80px, plus the device's safe-area
+   inset (2026-10-09 mobile QA round — see
+   claude/mobile-qa-2026-10-09.md #10): the floating player bar
+   (.now-playing-bar below) sits `bottom: 16px` and is ~54px tall, so
+   its top edge is ~70px off the screen bottom — a few px more than
+   the 64px that used to be reserved for it, meaning the last bit of
+   page content could sit behind the bar's bottom edge while it's
+   showing. env(safe-area-inset-bottom) is 0 on a device with no home
+   indicator, so this is a no-op there. */
 .page {
   padding-top: 48px;
-  padding-bottom: 64px;
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
 }
 
 /* ---------- type ---------- */
+
+/* Bigger invisible tap target for the top nav links (Releases/Browse/
+   Account — SiteHeader.tsx), without changing their visual pill size
+   (2026-10-09 mobile QA round — see claude/mobile-qa-2026-10-09.md
+   #7). -2px horizontal leaves a buffer within the row's 6px gap
+   between links; -6px vertical is safe since there's real clearance
+   above (marginTop:18) and below (paddingBottom:14 before the nav's
+   own border). */
+.nav-link::after {
+  content: "";
+  position: absolute;
+  inset: -6px -2px;
+}
 
 .wordmark {
   font-family: var(--font-display);
@@ -484,6 +506,13 @@ input {
   font-size: 13px;
 }
 
+/* font-size 16px, not 14 (2026-10-09 mobile QA round — see
+   claude/mobile-qa-2026-10-09.md #8): iOS Safari auto-zooms the whole
+   page on focus for any input under 16px, so every text field on
+   every form (signup, submit, settings, the curator email box) used
+   to visibly zoom the page in on tap on an iPhone. 16px is the exact
+   threshold Safari checks, so this is the minimum change that avoids
+   it — no other sizing here changes. */
 .form input:not([type="checkbox"]) {
   min-height: 48px;
   border: 1px solid var(--ln);
@@ -491,7 +520,7 @@ input {
   padding: 0 14px;
   background: var(--fill);
   color: inherit;
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .form input[type="checkbox"] {
@@ -543,7 +572,7 @@ input {
 }
 
 .drop-card .meta {
-  font-size: 10.5px;
+  font-size: 11.5px;
   color: var(--mut);
 }
 
@@ -560,7 +589,7 @@ input {
 .listener-pick-pill {
   display: block;
   margin-top: 6px;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--mut);
 }
 
@@ -570,7 +599,7 @@ input {
 
 .top10-badge {
   display: inline-block;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.02em;
   color: var(--accent);
   background: var(--acc-soft);
@@ -735,6 +764,18 @@ input {
   cursor: pointer;
   line-height: 1;
   padding: 4px;
+}
+
+/* Bigger invisible tap target, same reasoning as the player-bar
+   buttons above (2026-10-09 mobile QA round — see
+   claude/mobile-qa-2026-10-09.md #6) — the dismiss control people
+   reach for one-handed was only ~26px. Room for this exists in the
+   modal sheet's own padding / the standalone page's margin either
+   way, so it won't get clipped. */
+.drop-detail .close-btn::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
 }
 
 .drop-detail .drop-title {
@@ -941,11 +982,17 @@ input {
    next to it is flex:1 and absorbs the difference. A fixed width wide
    enough for the worst case (5 filled stars + "X.X") keeps every row's
    controls starting at the same x position regardless of content. */
+/* gap bumped 1px -> 6px (2026-10-09 mobile QA round — see
+   claude/mobile-qa-2026-10-09.md #4): the like button and the star
+   rating stack with almost no breathing room between them, which left
+   no safe space to add a bigger invisible tap target on either one
+   without the two overlapping. The extra 5px buys exactly that room
+   back; the heart/star glyphs themselves are unchanged. */
 .track-row-controls {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 1px;
+  gap: 6px;
   flex-shrink: 0;
   width: 78px;
 }
@@ -954,10 +1001,13 @@ input {
    that rule's own comment), just with 5 small stars instead of a
    heart, sized up the same notch so the two controls still genuinely
    match stacked on top of each other. */
+/* gap bumped 2px -> 6px, same reasoning as .track-row-controls above
+   — each star needed room for its own invisible tap target without
+   overlapping its neighbor. */
 .song-rate-control {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 6px;
   height: 18px;
   padding: 0;
   background: none;
@@ -967,6 +1017,7 @@ input {
 }
 
 .song-rate-control button {
+  position: relative;
   background: none;
   border: none;
   padding: 0;
@@ -974,6 +1025,17 @@ input {
   font-size: 14px;
   line-height: 1;
   color: inherit;
+}
+
+/* Bigger invisible tap target per star, without changing the visual
+   glyph size — see claude/mobile-qa-2026-10-09.md #4. -2px leaves a
+   ~2px dead zone on every side given the 6px gaps above (both between
+   stars and to the like button stacked above), so adjacent hit areas
+   never touch. */
+.song-rate-control button::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
 }
 
 .song-rate-control button.filled {
@@ -1132,6 +1194,7 @@ input {
 }
 
 .search-toggle-btn {
+  position: relative;
   font-size: 11px;
   padding: 6px 12px;
   border-radius: 7px;
@@ -1140,6 +1203,18 @@ input {
   cursor: pointer;
   font-family: inherit;
   color: var(--mut);
+}
+
+/* Bigger invisible tap target, same reasoning as .now-playing-transport-btn
+   above (2026-10-09 mobile QA round — see claude/mobile-qa-2026-10-09.md
+   #5). Taller rather than wider: the two toggle buttons sit only 4px
+   apart (.search-toggle's own `gap`), so widening the hit area much
+   would make an ambiguous overlap between them — there's much more
+   free room above/below than side-to-side. */
+.search-toggle-btn::after {
+  content: "";
+  position: absolute;
+  inset: -7px -1px;
 }
 
 .search-toggle-btn.active {
@@ -1250,6 +1325,11 @@ input {
   margin-bottom: 32px;
 }
 
+/* font-size 16px, not 13 — same iOS-zoom-on-focus reasoning as
+   .form input above (2026-10-09 mobile QA round). This class is used
+   far more widely (Browse search, every curator-tools input, Settings,
+   Ship Drop, Top 10), so it was actually the bigger half of that
+   finding. */
 .settings-input {
   width: 100%;
   min-height: 44px;
@@ -1258,7 +1338,7 @@ input {
   padding: 0 12px;
   background: var(--fill);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 16px;
   color: var(--fg);
 }
 
@@ -1340,6 +1420,7 @@ input {
    round 2 — "make likes/stars a little bigger" now that the tighter
    track rows have the room for it). */
 .like-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1351,6 +1432,20 @@ input {
   font-family: inherit;
   font-size: 13px;
   color: var(--mut);
+}
+
+/* Bigger invisible tap target, without changing the visual size — see
+   claude/mobile-qa-2026-10-09.md #4. More generous to the left/right
+   than .song-rate-control's stars get: there's a real 14px gap to the
+   track title/artist text on one side (.track-row-top's own `gap`)
+   and open column width on the other (.track-row-controls is 78px
+   wide and left-aligned), so there's no neighbor to collide with
+   horizontally — only the stacked rating row below needs the smaller
+   vertical margin. */
+.like-btn::after {
+  content: "";
+  position: absolute;
+  inset: -2px -4px;
 }
 
 .like-btn.liked {
@@ -1507,6 +1602,23 @@ input {
   opacity: 1;
 }
 
+/* 2026-10-09 mobile QA round (see claude/mobile-qa-2026-10-09.md #2):
+   the hover/focus-visible reveal above never fires on a touchscreen —
+   there's no hover state and no keyboard focus ring — so every piece
+   of playable artwork site-wide looked like a plain static image on a
+   phone until you'd already tapped it (which starts playback). `(hover:
+   none)` is true for touch-only devices and false for anything with a
+   real pointer, so the desktop hover/focus behavior above is
+   untouched; this just makes the same icon permanently visible instead
+   of reveal-on-interaction when there's no hover to reveal it with.
+   PlayableArt.tsx already swaps the glyph itself (▶ / ❙❙), so idle vs.
+   playing still reads correctly at full opacity either way. */
+@media (hover: none) {
+  .playable-art-icon {
+    opacity: 1;
+  }
+}
+
 /* The site-wide floating player (NowPlayingProvider.tsx) — one bar,
    fixed to the bottom of the viewport, above the drop-detail modal's
    own z-index (50) so playback controls stay reachable while a drop's
@@ -1520,7 +1632,12 @@ input {
 .now-playing-bar {
   position: fixed;
   left: 50%;
-  bottom: 16px;
+  /* + env(safe-area-inset-bottom) — 2026-10-09 mobile QA round (see
+     claude/mobile-qa-2026-10-09.md #10): a no-op today (this page
+     doesn't request viewport-fit=cover, so the inset is 0), but keeps
+     the bar clear of the home-indicator gesture strip for free if
+     that ever changes, rather than silently regressing. */
+  bottom: calc(16px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   z-index: 60;
   display: flex;
@@ -1629,6 +1746,7 @@ input {
    loop pick up the same soft-tint fill as .now-playing-btn once
    toggled on. */
 .now-playing-transport-btn {
+  position: relative;
   width: 26px;
   height: 26px;
   border-radius: 50%;
@@ -1642,6 +1760,20 @@ input {
   flex-shrink: 0;
 }
 
+/* Bigger invisible tap target without a bigger visual button
+   (2026-10-09 mobile QA round — see claude/mobile-qa-2026-10-09.md #3):
+   26px is well under the ~44px comfortable tap size, but these sit in
+   a row with 9px gaps (.now-playing-bar's own `gap`), and this ::after
+   is positioned absolutely — it eats into that existing gap space
+   rather than adding any layout width, so the already-tight bar (see
+   #9 below) doesn't get any wider. Same trick on .now-playing-btn and
+   .now-playing-close below. */
+.now-playing-transport-btn::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+}
+
 .now-playing-transport-btn.active {
   background: var(--acc-soft);
   color: var(--accent);
@@ -1650,6 +1782,7 @@ input {
 /* Play/pause — the one "bigger" control among the transport, soft-tint
    fill rather than a solid accent circle. */
 .now-playing-btn {
+  position: relative;
   width: 34px;
   height: 34px;
   border-radius: 50%;
@@ -1663,7 +1796,14 @@ input {
   flex-shrink: 0;
 }
 
+.now-playing-btn::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+}
+
 .now-playing-close {
+  position: relative;
   width: 22px;
   height: 22px;
   border-radius: 50%;
@@ -1675,4 +1815,47 @@ input {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.now-playing-close::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+}
+
+/* Reclaims width on a narrow phone (2026-10-09 mobile QA round — see
+   claude/mobile-qa-2026-10-09.md #9, and the follow-up note in that
+   doc once this was actually rendered at phone widths rather than
+   just measured from the CSS: artwork + title/artist + a divider +
+   like/rating + 4 transport icons + play + close, all but the
+   title/artist text at flex-shrink:0, turned out to add up to MORE
+   than the available width at nearly every phone size, not just the
+   narrowest ones — a real song title rendered down to 1-2 visible
+   characters even at 430px wide, tighter gaps alone weren't close to
+   enough. The like/rating pair here is a duplicate of the exact same
+   control every tracklist row already has (see .now-playing-rate's
+   own comment — "reuses .like-btn and .song-rate-control exactly as
+   every tracklist row does"), so it's the one piece of this bar that
+   isn't losing real functionality by disappearing on a narrow screen —
+   rate/like the song from the tracklist instead, same as always.
+   Placed after every rule it overrides (.now-playing-bar,
+   .now-playing-info, .now-playing-rate, .now-playing-divider above) —
+   @media adds no specificity, so a rule here only wins the cascade if
+   it comes later in the file than what it's overriding. First
+   width-based breakpoint in this file — see that doc's "process note"
+   for why there were none before. */
+@media (max-width: 480px) {
+  .now-playing-bar {
+    gap: 6px;
+    padding: 6px 8px;
+  }
+
+  .now-playing-rate,
+  .now-playing-rate + .now-playing-divider {
+    display: none;
+  }
+
+  .now-playing-info {
+    max-width: 140px;
+  }
 }

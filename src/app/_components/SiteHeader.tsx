@@ -43,7 +43,9 @@ export default function SiteHeader() {
               <Link
                 key={item.href}
                 href={item.href}
+                className="nav-link"
                 style={{
+                  position: "relative",
                   fontSize: 11,
                   padding: "6px 10px",
                   borderRadius: 4,
