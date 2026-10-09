@@ -11,6 +11,25 @@ export function confirmationEmailHtml() {
   return `<p>You're in! Welcome to <strong>${CLUB_NAME}</strong>.</p><p>You'll get an email when the next playlist drops.</p>`;
 }
 
+/** Where the "you're a chosen one" email's link points — the curator
+ * login, same page the admin route's own doc comment calls out as
+ * where a freshly-granted curator logs in for the first time. */
+function curatorLoginUrl() {
+  return siteUrl("/curators");
+}
+
+/** Sent once, right when a member is granted curator status — either
+ * an immediate grant on /settings (src/app/api/admin/members/curator's
+ * route) or a pending invite consumed on signup (members.ts's
+ * findOrCreateMember). Never sent for a revoke, and never sent for the
+ * founder's own bootstrap grant (ensureFounderAccess) — see
+ * claude/next-build.md, 2026-10-09 curator-notification round. */
+export const CURATOR_GRANTED_SUBJECT = "you're a chosen one";
+
+export function curatorGrantedEmailHtml() {
+  return `<p>you are now a chosen curator for our music club. <a href="${curatorLoginUrl()}">click the link to start the playerz parade</a></p>`;
+}
+
 /** Every text/email points here, not straight at the raw playlist URLs —
  * this is "the link in your text" that #/you's own copy refers to. */
 function memberUrl(memberToken: string) {

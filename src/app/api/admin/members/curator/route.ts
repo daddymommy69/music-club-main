@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getDefaultClub } from "@/lib/club";
 import { requireAdminSession } from "@/lib/memberSession";
 import { findMemberByEmail, setCuratorStatus, addPendingCurator } from "@/lib/members";
+import { sendEmail } from "@/lib/email";
+import { CURATOR_GRANTED_SUBJECT, curatorGrantedEmailHtml } from "@/lib/messages";
 
 /**
  * Grants or revokes curator status for a member. Gated on the
@@ -65,6 +67,17 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error("setCuratorStatus failed:", err);
     return NextResponse.json({ error: "Couldn't save that. Try again." }, { status: 500 });
+  }
+
+  // Best-effort "you're a chosen one" notification — only on a grant,
+  // never a revoke. Mirrors every other sendEmail call in this app:
+  // never blocks the actual grant on a delivery failure, just logs it.
+  if (isCurator && member.email) {
+    try {
+      await sendEmail(member.email, CURATOR_GRANTED_SUBJECT, curatorGrantedEmailHtml());
+    } catch (err) {
+      console.error("Curator-granted email failed (grant still applied):", err);
+    }
   }
 
   return NextResponse.json({ ok: true, id: member.id, name: member.name, isCurator });

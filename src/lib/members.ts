@@ -4,6 +4,7 @@ import { getDb } from "@/db/client";
 import { members, loginCodes, pendingCurators, type Club, type Member } from "@/db/schema";
 import { normalizePhone, normalizeEmail, isUniqueViolation } from "./normalize";
 import { sendEmail } from "./email";
+import { CURATOR_GRANTED_SUBJECT, curatorGrantedEmailHtml } from "./messages";
 import { generateMemberToken } from "./memberToken";
 
 const CODE_TTL_MINUTES = 10;
@@ -130,6 +131,16 @@ export async function findOrCreateMember(club: Club, input: NewMemberInput): Pro
           .set({ isCurator: true })
           .where(eq(members.id, created.id))
           .returning();
+        // Best-effort "you're a chosen one" notification, same as the
+        // immediate-grant path in /api/admin/members/curator — never
+        // blocks the signup itself on a delivery failure.
+        if (promoted.email) {
+          try {
+            await sendEmail(promoted.email, CURATOR_GRANTED_SUBJECT, curatorGrantedEmailHtml());
+          } catch (err) {
+            console.error("Curator-granted email failed (grant still applied):", err);
+          }
+        }
         return promoted;
       }
     } catch (err) {
