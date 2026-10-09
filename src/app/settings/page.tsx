@@ -39,6 +39,12 @@ export default async function SettingsPage({
 
   return (
     <main className="shell page">
+      <div style={{ marginBottom: 18 }}>
+        <Link href="/account" className="mut" style={{ fontSize: 11 }}>
+          ← Back to curator tools
+        </Link>
+      </div>
+
       <Link href="/releases" className="wordmark" style={{ display: "block", marginBottom: 4 }}>
         {club.name}
       </Link>
