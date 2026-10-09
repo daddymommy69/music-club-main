@@ -3,7 +3,9 @@ import "./globals.css";
 import NowPlayingProvider from "./_components/NowPlayingProvider";
 
 export const metadata: Metadata = {
-  title: "Project Music Club",
+  // lowercase on purpose (2026-10-09 — founder's own ask), matching the
+  // in-page wordmark in SiteHeader.tsx, which has always been lowercase.
+  title: "project music club",
   description: "A shared playlist, sent to your inbox.",
 };
 
