@@ -13,7 +13,11 @@ export function confirmationEmailHtml() {
 
 /** Where the "you're a chosen one" email's link points — the curator
  * login, same page the admin route's own doc comment calls out as
- * where a freshly-granted curator logs in for the first time. */
+ * where a freshly-granted curator logs in for the first time. Only
+ * valid once a member row with isCurator already exists — see
+ * curatorInviteEmailHtml below for the not-signed-up-yet case, which
+ * can't use this (the curator-login route 400s for an email with no
+ * member yet — see /api/curators/lookup's own comment). */
 function curatorLoginUrl() {
   return siteUrl("/curators");
 }
@@ -28,6 +32,21 @@ export const CURATOR_GRANTED_SUBJECT = "you're a chosen one";
 
 export function curatorGrantedEmailHtml() {
   return `<p>you are now a chosen curator for our music club. <a href="${curatorLoginUrl()}">click the link to start the playerz parade</a></p>`;
+}
+
+/** Sent right when an admin grants curator to an email with no member
+ * yet (addPendingCurator — the admin route's own "pending" branch).
+ * The founder's call: reuse the exact same "you're a chosen one"
+ * email rather than write a second one — the only thing that has to
+ * differ is the link, since /curators itself refuses anyone with no
+ * member row yet. Once they actually sign up, findOrCreateMember
+ * promotes them and sends curatorGrantedEmailHtml() above — same
+ * subject, same wording, now pointed at /curators since it'll
+ * actually work by then. */
+export function curatorInviteEmailHtml() {
+  return `<p>you are now a chosen curator for our music club. <a href="${siteUrl(
+    "/signup"
+  )}">click the link to start the playerz parade</a></p>`;
 }
 
 /** Every text/email points here, not straight at the raw playlist URLs —

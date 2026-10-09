@@ -3,7 +3,7 @@ import { getDefaultClub } from "@/lib/club";
 import { requireAdminSession } from "@/lib/memberSession";
 import { findMemberByEmail, setCuratorStatus, addPendingCurator } from "@/lib/members";
 import { sendEmail } from "@/lib/email";
-import { CURATOR_GRANTED_SUBJECT, curatorGrantedEmailHtml } from "@/lib/messages";
+import { CURATOR_GRANTED_SUBJECT, curatorGrantedEmailHtml, curatorInviteEmailHtml } from "@/lib/messages";
 
 /**
  * Grants or revokes curator status for a member. Gated on the
@@ -55,6 +55,20 @@ export async function POST(request: Request) {
     }
     try {
       const added = await addPendingCurator(club, email, admin.name || admin.email || "An admin");
+      // Best-effort "go sign up" nudge — 2026-10-09 follow-up (see
+      // claude/next-build.md): a pending invite used to sit completely
+      // silent until the invited person happened to sign up on their
+      // own, with nothing ever telling them an invite existed. Same
+      // email/wording as the real grant (the founder's own call —
+      // "we made it together, use that one"), just pointed at /signup
+      // since /curators itself refuses anyone with no member row yet.
+      // Never blocks the invite save on a delivery failure, same
+      // pattern as every other sendEmail call here.
+      try {
+        await sendEmail(added.email, CURATOR_GRANTED_SUBJECT, curatorInviteEmailHtml());
+      } catch (err) {
+        console.error("Curator-invite email failed (invite still saved):", err);
+      }
       return NextResponse.json({ ok: true, pending: true, pendingId: added.id, email: added.email });
     } catch (err) {
       console.error("addPendingCurator failed:", err);
