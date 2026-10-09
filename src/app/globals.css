@@ -4,10 +4,10 @@
 @import "@fontsource/martian-mono/700.css";
 
 /*
- * Design tokens — values are from the design handoff
+ * Design tokens â€” values are from the design handoff
  * (claude/design-handoff.md), reproduced exactly. Light is the
  * default; dark applies via `prefers-color-scheme` (the handoff calls
- * for following system setting — no manual toggle is built).
+ * for following system setting â€” no manual toggle is built).
  */
 :root {
   --bg: #fbfbf9;
@@ -18,8 +18,8 @@
   --err: oklch(0.55 0.17 25);
   --accent: oklch(0.55 0.13 160);
   --acc-soft: oklch(0.55 0.13 160 / 0.1);
-  /* Curator role color (2026-10 "next build" — see claude/next-build.md)
-   * — a gold/amber distinct from the teal --accent, picked to read
+  /* Curator role color (2026-10 "next build" â€” see claude/next-build.md)
+   * â€” a gold/amber distinct from the teal --accent, picked to read
    * clearly against --bg in both themes (not just hardcoded for light
    * mode). Hue 75 sits between --err's 25 and --accent's 160, so it
    * doesn't get confused with either. */
@@ -114,14 +114,14 @@ input {
   padding: 0 22px;
 }
 
-/* padding-top/-bottom only — .page is combined with .col on the same
+/* padding-top/-bottom only â€” .page is combined with .col on the same
    element in several places, and .col owns the horizontal padding.
    Setting the `padding` shorthand here would silently clobber it.
    padding-bottom bumped 64px -> 80px, plus the device's safe-area
-   inset (2026-10-09 mobile QA round — see
+   inset (2026-10-09 mobile QA round â€” see
    claude/mobile-qa-2026-10-09.md #10): the floating player bar
    (.now-playing-bar below) sits `bottom: 16px` and is ~54px tall, so
-   its top edge is ~70px off the screen bottom — a few px more than
+   its top edge is ~70px off the screen bottom â€” a few px more than
    the 64px that used to be reserved for it, meaning the last bit of
    page content could sit behind the bar's bottom edge while it's
    showing. env(safe-area-inset-bottom) is 0 on a device with no home
@@ -134,8 +134,8 @@ input {
 /* ---------- type ---------- */
 
 /* Bigger invisible tap target for the top nav links (Releases/Browse/
-   Account — SiteHeader.tsx), without changing their visual pill size
-   (2026-10-09 mobile QA round — see claude/mobile-qa-2026-10-09.md
+   Account â€” SiteHeader.tsx), without changing their visual pill size
+   (2026-10-09 mobile QA round â€” see claude/mobile-qa-2026-10-09.md
    #7). -2px horizontal leaves a buffer within the row's 6px gap
    between links; -6px vertical is safe since there's real clearance
    above (marginTop:18) and below (paddingBottom:14 before the nav's
@@ -151,11 +151,11 @@ input {
   font-weight: 700;
   font-size: 15px;
   letter-spacing: -0.03em;
-  /* Clickable everywhere it appears (2026-10-07 fix — see
+  /* Clickable everywhere it appears (2026-10-07 fix â€” see
      claude/next-build.md): every usage now wraps this in a <Link>, so
      it needs its own block display rather than relying on the <div>
      it used to always be. `a { color: inherit; text-decoration: none }`
-     already covers the rest — no visual change, just real navigation. */
+     already covers the rest â€” no visual change, just real navigation. */
   display: block;
 }
 
@@ -192,7 +192,7 @@ input {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 44px;
+  min-height: 40px;
   padding: 0 18px;
   border-radius: 5px;
   border: 1px solid var(--ln);
@@ -212,17 +212,17 @@ input {
   transform: translateY(1px);
 }
 
-/* Soft-tint treatment (2026-10-08 — founder's own report: the solid
+/* Soft-tint treatment (2026-10-08 â€” founder's own report: the solid
    neon-bright fill read as too loud next to the rest of the site's
    quieter color language, specifically compared to the muted accent
    pill SiteHeader's active nav tab/.acc-tab already use). Every solid
-   CTA button site-wide — .btn-primary and .btn-accent both — now uses
+   CTA button site-wide â€” .btn-primary and .btn-accent both â€” now uses
    that same accent-text + --acc-soft-fill language instead of a solid
    accent background, so a "primary" button reads as one consistent
    family with every other accent-colored control already on the site,
    not a brighter, separate style of its own. */
 .btn-primary {
-  height: 52px;
+  height: 40px;
   width: 100%;
   border: none;
   background: var(--acc-soft);
@@ -231,16 +231,19 @@ input {
 }
 
 .btn-outline {
-  height: 48px;
+  height: 40px;
   width: 100%;
   border: 1px solid var(--ln);
 }
 
-/* Filled-accent at the 48px tap target — distinct from .btn-primary's
-   52px, used where a filled + outline pair share a row (e.g. /you's
-   Spotify/Apple Music buttons) rather than one full-width CTA. */
+/* Used to sit at a distinct 48px vs. .btn-primary's 52px, for a filled
+   + outline pair sharing a row (e.g. /you's Spotify/Apple Music
+   buttons) rather than one full-width CTA. 2026-10-09 "shrink
+   everything, all boxes the same size" call flattened that hierarchy
+   â€” every button on the site (this one, .btn-primary, .btn-outline,
+   .btn) now shares the same 40px height. */
 .btn-accent {
-  height: 48px;
+  height: 40px;
   width: 100%;
   border: none;
   background: var(--acc-soft);
@@ -254,11 +257,11 @@ input {
  * transform like `translateY(0)` (found 2026-10-06, chasing a popup
  * bug): these animations use `animation-fill-mode: both` (see the
  * .gz-* classes below), so whatever the `to`/end state's transform is
- * stays applied to the element forever after the animation finishes —
+ * stays applied to the element forever after the animation finishes â€”
  * and per the CSS spec, ANY non-`none` transform (even one that's
  * visually a no-op, like `translateY(0)`) permanently creates a new
  * containing block for that element's descendants. A `position: fixed`
- * child — like a modal overlay — then anchors to that ancestor's box
+ * child â€” like a modal overlay â€” then anchors to that ancestor's box
  * instead of the real viewport, which is exactly what broke the
  * sign-up popup: it lives inside `<main class="... gz-up">`, so once
  * that `gz-up` animation ended, the popup's "fixed, full-viewport"
@@ -506,21 +509,23 @@ input {
   font-size: 13px;
 }
 
-/* font-size 16px, not 14 (2026-10-09 mobile QA round — see
-   claude/mobile-qa-2026-10-09.md #8): iOS Safari auto-zooms the whole
-   page on focus for any input under 16px, so every text field on
-   every form (signup, submit, settings, the curator email box) used
-   to visibly zoom the page in on tap on an iPhone. 16px is the exact
-   threshold Safari checks, so this is the minimum change that avoids
-   it — no other sizing here changes. */
+/* Was briefly bumped to 16px/48px (2026-10-09 mobile QA round â€” see
+   claude/mobile-qa-2026-10-09.md #8) specifically to stop iOS Safari's
+   auto-zoom-on-focus (it zooms any input under 16px). The founder's
+   own 2026-10-09 "shrink everything, all boxes the same size" call
+   traded that protection back away on purpose â€” 40px is the shared
+   box height every button/input on the site now uses. If the zoom
+   comes back as an annoyance, the fix is reinstating 16px here inside
+   a max-width mobile media query rather than reverting this value
+   outright. */
 .form input:not([type="checkbox"]) {
-  min-height: 48px;
+  min-height: 40px;
   border: 1px solid var(--ln);
   border-radius: 5px;
   padding: 0 14px;
   background: var(--fill);
   color: inherit;
-  font-size: 16px;
+  font-size: 13px;
 }
 
 .form input[type="checkbox"] {
@@ -543,11 +548,11 @@ input {
   gap: 22px 16px;
 }
 
-/* Smaller tiles than the standard archive-grid cell (2026-10-07 —
+/* Smaller tiles than the standard archive-grid cell (2026-10-07 â€”
    "Liked songs" on /account; reused 2026-10-08 for Browse's Songs
-   grid specifically — founder's own call, "shrink the song grid in
-   browse" — Browse's Artists grid stays on the regular .archive-grid
-   above). Same gap either way — leave the spacing as-is. */
+   grid specifically â€” founder's own call, "shrink the song grid in
+   browse" â€” Browse's Artists grid stays on the regular .archive-grid
+   above). Same gap either way â€” leave the spacing as-is. */
 .archive-grid-sm {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
@@ -572,7 +577,7 @@ input {
 }
 
 .drop-card .meta {
-  font-size: 11.5px;
+  font-size: 10.5px;
   color: var(--mut);
 }
 
@@ -583,13 +588,13 @@ input {
 }
 
 /* Secondary "Listener Pick playlist" indicator under a drop's tile
-   (2026-10 release-page redesign — see claude/next-build.md). Small
-   and quiet by design — this grid's tiles are narrow, so it reads as
+   (2026-10 release-page redesign â€” see claude/next-build.md). Small
+   and quiet by design â€” this grid's tiles are narrow, so it reads as
    a footnote link under the tile rather than a second card. */
 .listener-pick-pill {
   display: block;
   margin-top: 6px;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--mut);
 }
 
@@ -599,7 +604,7 @@ input {
 
 .top10-badge {
   display: inline-block;
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.02em;
   color: var(--accent);
   background: var(--acc-soft);
@@ -609,7 +614,7 @@ input {
   vertical-align: middle;
 }
 
-/* The square number+artwork tile — reused on the Releases grid and at
+/* The square number+artwork tile â€” reused on the Releases grid and at
    the top of a drop's own page, so a drop always reads the same way
    wherever it shows up. */
 .drop-tile {
@@ -621,8 +626,8 @@ input {
 }
 
 /* The bordered-card look stays ONLY on /releases' main grid (2026-10-07
-   — the founder's own call: it "looks great" there, but reads as an
-   extra frame everywhere else DropTile is reused — the drop-detail
+   â€” the founder's own call: it "looks great" there, but reads as an
+   extra frame everywhere else DropTile is reused â€” the drop-detail
    hero and the account page's "Your tops" grid pass framed={false}
    and skip this entirely). */
 .drop-tile-framed {
@@ -646,7 +651,7 @@ input {
 }
 
 /* Wraps each quadrant so a clickable-to-artist one (the hero tile only
-   — see DropTile.tsx) stays the exact same size as a plain one; the
+   â€” see DropTile.tsx) stays the exact same size as a plain one; the
    `a` inside needs the same block/100% treatment since a link is
    inline by default. */
 .drop-tile-quad-slot,
@@ -657,7 +662,7 @@ input {
 }
 
 /* Literal white (not --fill, which is theme-aware and stays a dark
-   near-black tint in dark mode) — 2026-10-09 round 2: the founder's own
+   near-black tint in dark mode) â€” 2026-10-09 round 2: the founder's own
    call, specifically wants a true white backdrop here regardless of the
    site's own light/dark theme, since most drops don't have all 4
    quadrants' worth of real artwork yet and this is what the number
@@ -674,11 +679,11 @@ input {
   justify-content: center;
 }
 
-/* No backdrop at all behind the number now (2026-10-09 round 2 — the
+/* No backdrop at all behind the number now (2026-10-09 round 2 â€” the
    founder's own call, reverting round 1's dark vignette): a flat tint or
    gradient over the whole collage read as a "weird black shadow." The
    number relies on the empty-quadrant fallback above being true white
-   for contrast — on a drop with all 4 quadrants filled with real
+   for contrast â€” on a drop with all 4 quadrants filled with real
    artwork, the dark-charcoal number sits directly on the photos with no
    guaranteed contrast, an explicit, accepted tradeoff for the simpler
    look. */
@@ -692,9 +697,9 @@ input {
 
 /* Large variant for the drop-detail header, where the tile stands
    alone above the title rather than sitting in a grid of cards.
-   Centered (2026-10-09 design-pass round — founder's own report: "the
+   Centered (2026-10-09 design-pass round â€” founder's own report: "the
    top" read as left-leaning/off-balance) via the auto side margins
-   below, paired with .top-row's centering fix — see that rule's own
+   below, paired with .top-row's centering fix â€” see that rule's own
    comment. */
 .drop-tile-hero {
   max-width: 220px;
@@ -712,7 +717,7 @@ input {
 /* ---------- drop detail (modal + standalone) ---------- */
 
 /* Same centered-card treatment at every width (previously a full-width
-   bottom sheet under 640px) — the card shrinks instead of stretching
+   bottom sheet under 640px) â€” the card shrinks instead of stretching
    edge-to-edge, so there's always visible space/margin around it,
    matching the desktop look on phones too. */
 .modal-overlay {
@@ -736,15 +741,15 @@ input {
   padding: 24px 20px 32px;
 }
 
-/* Centered now (2026-10-09 design-pass round — founder's own report:
+/* Centered now (2026-10-09 design-pass round â€” founder's own report:
    "the top... looks weird left leaning"). Previously a two-item flex
-   row (hero tile + close ✕) with justify-content: space-between — with
+   row (hero tile + close âœ•) with justify-content: space-between â€” with
    only the hero tile actually filling space, that left it pinned to
-   the left edge whenever the ✕ wasn't rendered (every non-modal drop
-   page), and even with the ✕ present space-between doesn't center
-   anything, it just pushes the two ends apart. The ✕ is pulled out of
+   the left edge whenever the âœ• wasn't rendered (every non-modal drop
+   page), and even with the âœ• present space-between doesn't center
+   anything, it just pushes the two ends apart. The âœ• is pulled out of
    flow into its own corner overlay instead, so centering the one
-   remaining flex item (the hero tile) is unconditional — true whether
+   remaining flex item (the hero tile) is unconditional â€” true whether
    or not `closable` is set. */
 .drop-detail .top-row {
   position: relative;
@@ -767,8 +772,8 @@ input {
 }
 
 /* Bigger invisible tap target, same reasoning as the player-bar
-   buttons above (2026-10-09 mobile QA round — see
-   claude/mobile-qa-2026-10-09.md #6) — the dismiss control people
+   buttons above (2026-10-09 mobile QA round â€” see
+   claude/mobile-qa-2026-10-09.md #6) â€” the dismiss control people
    reach for one-handed was only ~26px. Room for this exists in the
    modal sheet's own padding / the standalone page's margin either
    way, so it won't get clipped. */
@@ -786,12 +791,12 @@ input {
 }
 
 /* Real share control, replacing the old plain-text share-url line
-   (2026-10-08 — see claude/next-build.md and ShareButton.tsx). Small
-   and left-aligned, same spirit/placement as the line it replaces —
+   (2026-10-08 â€” see claude/next-build.md and ShareButton.tsx). Small
+   and left-aligned, same spirit/placement as the line it replaces â€”
    this is a secondary action, not a full-width CTA like .btn-outline
    below it. */
-/* New primary CTA (2026-10-09 design-pass round — founder's own
-   report: "no clear primary action" — see PlayDropButton.tsx). Sits
+/* New primary CTA (2026-10-09 design-pass round â€” founder's own
+   report: "no clear primary action" â€” see PlayDropButton.tsx). Sits
    right above the share control, which stays the small secondary
    action it always was. */
 .drop-detail .play-drop-btn {
@@ -829,10 +834,10 @@ input {
   margin-bottom: 26px;
 }
 
-/* Whole-drop Save/Like controls row (2026-10 release-page redesign —
+/* Whole-drop Save/Like controls row (2026-10 release-page redesign â€”
    see claude/next-build.md), above the tracklist. Distinct from
    .btn-outline (which is full-width, meant for a single standalone
-   CTA like the Spotify/Apple links in .listen-row) — these sit side
+   CTA like the Spotify/Apple links in .listen-row) â€” these sit side
    by side at their natural width. */
 .drop-controls-row {
   display: flex;
@@ -842,14 +847,14 @@ input {
 }
 
 /* Bigger + filled-when-active (2026-10-07 "make it easier to like and
-   interact with stuff" fix — see claude/next-build.md): the founder's
+   interact with stuff" fix â€” see claude/next-build.md): the founder's
    own report that these read as too small and easy to miss, especially
    on phone. Taller target, bigger icon/text, and a solid accent fill
    once active (not just a soft tint) so "I already liked/saved this"
    reads at a glance instead of blending into the unselected state. */
-/* Revamped (2026-10-07, round 3): shorter (was 50px — "too tall"),
+/* Revamped (2026-10-07, round 3): shorter (was 50px â€” "too tall"),
    no border, and a soft translucent tint instead of the previous
-   solid-accent-fill active state ("too bright green") — still a real
+   solid-accent-fill active state ("too bright green") â€” still a real
    button with its own fill so it reads as tappable, just much
    quieter. */
 .drop-action-btn {
@@ -898,8 +903,8 @@ input {
 }
 
 /* The numbered-row + artwork-swatch treatment (2026-10 release-page
-   redesign — see claude/next-build.md). No bottom margin (2026-10-07
-   — tightened up now that the per-song embed that used to sit below
+   redesign â€” see claude/next-build.md). No bottom margin (2026-10-07
+   â€” tightened up now that the per-song embed that used to sit below
    this row is gone and the like/rating controls lost their border;
    this is the row's only content now, so .track-row's own padding is
    all the vertical spacing it needs). */
@@ -947,8 +952,8 @@ input {
 }
 
 /* Now <Link>s to the song's artist page, not plain text (2026-10-08
-   "drop control + playback" round — artwork became the play target,
-   so navigation moved onto this text — see claude/next-build.md).
+   "drop control + playback" round â€” artwork became the play target,
+   so navigation moved onto this text â€” see claude/next-build.md).
    display: block + no underline/inherited color so they read exactly
    like the old plain-text rows at rest. */
 .track-row .track-title {
@@ -974,15 +979,15 @@ input {
 }
 
 /* Like + star rating, stacked and matching in size, right next to the
-   track's title/artist (2026-10-07 — replaces the below-row like
+   track's title/artist (2026-10-07 â€” replaces the below-row like
    button + embedded player; see claude/next-build.md). Fixed width
-   (2026-10-08 — founder's own report: a song with a rating average
+   (2026-10-08 â€” founder's own report: a song with a rating average
    showing, e.g. "5.0", made this column wider than a song without one,
    which pushed its left edge around row to row since .track-row-body
    next to it is flex:1 and absorbs the difference. A fixed width wide
    enough for the worst case (5 filled stars + "X.X") keeps every row's
    controls starting at the same x position regardless of content. */
-/* gap bumped 1px -> 6px (2026-10-09 mobile QA round — see
+/* gap bumped 1px -> 6px (2026-10-09 mobile QA round â€” see
    claude/mobile-qa-2026-10-09.md #4): the like button and the star
    rating stack with almost no breathing room between them, which left
    no safe space to add a bigger invisible tap target on either one
@@ -997,12 +1002,12 @@ input {
   width: 78px;
 }
 
-/* Same plain, borderless treatment as .like-btn (2026-10-07 — see
+/* Same plain, borderless treatment as .like-btn (2026-10-07 â€” see
    that rule's own comment), just with 5 small stars instead of a
    heart, sized up the same notch so the two controls still genuinely
    match stacked on top of each other. */
 /* gap bumped 2px -> 6px, same reasoning as .track-row-controls above
-   — each star needed room for its own invisible tap target without
+   â€” each star needed room for its own invisible tap target without
    overlapping its neighbor. */
 .song-rate-control {
   display: inline-flex;
@@ -1028,7 +1033,7 @@ input {
 }
 
 /* Bigger invisible tap target per star, without changing the visual
-   glyph size — see claude/mobile-qa-2026-10-09.md #4. -2px leaves a
+   glyph size â€” see claude/mobile-qa-2026-10-09.md #4. -2px leaves a
    ~2px dead zone on every side given the 6px gaps above (both between
    stars and to the like button stacked above), so adjacent hit areas
    never touch. */
@@ -1048,7 +1053,7 @@ input {
   color: var(--mut);
 }
 
-/* Per-song embedded player — the iframe itself sets its own chrome, so
+/* Per-song embedded player â€” the iframe itself sets its own chrome, so
    this just clips its corners to match the rest of the UI and keeps it
    full-width within the track row. */
 .track-embed {
@@ -1115,12 +1120,12 @@ input {
 
 /* ---------- curator tools (2026-10-08 redesign, see claude/next-build.md) ----------
  * Replaces the old paste-a-link / Columns-Stream-toggle / per-curator
- * note / comment-thread treatment above (all deleted along with it —
+ * note / comment-thread treatment above (all deleted along with it â€”
  * nobody on the team had actually used the note box, the comment
  * thread, or either view toggle). The rule going forward: a plain
  * .ct-card border for anything informational (pile, picks, curators),
  * reserving .ct-card-emphasis (and a solid .btn-primary) for exactly
- * one true call-to-action per screen state — Start drop / Ship drop —
+ * one true call-to-action per screen state â€” Start drop / Ship drop â€”
  * instead of every box in this section being teal. */
 
 .ct-card {
@@ -1148,9 +1153,9 @@ input {
   color: inherit;
 }
 
-/* Account page tabs (2026-10-08 — curator tools became its own tab
+/* Account page tabs (2026-10-08 â€” curator tools became its own tab
  * instead of a collapsible section at the bottom of /account; see
- * claude/next-build.md). Only ever rendered for a curator — a regular
+ * claude/next-build.md). Only ever rendered for a curator â€” a regular
  * member's /account has one tab's worth of content and no tab bar at
  * all. Same active-pill convention SiteHeader's top nav already uses
  * (accent text + --acc-soft fill), so it reads as the same kind of
@@ -1180,9 +1185,9 @@ input {
 }
 
 /* Browse's Spotify / This-site search toggle (2026-10-08 "drop control
-   + playback" round — see claude/next-build.md: "two tab switch").
+   + playback" round â€” see claude/next-build.md: "two tab switch").
    Same color language as .acc-tab (active = accent text + soft tint)
-   but a small self-contained pill rather than a full-width tab bar —
+   but a small self-contained pill rather than a full-width tab bar â€”
    this sits right above one search box, not a whole page section. */
 .search-toggle {
   display: inline-flex;
@@ -1206,10 +1211,10 @@ input {
 }
 
 /* Bigger invisible tap target, same reasoning as .now-playing-transport-btn
-   above (2026-10-09 mobile QA round — see claude/mobile-qa-2026-10-09.md
+   above (2026-10-09 mobile QA round â€” see claude/mobile-qa-2026-10-09.md
    #5). Taller rather than wider: the two toggle buttons sit only 4px
    apart (.search-toggle's own `gap`), so widening the hit area much
-   would make an ambiguous overlap between them — there's much more
+   would make an ambiguous overlap between them â€” there's much more
    free room above/below than side-to-side. */
 .search-toggle-btn::after {
   content: "";
@@ -1237,7 +1242,7 @@ input {
 .stat-value {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 22px;
+  font-size: 17px;
   letter-spacing: -0.03em;
   color: var(--accent);
   margin-bottom: 2px;
@@ -1325,20 +1330,21 @@ input {
   margin-bottom: 32px;
 }
 
-/* font-size 16px, not 13 — same iOS-zoom-on-focus reasoning as
-   .form input above (2026-10-09 mobile QA round). This class is used
-   far more widely (Browse search, every curator-tools input, Settings,
-   Ship Drop, Top 10), so it was actually the bigger half of that
-   finding. */
+/* Same 2026-10-09 "shrink everything, all boxes the same size" call
+   as .form input above traded the 16px iOS-zoom-on-focus protection
+   back away here too â€” this class is used far more widely (Browse
+   search, every curator-tools input, Settings, Ship Drop, Top 10), so
+   it's the bigger half of that tradeoff. 40px matches the shared box
+   height every button/input on the site now uses. */
 .settings-input {
   width: 100%;
-  min-height: 44px;
+  min-height: 40px;
   border: 1px solid var(--ln);
   border-radius: 5px;
   padding: 0 12px;
   background: var(--fill);
   font-family: inherit;
-  font-size: 16px;
+  font-size: 13px;
   color: var(--fg);
 }
 
@@ -1412,12 +1418,12 @@ input {
 }
 
 /* A song's like button + count, next to its track row on the release
-   page. No border/background chip (2026-10-07 — the founder's own
+   page. No border/background chip (2026-10-07 â€” the founder's own
    call: the bordered-oval treatment looked bad stacked next to the
    star rating, drop it and keep just the icon + count). Still a real
-   tappable control, just plain — color alone carries the liked
+   tappable control, just plain â€” color alone carries the liked
    state. Sized up a notch from its first borderless pass (2026-10-07
-   round 2 — "make likes/stars a little bigger" now that the tighter
+   round 2 â€” "make likes/stars a little bigger" now that the tighter
    track rows have the room for it). */
 .like-btn {
   position: relative;
@@ -1434,13 +1440,13 @@ input {
   color: var(--mut);
 }
 
-/* Bigger invisible tap target, without changing the visual size — see
+/* Bigger invisible tap target, without changing the visual size â€” see
    claude/mobile-qa-2026-10-09.md #4. More generous to the left/right
    than .song-rate-control's stars get: there's a real 14px gap to the
    track title/artist text on one side (.track-row-top's own `gap`)
    and open column width on the other (.track-row-controls is 78px
    wide and left-aligned), so there's no neighbor to collide with
-   horizontally — only the stacked rating row below needs the smaller
+   horizontally â€” only the stacked rating row below needs the smaller
    vertical margin. */
 .like-btn::after {
   content: "";
@@ -1454,9 +1460,9 @@ input {
 
 /* ---------- /account grids: liked songs, your tops ---------- */
 
-/* A square song-art tile — "Liked songs" on /account, and the Songs
-   grid on /browse. No border or background fill (2026-10-07 — the
-   founder's own call: "just the artwork," no frame around it) — just
+/* A square song-art tile â€” "Liked songs" on /account, and the Songs
+   grid on /browse. No border or background fill (2026-10-07 â€” the
+   founder's own call: "just the artwork," no frame around it) â€” just
    rounded corners, same radius as every other artwork tile, so it
    still reads as one visual language without a box around it. */
 .song-tile {
@@ -1475,14 +1481,14 @@ input {
   display: block;
 }
 
-/* Lets PlayableArt (src/app/_components/PlayableArt.tsx) — everywhere
-   else used at a fixed pixel size (40px track rows, etc.) — fill this
-   tile's responsive, percentage-width square instead (2026-10-08 —
+/* Lets PlayableArt (src/app/_components/PlayableArt.tsx) â€” everywhere
+   else used at a fixed pixel size (40px track rows, etc.) â€” fill this
+   tile's responsive, percentage-width square instead (2026-10-08 â€”
    Browse's Songs grid: artwork should play like every other drop-page
    row, see claude/next-build.md). .song-tile is already the sized,
    position:relative box; this just stretches PlayableArt's own
    position:relative wrapper to fill it edge-to-edge. PlayableArt.tsx
-   itself is untouched — every other caller keeps its fixed size. */
+   itself is untouched â€” every other caller keeps its fixed size. */
 .song-tile > .playable-art {
   position: absolute;
   inset: 0;
@@ -1504,7 +1510,7 @@ input {
 }
 
 /* "Your tops" grid tile: a drop's artwork (via DropTile) plus its
-   title and the two controls underneath — click to rate, and a small
+   title and the two controls underneath â€” click to rate, and a small
    separate toggle to showcase it in your top 5 favorites. */
 .tops-tile-title {
   font-size: 12px;
@@ -1528,10 +1534,10 @@ input {
   color: var(--accent);
 }
 
-/* Tightened (2026-10-09 design-pass round — founder's own report of an
+/* Tightened (2026-10-09 design-pass round â€” founder's own report of an
    "odd dead gap"): this line and .rate-control right below it are one
-   visual unit — the average rating, then the control for adding your
-   own — so they now sit close together, with the larger breathing room
+   visual unit â€” the average rating, then the control for adding your
+   own â€” so they now sit close together, with the larger breathing room
    (.rate-control's own margin-bottom) kept for the gap AFTER that whole
    unit, before the listen-row that follows. */
 .drop-rating-line {
@@ -1559,14 +1565,14 @@ input {
   color: var(--accent);
 }
 
-/* ---------- playback (2026-10-08 "drop control + playback" round —
+/* ---------- playback (2026-10-08 "drop control + playback" round â€”
    see claude/next-build.md) ---------- */
 
 /* Wraps any piece of artwork that's actually playable
-   (src/app/_components/PlayableArt.tsx) — unsized itself so it shrinks
+   (src/app/_components/PlayableArt.tsx) â€” unsized itself so it shrinks
    to whatever art size it's wrapping (40px track rows, a bigger artist-
    page swatch, etc.), with the play/pause icon absolutely centered on
-   top. A plain <div> (no button chrome) for the non-playable case —
+   top. A plain <div> (no button chrome) for the non-playable case â€”
    same markup shape either way so callers don't need to branch. */
 .playable-art {
   position: relative;
@@ -1603,15 +1609,15 @@ input {
 }
 
 /* 2026-10-09 mobile QA round (see claude/mobile-qa-2026-10-09.md #2):
-   the hover/focus-visible reveal above never fires on a touchscreen —
-   there's no hover state and no keyboard focus ring — so every piece
+   the hover/focus-visible reveal above never fires on a touchscreen â€”
+   there's no hover state and no keyboard focus ring â€” so every piece
    of playable artwork site-wide looked like a plain static image on a
    phone until you'd already tapped it (which starts playback). `(hover:
    none)` is true for touch-only devices and false for anything with a
    real pointer, so the desktop hover/focus behavior above is
    untouched; this just makes the same icon permanently visible instead
    of reveal-on-interaction when there's no hover to reveal it with.
-   PlayableArt.tsx already swaps the glyph itself (▶ / ❙❙), so idle vs.
+   PlayableArt.tsx already swaps the glyph itself (â–¶ / â™â™), so idle vs.
    playing still reads correctly at full opacity either way. */
 @media (hover: none) {
   .playable-art-icon {
@@ -1619,20 +1625,20 @@ input {
   }
 }
 
-/* The site-wide floating player (NowPlayingProvider.tsx) — one bar,
+/* The site-wide floating player (NowPlayingProvider.tsx) â€” one bar,
    fixed to the bottom of the viewport, above the drop-detail modal's
    own z-index (50) so playback controls stay reachable while a drop's
-   open. Revamped 2026-10-08 ("Direction A" — see claude/next-build.md):
+   open. Revamped 2026-10-08 ("Direction A" â€” see claude/next-build.md):
    same size/shape/position as the original bar, extended with a full
    transport (shuffle/back/play/next/loop) and the like + star-rating
    pair already used next to tracklist rows. Every control here uses
    the same soft-tint accent language as the rest of the site's
-   buttons (.btn-primary etc.) instead of a solid accent fill — the
+   buttons (.btn-primary etc.) instead of a solid accent fill â€” the
    founder's own "clearer colors rather than the hard teal" call. */
 .now-playing-bar {
   position: fixed;
   left: 50%;
-  /* + env(safe-area-inset-bottom) — 2026-10-09 mobile QA round (see
+  /* + env(safe-area-inset-bottom) â€” 2026-10-09 mobile QA round (see
      claude/mobile-qa-2026-10-09.md #10): a no-op today (this page
      doesn't request viewport-fit=cover, so the inset is 0), but keeps
      the bar clear of the home-indicator gesture strip for free if
@@ -1668,9 +1674,9 @@ input {
   );
 }
 
-/* The artwork thumbnail is a real button now — clicking it toggles
+/* The artwork thumbnail is a real button now â€” clicking it toggles
    pause/resume on whatever's current (2026-10-08 player revamp:
-   reverted from the previous round's "restart the preview" behavior —
+   reverted from the previous round's "restart the preview" behavior â€”
    see claude/next-build.md). The pause glyph only overlays while
    playing, same spirit as PlayableArt's own hover-reveal icon
    elsewhere on the site. */
@@ -1722,10 +1728,10 @@ input {
   padding-right: 6px;
 }
 
-/* The current track's like + rating, stacked — reuses .like-btn and
+/* The current track's like + rating, stacked â€” reuses .like-btn and
    .song-rate-control exactly as every tracklist row does, just inside
    the bar. Hidden entirely when the current track has no DB songId
-   (a live Spotify search result that was never saved) — see
+   (a live Spotify search result that was never saved) â€” see
    NowPlayingRating's own comment. */
 .now-playing-rate {
   display: flex;
@@ -1742,7 +1748,7 @@ input {
   flex-shrink: 0;
 }
 
-/* Shuffle / back / next / loop — small plain icon buttons; shuffle and
+/* Shuffle / back / next / loop â€” small plain icon buttons; shuffle and
    loop pick up the same soft-tint fill as .now-playing-btn once
    toggled on. */
 .now-playing-transport-btn {
@@ -1761,10 +1767,10 @@ input {
 }
 
 /* Bigger invisible tap target without a bigger visual button
-   (2026-10-09 mobile QA round — see claude/mobile-qa-2026-10-09.md #3):
+   (2026-10-09 mobile QA round â€” see claude/mobile-qa-2026-10-09.md #3):
    26px is well under the ~44px comfortable tap size, but these sit in
    a row with 9px gaps (.now-playing-bar's own `gap`), and this ::after
-   is positioned absolutely — it eats into that existing gap space
+   is positioned absolutely â€” it eats into that existing gap space
    rather than adding any layout width, so the already-tight bar (see
    #9 below) doesn't get any wider. Same trick on .now-playing-btn and
    .now-playing-close below. */
@@ -1779,7 +1785,7 @@ input {
   color: var(--accent);
 }
 
-/* Play/pause — the one "bigger" control among the transport, soft-tint
+/* Play/pause â€” the one "bigger" control among the transport, soft-tint
    fill rather than a solid accent circle. */
 .now-playing-btn {
   position: relative;
@@ -1823,26 +1829,26 @@ input {
   inset: -4px;
 }
 
-/* Reclaims width on a narrow phone (2026-10-09 mobile QA round — see
+/* Reclaims width on a narrow phone (2026-10-09 mobile QA round â€” see
    claude/mobile-qa-2026-10-09.md #9, and the follow-up note in that
    doc once this was actually rendered at phone widths rather than
    just measured from the CSS: artwork + title/artist + a divider +
    like/rating + 4 transport icons + play + close, all but the
    title/artist text at flex-shrink:0, turned out to add up to MORE
    than the available width at nearly every phone size, not just the
-   narrowest ones — a real song title rendered down to 1-2 visible
+   narrowest ones â€” a real song title rendered down to 1-2 visible
    characters even at 430px wide, tighter gaps alone weren't close to
    enough. The like/rating pair here is a duplicate of the exact same
    control every tracklist row already has (see .now-playing-rate's
-   own comment — "reuses .like-btn and .song-rate-control exactly as
+   own comment â€” "reuses .like-btn and .song-rate-control exactly as
    every tracklist row does"), so it's the one piece of this bar that
-   isn't losing real functionality by disappearing on a narrow screen —
+   isn't losing real functionality by disappearing on a narrow screen â€”
    rate/like the song from the tracklist instead, same as always.
    Placed after every rule it overrides (.now-playing-bar,
-   .now-playing-info, .now-playing-rate, .now-playing-divider above) —
+   .now-playing-info, .now-playing-rate, .now-playing-divider above) â€”
    @media adds no specificity, so a rule here only wins the cascade if
    it comes later in the file than what it's overriding. First
-   width-based breakpoint in this file — see that doc's "process note"
+   width-based breakpoint in this file â€” see that doc's "process note"
    for why there were none before. */
 @media (max-width: 480px) {
   .now-playing-bar {
