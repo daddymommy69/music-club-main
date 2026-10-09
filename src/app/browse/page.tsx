@@ -3,6 +3,7 @@ import SiteHeader from "@/app/_components/SiteHeader";
 import BrowseSearch from "@/app/_components/BrowseSearch";
 import FallbackImg from "@/app/_components/FallbackImg";
 import PlayableArt from "@/app/_components/PlayableArt";
+import { PlayQueue } from "@/app/_components/NowPlayingProvider";
 import { getDefaultClub } from "@/lib/club";
 import { getOpenDrop } from "@/lib/room";
 import { getSessionMember } from "@/lib/memberSession";
@@ -72,27 +73,35 @@ export default async function BrowsePage() {
                 (2026-10-08 — founder's own ask: "the song links under
                 songs to act like the ones in the drops" — see
                 claude/next-build.md). Smaller tiles than the Artists
-                grid above, .archive-grid-sm, per the same request. */}
-            {directory.songs.map((song) => (
-              <div key={song.songId} className="drop-card-wrap">
-                <div className="song-tile">
-                  <PlayableArt
-                    spotifyUri={song.spotifyUri}
-                    artworkUrl={song.artworkUrl}
-                    title={song.title}
-                    artist={song.artist}
-                    className=""
-                    fallbackClassName="song-tile-empty"
-                  />
-                </div>
-                <Link href={artistHref(song.artist)} className="drop-card">
-                  <div className="info">
-                    <div className="title">{song.title}</div>
-                    <div className="meta">{song.artist}</div>
+                grid above, .archive-grid-sm, per the same request.
+                Player revamp (2026-10-08 — see claude/next-build.md):
+                this whole grid is its own queue — clicking any song
+                plays through every song on the site, in this order,
+                with shuffle/back/next/loop all operating on this same
+                site-wide list. */}
+            <PlayQueue songs={directory.songs}>
+              {directory.songs.map((song) => (
+                <div key={song.songId} className="drop-card-wrap">
+                  <div className="song-tile">
+                    <PlayableArt
+                      spotifyUri={song.spotifyUri}
+                      artworkUrl={song.artworkUrl}
+                      title={song.title}
+                      artist={song.artist}
+                      songId={song.songId}
+                      className=""
+                      fallbackClassName="song-tile-empty"
+                    />
                   </div>
-                </Link>
-              </div>
-            ))}
+                  <Link href={artistHref(song.artist)} className="drop-card">
+                    <div className="info">
+                      <div className="title">{song.title}</div>
+                      <div className="meta">{song.artist}</div>
+                    </div>
+                  </Link>
+                </div>
+              ))}
+            </PlayQueue>
           </div>
         )}
       </main>

@@ -5,6 +5,7 @@ import { artistHref } from "@/lib/artistLink";
 import CloseButton from "./CloseButton";
 import DropTile from "./DropTile";
 import PlayableArt from "./PlayableArt";
+import { PlayQueue } from "./NowPlayingProvider";
 import ShareButton from "./ShareButton";
 import LikeButton from "./LikeButton";
 import SongRatingControl from "./SongRatingControl";
@@ -210,30 +211,46 @@ function Tracklist({
         <span className="label">Picked by</span>
       </div>
       <hr className="hairline" style={{ margin: "0 0 4px" }} />
-      <div>
-        {songs.map((song, i) => (
-          <div className="track-row" key={song.id}>
-            {/* Numbered rows + per-song artwork swatch (2026-10
-                release-page redesign — a playlist-like feel, see
-                claude/next-build.md) — falls back to a plain gradient
-                swatch when a song has no artwork, same spirit as
-                DropTile's own empty-quadrant fallback.
-                Playback round (2026-10-08 — see claude/next-build.md):
-                the artwork is the play target now (PlayableArt), not a
-                link — "clicking the artwork... plays from spotify."
-                Navigating to the artist moved onto the title/artist
-                TEXT instead ("clicking the text... takes it to the
-                artist page"). */}
-            <div className="track-row-top">
-              <div className="track-row-num">{String(i + 1).padStart(2, "0")}</div>
-              <PlayableArt
-                spotifyUri={song.spotifyUri}
-                artworkUrl={song.artworkUrl}
-                title={song.title}
-                artist={song.artist}
-                className="track-row-art"
-                fallbackClassName="track-row-art track-row-art-empty"
-              />
+      {/* Player revamp (2026-10-08 — see claude/next-build.md): this
+          tracklist is its own queue — clicking any track plays through
+          the whole list, in this order, with shuffle/back/next/loop
+          all operating on just these Curator Picks (Listener Picks
+          live on their own separate page/queue — see
+          /drop/[num]/listener-picks). */}
+      <PlayQueue
+        songs={songs.map((s) => ({
+          songId: s.id,
+          spotifyUri: s.spotifyUri,
+          artworkUrl: s.artworkUrl,
+          title: s.title,
+          artist: s.artist,
+        }))}
+      >
+        <div>
+          {songs.map((song, i) => (
+            <div className="track-row" key={song.id}>
+              {/* Numbered rows + per-song artwork swatch (2026-10
+                  release-page redesign — a playlist-like feel, see
+                  claude/next-build.md) — falls back to a plain gradient
+                  swatch when a song has no artwork, same spirit as
+                  DropTile's own empty-quadrant fallback.
+                  Playback round (2026-10-08 — see claude/next-build.md):
+                  the artwork is the play target now (PlayableArt), not a
+                  link — "clicking the artwork... plays from spotify."
+                  Navigating to the artist moved onto the title/artist
+                  TEXT instead ("clicking the text... takes it to the
+                  artist page"). */}
+              <div className="track-row-top">
+                <div className="track-row-num">{String(i + 1).padStart(2, "0")}</div>
+                <PlayableArt
+                  spotifyUri={song.spotifyUri}
+                  artworkUrl={song.artworkUrl}
+                  title={song.title}
+                  artist={song.artist}
+                  songId={song.id}
+                  className="track-row-art"
+                  fallbackClassName="track-row-art track-row-art-empty"
+                />
               <div className="track-row-body">
                 <div className="track-info">
                   <Link href={artistHref(song.artist)} className="track-title">
@@ -262,7 +279,8 @@ function Tracklist({
             </div>
           </div>
         ))}
-      </div>
+        </div>
+      </PlayQueue>
     </>
   );
 }

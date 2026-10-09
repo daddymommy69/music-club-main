@@ -11,6 +11,7 @@ import DropTile from "./DropTile";
 import FallbackImg from "./FallbackImg";
 import CuratorToolsPanel, { type CuratorToolsPanelProps } from "./CuratorToolsPanel";
 import PlayableArt from "./PlayableArt";
+import { PlayQueue } from "./NowPlayingProvider";
 
 type Member = {
   id: number;
@@ -368,32 +369,38 @@ function SubmissionHistory({ rows }: { rows: SubmissionRow[] }) {
     return <p className="mut" style={{ fontSize: 12.5 }}>No picks yet.</p>;
   }
   return (
-    <div className="roster-list">
-      {rows.map((row) => (
-        <div className="roster-row" key={row.songId}>
-          {/* Artwork + play (2026-10-08 "drop control + playback" round
-              — see claude/next-build.md) — same PlayableArt everywhere
-              else uses, just at this row's own smaller scale. */}
-          <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-            <PlayableArt
-              spotifyUri={row.spotifyUri}
-              artworkUrl={row.artworkUrl}
-              title={row.title}
-              artist={row.artist}
-              className="now-playing-art"
-              fallbackClassName="now-playing-art now-playing-art-empty"
-            />
-            <span className="roster-name" style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
-              {row.title} — {row.artist}
+    // Player revamp (2026-10-08 — see claude/next-build.md): your own
+    // pick history is its own queue — clicking any one plays through
+    // every pick you've ever made, in this order.
+    <PlayQueue songs={rows}>
+      <div className="roster-list">
+        {rows.map((row) => (
+          <div className="roster-row" key={row.songId}>
+            {/* Artwork + play (2026-10-08 "drop control + playback" round
+                — see claude/next-build.md) — same PlayableArt everywhere
+                else uses, just at this row's own smaller scale. */}
+            <span style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+              <PlayableArt
+                spotifyUri={row.spotifyUri}
+                artworkUrl={row.artworkUrl}
+                title={row.title}
+                artist={row.artist}
+                songId={row.songId}
+                className="now-playing-art"
+                fallbackClassName="now-playing-art now-playing-art-empty"
+              />
+              <span className="roster-name" style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+                {row.title} — {row.artist}
+              </span>
             </span>
-          </span>
-          <span className="roster-meta">
-            drop {row.dropNum} · {row.pickType === "curator" ? "curator pick" : "listener pick"}
-            {!row.publishedAt && " · not shipped yet"}
-          </span>
-        </div>
-      ))}
-    </div>
+            <span className="roster-meta">
+              drop {row.dropNum} · {row.pickType === "curator" ? "curator pick" : "listener pick"}
+              {!row.publishedAt && " · not shipped yet"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </PlayQueue>
   );
 }
 

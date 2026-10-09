@@ -1473,7 +1473,13 @@ input {
 /* The site-wide floating player (NowPlayingProvider.tsx) — one bar,
    fixed to the bottom of the viewport, above the drop-detail modal's
    own z-index (50) so playback controls stay reachable while a drop's
-   open. */
+   open. Revamped 2026-10-08 ("Direction A" — see claude/next-build.md):
+   same size/shape/position as the original bar, extended with a full
+   transport (shuffle/back/play/next/loop) and the like + star-rating
+   pair already used next to tracklist rows. Every control here uses
+   the same soft-tint accent language as the rest of the site's
+   buttons (.btn-primary etc.) instead of a solid accent fill — the
+   founder's own "clearer colors rather than the hard teal" call. */
 .now-playing-bar {
   position: fixed;
   left: 50%;
@@ -1482,12 +1488,12 @@ input {
   z-index: 60;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   max-width: calc(100vw - 24px);
   background: var(--bg);
   border: 1px solid var(--ln);
   border-radius: 14px;
-  padding: 8px 10px;
+  padding: 7px 10px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
 }
 
@@ -1497,6 +1503,7 @@ input {
   border-radius: 6px;
   flex-shrink: 0;
   object-fit: cover;
+  display: block;
 }
 
 .now-playing-art-empty {
@@ -1507,9 +1514,37 @@ input {
   );
 }
 
+/* The artwork thumbnail is a real button now — clicking it toggles
+   pause/resume on whatever's current (2026-10-08 player revamp:
+   reverted from the previous round's "restart the preview" behavior —
+   see claude/next-build.md). The pause glyph only overlays while
+   playing, same spirit as PlayableArt's own hover-reveal icon
+   elsewhere on the site. */
+.now-playing-art-btn {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.now-playing-art-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+}
+
 .now-playing-info {
   min-width: 0;
-  max-width: 140px;
+  max-width: 110px;
 }
 
 .now-playing-title {
@@ -1533,26 +1568,74 @@ input {
   padding-right: 6px;
 }
 
-.now-playing-btn {
-  width: 32px;
-  height: 32px;
+/* The current track's like + rating, stacked — reuses .like-btn and
+   .song-rate-control exactly as every tracklist row does, just inside
+   the bar. Hidden entirely when the current track has no DB songId
+   (a live Spotify search result that was never saved) — see
+   NowPlayingRating's own comment. */
+.now-playing-rate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.now-playing-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--ln);
+  flex-shrink: 0;
+}
+
+/* Shuffle / back / next / loop — small plain icon buttons; shuffle and
+   loop pick up the same soft-tint fill as .now-playing-btn once
+   toggled on. */
+.now-playing-transport-btn {
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   border: none;
-  background: var(--accent);
-  color: var(--bg);
+  background: none;
+  color: var(--fg);
   cursor: pointer;
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.now-playing-transport-btn.active {
+  background: var(--acc-soft);
+  color: var(--accent);
+}
+
+/* Play/pause — the one "bigger" control among the transport, soft-tint
+   fill rather than a solid accent circle. */
+.now-playing-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: var(--acc-soft);
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
 .now-playing-close {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   border: none;
   background: none;
   color: var(--mut);
   cursor: pointer;
-  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }

@@ -4,6 +4,7 @@ import SiteHeader from "@/app/_components/SiteHeader";
 import RoleName from "@/app/_components/RoleName";
 import FallbackImg from "@/app/_components/FallbackImg";
 import PlayableArt from "@/app/_components/PlayableArt";
+import { PlayQueue } from "@/app/_components/NowPlayingProvider";
 import { getDefaultClub } from "@/lib/club";
 import { getSessionMember } from "@/lib/memberSession";
 import { getArtistPageData } from "@/lib/artists";
@@ -53,6 +54,18 @@ export default async function ArtistPage({ params }: { params: Promise<{ name: s
         <div className="label" style={{ marginBottom: 12 }}>
           Songs
         </div>
+        {/* Player revamp (2026-10-08 — see claude/next-build.md): this
+            artist's songs are their own queue — clicking any one plays
+            through every song on this page, in this order. */}
+        <PlayQueue
+          songs={artist.songs.map((s) => ({
+            songId: s.songId,
+            spotifyUri: s.spotifyUri,
+            artworkUrl: s.artworkUrl,
+            title: s.title,
+            artist: artist.displayName,
+          }))}
+        >
         <div className="roster-list">
           {artist.songs.map((song) => (
             <div className="roster-row" key={song.songId} style={{ flexDirection: "column", alignItems: "stretch", gap: 4 }}>
@@ -67,6 +80,7 @@ export default async function ArtistPage({ params }: { params: Promise<{ name: s
                   artworkUrl={song.artworkUrl}
                   title={song.title}
                   artist={artist.displayName}
+                  songId={song.songId}
                   className="track-row-art"
                   fallbackClassName="track-row-art track-row-art-empty"
                 />
@@ -95,6 +109,7 @@ export default async function ArtistPage({ params }: { params: Promise<{ name: s
             </div>
           ))}
         </div>
+        </PlayQueue>
       </main>
     </>
   );

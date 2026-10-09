@@ -1,7 +1,7 @@
 "use client";
 
 import FallbackImg from "./FallbackImg";
-import { usePlayer, type PlayableTrack } from "./NowPlayingProvider";
+import { usePlayer, usePlayQueueSongs, type PlayableTrack } from "./NowPlayingProvider";
 import { spotifyTrackIdFromUri } from "@/lib/spotifyId";
 
 /**
@@ -21,12 +21,21 @@ import { spotifyTrackIdFromUri } from "@/lib/spotifyId";
  * Renders a plain static image with no play affordance at all when
  * there's no resolved Spotify id (Apple-only pick, or auto-build never
  * found a match) — nothing to play, so this never pretends otherwise.
+ *
+ * Queue (player revamp round — see claude/next-build.md): when a
+ * <PlayQueue> ancestor exists, clicking plays through its FULL song
+ * list, not just this one track — shuffle/back/next/loop all then
+ * operate on that list, in the order it was rendered. With no
+ * <PlayQueue> ancestor (BrowseSearch's two tabs, deliberately — see
+ * its own comment), this just plays itself alone, same as before that
+ * round.
  */
 export default function PlayableArt({
   spotifyUri,
   artworkUrl,
   title,
   artist,
+  songId,
   className = "track-row-art",
   fallbackClassName = "track-row-art track-row-art-empty",
 }: {
@@ -34,10 +43,15 @@ export default function PlayableArt({
   artworkUrl: string | null | undefined;
   title: string;
   artist: string;
+  /** The DB songs.id behind this track, or null when there isn't one
+   * yet (a live Spotify search result not yet in the DB) — see
+   * PlayableTrack's own comment. */
+  songId: number | null;
   className?: string;
   fallbackClassName?: string;
 }) {
-  const { current, mode, play } = usePlayer();
+  const { current, mode, playFromQueue } = usePlayer();
+  const queueSongs = usePlayQueueSongs();
   const trackId = spotifyTrackIdFromUri(spotifyUri);
   const isThisTrack = !!trackId && current?.id === trackId;
   const isPlayingThis = isThisTrack && mode !== null;
@@ -52,11 +66,33 @@ export default function PlayableArt({
     return <div className="playable-art">{art}</div>;
   }
 
+  function handleClick() {
+    if (!trackId) return;
+    const myTrack: PlayableTrack = { id: trackId, title, artist, artworkUrl: artworkUrl ?? null, songId };
+
+    if (!queueSongs || queueSongs.length === 0) {
+      playFromQueue([myTrack], 0);
+      return;
+    }
+
+    const resolved: PlayableTrack[] = [];
+    let myIndex = -1;
+    for (const s of queueSongs) {
+      const id = spotifyTrackIdFromUri(s.spotifyUri);
+      if (!id) continue; // not playable — never part of the clickable queue
+      if (myIndex === -1 && (s.songId != null ? s.songId === songId : id === trackId)) {
+        myIndex = resolved.length;
+      }
+      resolved.push({ id, title: s.title, artist: s.artist, artworkUrl: s.artworkUrl ?? null, songId: s.songId });
+    }
+    playFromQueue(resolved, myIndex >= 0 ? myIndex : 0);
+  }
+
   return (
     <button
       type="button"
       className="playable-art playable-art-active"
-      onClick={() => play({ id: trackId, title, artist, artworkUrl: artworkUrl ?? null })}
+      onClick={handleClick}
       aria-label={isPlayingThis ? `Pause ${title}` : `Play ${title}`}
       aria-pressed={isPlayingThis}
     >

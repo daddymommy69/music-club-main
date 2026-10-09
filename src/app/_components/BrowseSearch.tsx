@@ -236,6 +236,7 @@ function SiteResultRow({ result }: { result: SiteResult }) {
           artworkUrl={result.artworkUrl}
           title={result.title}
           artist={result.artist}
+          songId={result.songId}
           className="track-row-art"
           fallbackClassName="track-row-art track-row-art-empty"
         />
@@ -338,6 +339,7 @@ function SpotifyResultRow({
           artworkUrl={result.artworkUrl}
           title={result.title}
           artist={result.artist}
+          songId={result.site?.songId ?? null}
           className="track-row-art"
           fallbackClassName="track-row-art track-row-art-empty"
         />
