@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { isValidMusicLink } from "@/lib/musicLink";
@@ -154,6 +155,18 @@ export default function CuratorToolsPanel({
 
   return (
     <div className="gz-up">
+      {/* Only way to reach /settings anywhere in the app (2026-10-09 round
+          2 — the founder's own report: there was no link to it at all,
+          not a missing-access-level bug, just a missing link). Same
+          curator gating as /settings itself — any curator can see the
+          club-wide name/cycle settings there; the curator-grant panel
+          inside it is further gated to admins only, same as before. */}
+      <div style={{ textAlign: "right", marginBottom: 10 }}>
+        <Link href="/settings" className="mut" style={{ fontSize: 11.5 }}>
+          Settings →
+        </Link>
+      </div>
+
       <div className="stat-row gz-up">
         <Stat label="Drop" value={String(dropNum)} />
         <Stat label="Remaining" value={timeLabel(isManual, daysUntilNext)} />

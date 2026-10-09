@@ -627,8 +627,14 @@ input {
   height: 100%;
 }
 
+/* Literal white (not --fill, which is theme-aware and stays a dark
+   near-black tint in dark mode) — 2026-10-09 round 2: the founder's own
+   call, specifically wants a true white backdrop here regardless of the
+   site's own light/dark theme, since most drops don't have all 4
+   quadrants' worth of real artwork yet and this is what the number
+   overlay below now relies on for contrast. */
 .drop-tile-quad-empty {
-  background: var(--fill);
+  background: #fff;
 }
 
 .drop-tile-num {
@@ -639,26 +645,20 @@ input {
   justify-content: center;
 }
 
-/* Vignette instead of a flat tint (2026-10-09 design-pass round — see
-   claude/next-build.md): a flat 40% black over the whole tile washed
-   out all four quadrants evenly, including the corners where there's
-   no number to read against — darkest at the center, where the number
-   actually needs the contrast, fading out toward the edges so the
-   collage's own artwork still shows through there. */
-.drop-tile-num::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at center, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.12) 72%);
-}
-
+/* No backdrop at all behind the number now (2026-10-09 round 2 — the
+   founder's own call, reverting round 1's dark vignette): a flat tint or
+   gradient over the whole collage read as a "weird black shadow." The
+   number relies on the empty-quadrant fallback above being true white
+   for contrast — on a drop with all 4 quadrants filled with real
+   artwork, the dark-charcoal number sits directly on the photos with no
+   guaranteed contrast, an explicit, accepted tradeoff for the simpler
+   look. */
 .drop-tile-num span {
-  position: relative;
   font-family: var(--font-display);
   font-weight: 700;
   font-size: clamp(22px, 8vw, 34px);
   letter-spacing: -0.03em;
-  color: #fff;
+  color: #2a2a28;
 }
 
 /* Large variant for the drop-detail header, where the tile stands
