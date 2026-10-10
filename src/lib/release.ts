@@ -59,14 +59,21 @@ export async function sendDropToSubscribers(drop: Drop, shippedBy?: string) {
   // Only the request whose UPDATE actually flips publishedAt from null
   // gets to send; a second concurrent caller sees 0 rows affected and
   // backs off instead of sending again.
+  //
+  // Also requires canceledAt still null (2026-10-09 audit fix — the
+  // mirror-image race: canceling a drop at the exact moment it ships
+  // could previously leave it shipped even though a curator just
+  // canceled it). /api/overview/cancel gained the matching guard
+  // (publishedAt still null) in this same round, so whichever side's
+  // claim lands first wins outright and the other backs off cleanly.
   const claimed = await db
     .update(drops)
     .set({ publishedAt: new Date(), ...(shippedBy ? { shippedBy } : {}) })
-    .where(and(eq(drops.id, drop.id), isNull(drops.publishedAt)))
+    .where(and(eq(drops.id, drop.id), isNull(drops.publishedAt), isNull(drops.canceledAt)))
     .returning();
 
   if (!claimed[0]) {
-    return { sent: 0, skipped: "already shipped (a concurrent request claimed it first)" };
+    return { sent: 0, skipped: "already shipped, or canceled just before it could ship" };
   }
 
   const active = await db
@@ -100,7 +107,13 @@ export async function sendDropToSubscribers(drop: Drop, shippedBy?: string) {
         await sendSms(sub.phone, releaseSmsBody(drop, memberToken));
       }
       if (sub.wantsEmail && sub.email) {
-        await sendEmail(sub.email, "New playlist is here 🎵", releaseEmailHtml(drop, memberToken));
+        // Lowercase, no emoji — matches the welcome/curator emails'
+        // subject style (2026-10-10 founder decision, see
+        // claude/next-build.md). releaseEmailHtml no longer takes
+        // memberToken — it links to the drop's own public page now,
+        // not a personal /you link — memberToken is still generated
+        // above for the SMS body just below, which is unchanged.
+        await sendEmail(sub.email, "new playlist is here", releaseEmailHtml(drop));
       }
       sent += 1;
     } catch (err) {
