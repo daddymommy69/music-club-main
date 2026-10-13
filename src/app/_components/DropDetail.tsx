@@ -14,6 +14,7 @@ import DropLikeButton from "./DropLikeButton";
 import DropSaveButton from "./DropSaveButton";
 import RateDropControl from "./RateDropControl";
 import RoleName from "./RoleName";
+import InfoTip from "./InfoTip";
 
 export default function DropDetail({
   drop,
@@ -171,10 +172,8 @@ export default function DropDetail({
         <>
           <div className="label" style={{ marginTop: 30, marginBottom: 12 }}>
             Subscriber Top 10
+            <InfoTip text="The songs you all voted for between drops." />
           </div>
-          <p className="mut" style={{ fontSize: 11, marginBottom: 14 }}>
-            The songs you all voted for between drops.
-          </p>
           <div className="roster-list" style={{ marginBottom: drop.top10.spotifyUrl || drop.top10.appleUrl ? 16 : 0 }}>
             {drop.top10.tally.map((row, i) => (
               <div className="roster-row" key={i}>

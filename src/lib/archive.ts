@@ -393,4 +393,48 @@ export async function getLatestPublicDrop(clubId: number): Promise<PublicDropDet
   return getPublicDrop(clubId, latest.num);
 }
 
+export type PublicStats = {
+  dropCount: number;
+  songCount: number;
+  artistCount: number;
+};
+
+/**
+ * Headline numbers for the About page (2026-10-13 — founder's own ask,
+ * see claude/next-build.md). Deliberately scoped to match what a
+ * visitor can actually click into and listen to: only published drops,
+ * and only their official curator-picked tracks — a Listener Pick or
+ * Top 10 vote never became part of the drop's own shipped playlist, so
+ * it's left out of "songs" here even though it appears elsewhere on
+ * the site. artistCount is normalized (trimmed + lowercased) before
+ * counting distinct values so "Drake" and "drake " don't inflate the
+ * count as two different artists.
+ */
+export async function getPublicStats(clubId: number): Promise<PublicStats> {
+  const db = getDb();
+
+  const publishedDropIds = await db
+    .select({ id: drops.id })
+    .from(drops)
+    .where(and(eq(drops.clubId, clubId), isNotNull(drops.publishedAt)));
+
+  if (publishedDropIds.length === 0) {
+    return { dropCount: 0, songCount: 0, artistCount: 0 };
+  }
+
+  const dropIds = publishedDropIds.map((d) => d.id);
+  const songRows = await db
+    .select({ artist: songs.artist })
+    .from(songs)
+    .where(and(inArray(songs.dropId, dropIds), eq(songs.pickType, "curator")));
+
+  const artistSet = new Set(songRows.map((s) => s.artist.trim().toLowerCase()));
+
+  return {
+    dropCount: dropIds.length,
+    songCount: songRows.length,
+    artistCount: artistSet.size,
+  };
+}
+
 export type { Drop };

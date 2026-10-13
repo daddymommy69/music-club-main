@@ -12,6 +12,7 @@ import FallbackImg from "./FallbackImg";
 import CuratorToolsPanel, { type CuratorToolsPanelProps } from "./CuratorToolsPanel";
 import PlayableArt from "./PlayableArt";
 import { PlayQueue } from "./NowPlayingProvider";
+import InfoTip from "./InfoTip";
 
 type Member = {
   id: number;
@@ -121,7 +122,10 @@ export default function AccountBoard({
           <ProfileCard member={member} />
           <SpotifyConnectControl connected={member.spotifyConnected} />
 
-          <Section label="This cycle's pick">
+          <Section
+            label="This cycle's pick"
+            info="submit one song for whichever drop is currently open — first submission locks in, no changes after."
+          >
             {openDrop ? (
               <ListenerPickForm openDrop={openDrop} initialPick={listenerPick} />
             ) : (
@@ -139,11 +143,14 @@ export default function AccountBoard({
             <LikedSongsGrid songs={likedSongs} />
           </Section>
 
-          <Section label="Leaderboard">
+          <Section label="Leaderboard" info="ranks everyone by how many picks have made it into a shipped drop.">
             <Leaderboard rows={leaderboard} />
           </Section>
 
-          <Section label="Your tops">
+          <Section
+            label="Your tops"
+            info="pick up to 5 of your own shipped drops to feature here — just for you, for now."
+          >
             <TopsGrid drops={publishedDrops} initialFavoriteIds={favoriteDropIds} myRatings={myRatings} />
           </Section>
         </>
@@ -156,11 +163,23 @@ export default function AccountBoard({
   );
 }
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+function Section({
+  label,
+  info,
+  children,
+}: {
+  label: string;
+  /** Optional one-liner for an InfoTip next to the label — only the
+   * sections that actually need one pass this (2026-10-13 "site
+   * clarity" round, see claude/next-build.md). */
+  info?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div style={{ marginBottom: 32 }}>
       <div className="label" style={{ marginBottom: 12 }}>
         {label}
+        {info && <InfoTip text={info} />}
       </div>
       {children}
     </div>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import SiteHeader from "@/app/_components/SiteHeader";
 import SignupPopup from "@/app/_components/SignupPopup";
 import DropTile from "@/app/_components/DropTile";
+import InfoTip from "@/app/_components/InfoTip";
 import { getDefaultClub } from "@/lib/club";
 import { getPublishedDrops } from "@/lib/archive";
 import { getDropStatus } from "@/lib/dropStatus";
@@ -45,6 +46,9 @@ export default async function ReleasesPage() {
       <main className="col page gz-up">
         <h1 style={{ fontSize: 20, letterSpacing: "-0.02em", marginBottom: 12 }}>
           Every drop so far
+          {dropList.length > 0 && (
+            <InfoTip text="Top 10 ↗ = that drop's subscriber-vote results are posted. ♫ Listener Pick = extra songs people added beyond the curator's picks." />
+          )}
         </h1>
 
         {scheduleLine && (

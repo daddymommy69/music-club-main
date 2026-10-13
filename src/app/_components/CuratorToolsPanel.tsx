@@ -155,6 +155,8 @@ export default function CuratorToolsPanel({
 
   return (
     <div className="gz-up">
+      <CuratorHelpDisclosure />
+
       {/* Only way to reach /settings anywhere in the app (2026-10-09 round
           2 — the founder's own report: there was no link to it at all,
           not a missing-access-level bug, just a missing link). Same
@@ -194,6 +196,51 @@ export default function CuratorToolsPanel({
       {shipCandidate && <ManageDropCard shipCandidate={shipCandidate} onChanged={refresh} />}
 
       {top10 && <Top10Disclosure top10={top10} />}
+    </div>
+  );
+}
+
+/**
+ * 2026-10-13 — founder's own ask (see claude/next-build.md's "site
+ * clarity" round), pinned at the top of the panel ("top of curator
+ * tools board") rather than as a formal titled section — just "help,"
+ * collapsed by default, same spirit as Curators/Top 10 below. Written
+ * in the same casual voice as the About page copy. Covers the two
+ * things that actually aren't obvious from using the tools: the
+ * Spotify auto-build's silent dependency on Settings' connection (the
+ * founder's own mix-up this round — it does NOT build "no matter
+ * what"), and that scheduling exists at all. Deliberately skips the
+ * pick-vs-submission mechanic — Submission pile already has its own
+ * always-visible line for that, and the founder's own call was that
+ * the two are "essentially the same thing" to explain twice.
+ */
+function CuratorHelpDisclosure() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="ct-card" style={{ marginBottom: 20 }}>
+      <button type="button" className="ct-disclosure" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className="label" style={{ marginBottom: 0 }}>
+          help
+        </span>
+        <span className="mut" style={{ fontSize: 11 }}>
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+      {open && (
+        <p className="mut" style={{ fontSize: 12, lineHeight: 1.6, marginTop: 12 }}>
+          when you ship a drop, we try to build the spotify playlist automatically from this
+          cycle&rsquo;s picks — but only if spotify&rsquo;s connected in settings. if it&rsquo;s not
+          connected, nothing gets built on its own, so paste a playlist link in yourself before
+          shipping.
+          <br />
+          <br />
+          you can also schedule a drop to open and ship on its own — set the dates in settings and
+          it handles itself from there.
+          <br />
+          <br />
+          subscribers get emailed the second it ships, so double check the picks first.
+        </p>
+      )}
     </div>
   );
 }
@@ -1143,8 +1190,16 @@ function PileCard({
 }) {
   return (
     <div className="ct-card" style={{ marginTop: 20 }}>
-      <p className="label" style={{ marginBottom: 10 }}>
+      <p className="label" style={{ marginBottom: 6 }}>
         Submission pile ({pile.length})
+      </p>
+      {/* Always-visible, not an InfoTip (2026-10-13 "site clarity" round,
+          see claude/next-build.md) — this is the one spot curators
+          actually got stuck on, per the founder's own explanation
+          screenshot, so it stays as a plain line rather than something
+          hidden behind an icon someone has to find. */}
+      <p className="mut" style={{ fontSize: 11, marginBottom: 10 }}>
+        Songs people submit land here first — Quick-add pulls one into this cycle&rsquo;s picks.
       </p>
       {pile.length === 0 ? (
         <div className="empty-state" style={{ padding: "12px 0" }}>

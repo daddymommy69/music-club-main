@@ -10,6 +10,10 @@ const NAV_ITEMS = [
   { href: "/releases", label: "Releases" },
   { href: "/browse", label: "Browse" },
   { href: "/account", label: "Account" },
+  // 2026-10-13 — founder's own ask (see claude/next-build.md's "site
+  // clarity" round): wanted in the main nav, not tucked into a footer
+  // or the Account page, so it's easy to stumble into.
+  { href: "/about", label: "About" },
 ];
 
 export default function SiteHeader() {
