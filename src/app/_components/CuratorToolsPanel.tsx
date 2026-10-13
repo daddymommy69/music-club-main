@@ -122,11 +122,28 @@ type DuplicateInfo = { title: string | null; artist: string | null };
 
 const LINK_ERROR = "That link doesn't look right — try pasting it again.";
 
+/**
+ * 2026-10-13 bug fix (see claude/next-build.md "site clarity" round —
+ * the founder's own report: "the date isnt being linked with the set
+ * date for the drop"). Previously checked `isManual` FIRST and
+ * returned "no scheduled date" unconditionally whenever the club's
+ * overall cycle setting is manual — even when `daysUntilNext` held a
+ * real value, because a curator had set this specific drop's ship
+ * date in Manage Drop (ScheduleShipField -> scheduledShipAt).
+ * getDropStatus() (src/lib/dropStatus.ts) already computes
+ * daysUntilNext from scheduledShipAt regardless of isManual, so the
+ * bug was purely here: isManual only means "no automatic cycle
+ * countdown," not "no date was manually set." Now `daysUntilNext`
+ * wins whenever it's present, whichever way it got set; `isManual`
+ * only picks which fallback message to show when there's truly
+ * nothing to count down to.
+ */
 function timeLabel(isManual: boolean, daysUntilNext: number | null) {
-  if (isManual) return "no scheduled date";
-  if (daysUntilNext === null) return "timing unknown";
-  if (daysUntilNext === 0) return "shipping today";
-  return `${daysUntilNext} day${daysUntilNext === 1 ? "" : "s"}`;
+  if (daysUntilNext !== null) {
+    if (daysUntilNext === 0) return "shipping today";
+    return `${daysUntilNext} day${daysUntilNext === 1 ? "" : "s"}`;
+  }
+  return isManual ? "no scheduled date" : "timing unknown";
 }
 
 function joinedLabel(iso: string) {

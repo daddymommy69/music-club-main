@@ -4,7 +4,7 @@ import SignupPopup from "@/app/_components/SignupPopup";
 import DropTile from "@/app/_components/DropTile";
 import InfoTip from "@/app/_components/InfoTip";
 import { getDefaultClub } from "@/lib/club";
-import { getPublishedDrops } from "@/lib/archive";
+import { getPublishedDrops, getPublicStats } from "@/lib/archive";
 import { getDropStatus } from "@/lib/dropStatus";
 import { formatDropMeta, formatScheduledDate } from "@/lib/format";
 
@@ -25,7 +25,11 @@ export const dynamic = "force-dynamic";
 // longer needs its own copy of getSignupContext/the popup form.
 export default async function ReleasesPage() {
   const club = await getDefaultClub();
-  const [dropList, status] = await Promise.all([getPublishedDrops(club.id), getDropStatus(club)]);
+  const [dropList, status, stats] = await Promise.all([
+    getPublishedDrops(club.id),
+    getDropStatus(club),
+    getPublicStats(club.id),
+  ]);
 
   // Public scheduled-date line (2026-10-08 "drop control" round —
   // founder's own answer, "yes they see it," to whether subscribers
@@ -50,6 +54,19 @@ export default async function ReleasesPage() {
             <InfoTip text="Top 10 ↗ = that drop's subscriber-vote results are posted. ♫ Listener Pick = extra songs people added beyond the curator's picks." />
           )}
         </h1>
+
+        {/* Same big-inline-number treatment as the About page's totals
+            line (2026-10-13 — founder's own ask, "add the drop numbers
+            with songs/artists/drops like how i wanted," see
+            claude/next-build.md). Reuses getPublicStats() and the
+            .about-num class as-is. */}
+        {dropList.length > 0 && (
+          <p style={{ fontSize: 14, lineHeight: 1.7, marginBottom: 16 }}>
+            <span className="about-num">{stats.dropCount}</span> drops,{" "}
+            <span className="about-num">{stats.songCount}</span> songs, from{" "}
+            <span className="about-num">{stats.artistCount}</span> artists.
+          </p>
+        )}
 
         {scheduleLine && (
           <p className="mut" style={{ fontSize: 12, marginTop: -4, marginBottom: 16 }}>
