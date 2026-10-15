@@ -42,7 +42,7 @@ export default function ShareButton({ url, title }: { url: string; title?: strin
   }
 
   return (
-    <button type="button" className={`share-btn${copied ? " is-copied" : ""}`} onClick={handleShare}>
+    <button type="button" className={`drop-action-btn share-action${copied ? " active" : ""}`} onClick={handleShare}>
       {copied ? "Copied ✓" : "Share ↗"}
     </button>
   );

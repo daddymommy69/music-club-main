@@ -24,6 +24,14 @@
    * mode). Hue 75 sits between --err's 25 and --accent's 160, so it
    * doesn't get confused with either. */
   --role-curator: oklch(0.58 0.14 75);
+  /* Share button's own color (2026-10-15 — founder's own ask, after the
+   * neutral grey/outline treatment still read as "weird" against black:
+   * "lets change it to the matching blue"). Hue 245 sits clear of every
+   * other token here (160 accent, 75 curator, 25 err) — scoped to Share
+   * specifically for now, not a second sitewide accent, since Save/Like
+   * already have a meaning for their own color (green = saved/liked). */
+  --accent-blue: oklch(0.58 0.16 245);
+  --acc-blue-soft: oklch(0.58 0.16 245 / 0.12);
 
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --font-display: "Martian Mono", var(--font-mono);
@@ -46,6 +54,9 @@
      * tokens get going into dark mode (--accent: .55 -> .72), so gold
      * stays legible against the dark --bg instead of looking muddy. */
     --role-curator: oklch(0.74 0.14 75);
+    /* Same lift the other tokens get going into dark mode. */
+    --accent-blue: oklch(0.72 0.15 245);
+    --acc-blue-soft: oklch(0.72 0.15 245 / 0.15);
     color-scheme: dark;
   }
 }
@@ -911,6 +922,27 @@ input {
 .drop-action-btn.active {
   background: var(--acc-soft);
   border-color: transparent;
+  color: var(--accent);
+}
+
+/* Share's own color (2026-10-15 round 4 — founder's own call, after
+   the neutral outline treatment still read as "weird": "lets change it
+   to the matching blue"). Share has no save/like-style on-off state —
+   it's always the same action — so unlike Save/Like it never resolves
+   into the green "done" look; giving it its own permanent blue instead
+   of leaving it in the shared neutral style is what actually fixes
+   that. The brief "Copied ✓" confirmation still goes green (same
+   "green = confirmed" language the rest of the site uses) — the
+   .share-action.active selector below is more specific than plain
+   .share-action, so it wins regardless of source order. */
+.drop-action-btn.share-action {
+  background: var(--acc-blue-soft);
+  border-color: transparent;
+  color: var(--accent-blue);
+}
+
+.drop-action-btn.share-action.active {
+  background: var(--acc-soft);
   color: var(--accent);
 }
 
