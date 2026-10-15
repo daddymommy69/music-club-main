@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { getDb } from "@/db/client";
 import { drops, songs, curatorNotes, members, top10Entries, type Drop } from "@/db/schema";
@@ -435,6 +435,26 @@ export async function getPublicStats(clubId: number): Promise<PublicStats> {
     songCount: songRows.length,
     artistCount: artistSet.size,
   };
+}
+
+export type DropMissingPlaylist = { num: number; title: string | null };
+
+/**
+ * Shipped drops with no Spotify playlist attached yet — drives the
+ * curator-facing "Build Spotify playlist" button (2026-10-15 — founder's
+ * own ask: a reusable UI for what the one-off /api/admin/spotify-backfill
+ * route used to need a curl command for). Normally just drop 1, which
+ * shipped before the auto-build existed, but this stays general so any
+ * drop that ships without one (Spotify disconnected at the time, build
+ * failed, etc.) gets the same fix-it path rather than being stuck.
+ */
+export async function getDropsMissingPlaylist(clubId: number): Promise<DropMissingPlaylist[]> {
+  const db = getDb();
+  return db
+    .select({ num: drops.num, title: drops.title })
+    .from(drops)
+    .where(and(eq(drops.clubId, clubId), isNotNull(drops.publishedAt), isNull(drops.spotifyUrl)))
+    .orderBy(asc(drops.num));
 }
 
 export type { Drop };

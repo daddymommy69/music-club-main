@@ -101,6 +101,14 @@ type CanceledDrop = {
   canceledAt: string;
 };
 
+/** A shipped drop with no Spotify playlist yet — see
+ * src/lib/archive.ts's getDropsMissingPlaylist for how this list is
+ * built. */
+type MissingPlaylistDrop = {
+  num: number;
+  title: string | null;
+};
+
 export type CuratorToolsPanelProps = {
   dropNum: number;
   isManual: boolean;
@@ -116,6 +124,7 @@ export type CuratorToolsPanelProps = {
   nextDropOpensAt: string | null;
   canceledDrop: CanceledDrop | null;
   top10: Top10CardProps | null;
+  dropsMissingPlaylist: MissingPlaylistDrop[];
 };
 
 type DuplicateInfo = { title: string | null; artist: string | null };
@@ -163,6 +172,7 @@ export default function CuratorToolsPanel({
   nextDropOpensAt,
   canceledDrop,
   top10,
+  dropsMissingPlaylist,
 }: CuratorToolsPanelProps) {
   const router = useRouter();
 
@@ -207,6 +217,10 @@ export default function CuratorToolsPanel({
       )}
 
       <PileCard pile={pile} hasOpenDrop={hasOpenDrop} onAdded={refresh} />
+
+      {dropsMissingPlaylist.length > 0 && (
+        <MissingPlaylistCard drops={dropsMissingPlaylist} onBuilt={refresh} />
+      )}
 
       <CuratorsDisclosure roster={roster} />
 
@@ -1309,6 +1323,110 @@ function PileRow({
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Only shows up at all when a shipped drop has no Spotify playlist yet
+ * (2026-10-15 — founder's own ask: "build spotify playlist button in
+ * curator since it will be resuable"). Normally that's just drop 1,
+ * which shipped before the auto-build existed — once it's built, this
+ * drop drops off the list (dropsMissingPlaylist comes from the server,
+ * refreshed via onBuilt) and the whole card disappears once nothing's
+ * left. Same build it does at ship time, just triggered manually here
+ * instead of needing the old curl + ADMIN_SECRET backfill route.
+ */
+function MissingPlaylistCard({
+  drops,
+  onBuilt,
+}: {
+  drops: MissingPlaylistDrop[];
+  onBuilt: () => void;
+}) {
+  return (
+    <div className="ct-card gz-up" style={{ marginTop: 20 }}>
+      <p className="label" style={{ marginBottom: 6 }}>
+        Missing Spotify playlists
+      </p>
+      <p className="mut" style={{ fontSize: 11, marginBottom: 10 }}>
+        These shipped without one — build it from the same picks, same as a normal ship.
+      </p>
+      <div className="roster-list">
+        {drops.map((d) => (
+          <BuildPlaylistRow key={d.num} drop={d} onBuilt={onBuilt} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BuildPlaylistRow({ drop, onBuilt }: { drop: MissingPlaylistDrop; onBuilt: () => void }) {
+  const [state, setState] = useState<"idle" | "building" | "done" | "error">("idle");
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{
+    spotifyUrl: string;
+    matchedCount: number;
+    totalCount: number;
+    unmatchedTitles: string[];
+  } | null>(null);
+
+  async function build() {
+    setState("building");
+    setError(null);
+    try {
+      const res = await fetch("/api/overview/build-playlist", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dropNum: drop.num }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Couldn't build it. Try again.");
+        setState("error");
+        return;
+      }
+      setResult(data);
+      setState("done");
+      onBuilt();
+    } catch {
+      setError("Couldn't build it. Try again.");
+      setState("error");
+    }
+  }
+
+  return (
+    <div className="roster-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <span className="roster-name">{drop.title ?? `Drop ${drop.num}`}</span>
+        {state !== "done" && (
+          <button
+            type="button"
+            className="btn"
+            style={{ width: "auto", minHeight: 32, height: 32, padding: "0 12px", fontSize: 11.5, flexShrink: 0 }}
+            onClick={build}
+            disabled={state === "building"}
+          >
+            {state === "building" ? "Building…" : "Build Spotify playlist"}
+          </button>
+        )}
+      </div>
+      {state === "done" && result && (
+        <p className="mut" style={{ fontSize: 11.5, lineHeight: 1.6 }}>
+          Done —{" "}
+          <a href={result.spotifyUrl} target="_blank" rel="noreferrer">
+            open it on Spotify ↗
+          </a>{" "}
+          · matched {result.matchedCount} of {result.totalCount} songs.
+          {result.unmatchedTitles.length > 0 && (
+            <>
+              {" "}
+              Couldn&rsquo;t find: {result.unmatchedTitles.join(", ")}.
+            </>
+          )}
+        </p>
+      )}
+      {state === "error" && error && <p className="notice error">{error}</p>}
     </div>
   );
 }

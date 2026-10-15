@@ -11,7 +11,7 @@ import { getListenerPick } from "@/lib/listenerPicks";
 import { getMemberSubmissionHistory } from "@/lib/memberProfile";
 import { getMemberLikedSongs } from "@/lib/songLikes";
 import { getLeaderboard } from "@/lib/leaderboard";
-import { getPublishedDrops } from "@/lib/archive";
+import { getPublishedDrops, getDropsMissingPlaylist } from "@/lib/archive";
 import { getMemberFavorites } from "@/lib/favorites";
 import { getMemberDropRatings } from "@/lib/ratings";
 import type { Club, Drop } from "@/db/schema";
@@ -26,10 +26,11 @@ const LIKED_SONGS_LIMIT = 20;
  * — see claude/next-build.md).
  */
 async function getCuratorToolsProps(club: Club, openDrop: Drop | null): Promise<CuratorToolsPanelProps> {
-  const [overview, room, top10Drop] = await Promise.all([
+  const [overview, room, top10Drop, dropsMissingPlaylist] = await Promise.all([
     getOverviewData(club),
     openDrop ? getRoomData(club, openDrop) : Promise.resolve(null),
     getTargetDropForTop10(club.id),
+    getDropsMissingPlaylist(club.id),
   ]);
   const top10Summary = top10Drop ? await getTop10Summary(top10Drop) : null;
   const top10Visible =
@@ -117,6 +118,7 @@ async function getCuratorToolsProps(club: Club, openDrop: Drop | null): Promise<
           appleUrl: top10Visible.appleUrl,
         }
       : null,
+    dropsMissingPlaylist,
   };
 }
 
