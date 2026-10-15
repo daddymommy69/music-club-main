@@ -22,15 +22,24 @@ export type SpotifyBuildResult = {
 };
 
 /**
- * The whole auto-build: search each song, create a public playlist
- * named "Drop {num}", add whatever matched, upload a matching cover
- * image. Returns null to mean "quietly skip" — no Spotify connection,
- * or something critical (search auth, playlist creation, adding tracks)
- * failed outright — which is exactly the signal api/overview/ship needs
- * to fall back to requiring a manual link, per founder decision
- * 2026-10 on what happens if the connection ever breaks. A playlist
- * that got created but came up short on matches is NOT a null result —
- * see unmatchedTitles.
+ * The whole auto-build: search each song, create a public playlist,
+ * add whatever matched, upload a matching cover image. Returns null to
+ * mean "quietly skip" — no Spotify connection, or something critical
+ * (search auth, playlist creation, adding tracks) failed outright —
+ * which is exactly the signal api/overview/ship needs to fall back to
+ * requiring a manual link, per founder decision 2026-10 on what
+ * happens if the connection ever breaks. A playlist that got created
+ * but came up short on matches is NOT a null result — see
+ * unmatchedTitles.
+ *
+ * Playlist name/description (2026-10-15 — founder's own spec): the
+ * name is whatever the drop is actually titled (same curator-set
+ * `title` shown everywhere else on the site), falling back to
+ * "Drop {num}" for an untitled drop, same convention as every other
+ * "Drop N" fallback on the site. The description is always
+ * "Drop {num} | project music club" regardless of title, so the
+ * playlist is still identifiable by number even when the title alone
+ * wouldn't say which drop it is.
  *
  * `songList` must already be ordered the way the drop's tracklist reads
  * on the site (position, then createdAt — same ordering src/lib/room.ts
@@ -40,6 +49,7 @@ export type SpotifyBuildResult = {
 export async function buildSpotifyPlaylistForDrop(
   club: Club,
   dropNum: number,
+  dropTitle: string | null,
   songList: Song[]
 ): Promise<SpotifyBuildResult | null> {
   if (songList.length === 0) return null;
@@ -51,7 +61,8 @@ export async function buildSpotifyPlaylistForDrop(
     songList.map((song) => searchSpotifyTrack(accessToken, song.title, song.artist))
   );
 
-  const playlist = await createSpotifyPlaylist(accessToken, `Drop ${dropNum}`);
+  const playlistName = dropTitle?.trim() || `Drop ${dropNum}`;
+  const playlist = await createSpotifyPlaylist(accessToken, playlistName, `Drop ${dropNum} | project music club`);
   if (!playlist) return null;
 
   const matchedUris = matches.filter((m): m is NonNullable<typeof m> => m != null).map((m) => m.uri);

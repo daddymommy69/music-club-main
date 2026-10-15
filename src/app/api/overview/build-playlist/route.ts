@@ -57,7 +57,7 @@ export async function PUT(request: Request) {
     .where(eq(songs.dropId, drop.id))
     .orderBy(asc(songs.position), asc(songs.createdAt));
 
-  const result = await buildSpotifyPlaylistForDrop(club, drop.num, dropSongs);
+  const result = await buildSpotifyPlaylistForDrop(club, drop.num, drop.title, dropSongs);
   if (!result) {
     return NextResponse.json(
       { error: "Couldn't build it — check that Spotify is connected in Settings." },

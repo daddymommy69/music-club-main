@@ -48,7 +48,10 @@ export async function shipDrop(
       .from(songs)
       .where(eq(songs.dropId, drop.id))
       .orderBy(asc(songs.position), asc(songs.createdAt));
-    spotifyBuild = await buildSpotifyPlaylistForDrop(club, drop.num, dropSongs);
+    // `title` wins when this same ship call is also setting a new one
+    // (e.g. a curator renames right as they ship); otherwise this drop
+    // keeps whatever it was already titled.
+    spotifyBuild = await buildSpotifyPlaylistForDrop(club, drop.num, title || drop.title, dropSongs);
     if (spotifyBuild) spotifyUrl = spotifyBuild.url;
   }
 
