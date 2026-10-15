@@ -101,51 +101,68 @@ export default function DropDetail({
         {formatDropMonth(drop.publishedAt)} · {curatorSongs.length}{" "}
         {curatorSongs.length === 1 ? "song" : "songs"}
       </div>
-      <PlayDropButton songs={queueSongs} />
-      <ShareButton url={shareUrl} title={drop.title ?? `Drop ${drop.num}`} />
 
-      {drop.rating.count > 0 && (
-        <div className="drop-rating-line">
-          ★ {drop.rating.average?.toFixed(1)} · {drop.rating.count}{" "}
-          {drop.rating.count === 1 ? "rating" : "ratings"}
-        </div>
-      )}
-      <RateDropControl dropId={drop.id} initialRating={viewerRating ?? null} />
-
-      {/* Listen links moved above the Save/Like row (2026-10-07 — see
-          claude/next-build.md): "open the real playlist" is the more
-          important first action on a drop page, so it leads; Save/Like
-          follow right under it rather than ahead of it. */}
-      <div className="listen-row">
+      {/* Play + Spotify side by side, half-width each (2026-10-15 —
+          founder's own ask: Play alone felt too big/heavy as the one
+          full-width action, and a Spotify button belongs right next to
+          it rather than buried further down). Spotify-only here (no
+          Apple Music button — the founder's own call, "lets leave that
+          out") — Apple still gets its own link below when a drop has
+          one, see the conditional .listen-row further down. When a
+          drop has no Spotify playlist yet, Play just flexes to fill the
+          row on its own. */}
+      <div className="listen-row-primary">
+        <PlayDropButton songs={queueSongs} />
         {drop.spotifyUrl && (
-          <a
-            className="btn btn-outline"
-            href={drop.spotifyUrl}
-            target="_blank"
-            rel="noreferrer"
-          >
+          <a className="btn btn-outline open-spotify-btn" href={drop.spotifyUrl} target="_blank" rel="noreferrer">
             Spotify ↗
-          </a>
-        )}
-        {drop.appleUrl && (
-          <a
-            className="btn btn-outline"
-            href={drop.appleUrl}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Apple Music ↗
           </a>
         )}
       </div>
 
+      {/* Apple Music only now — Spotify moved into the primary row above,
+          so keeping it here too would just be a second "open Spotify"
+          button on the same page (founder's own call, 2026-10-15). Still
+          renders nothing for a drop with no Apple link, same as before. */}
+      {drop.appleUrl && (
+        <div className="listen-row">
+          <a className="btn btn-outline" href={drop.appleUrl} target="_blank" rel="noreferrer">
+            Apple Music ↗
+          </a>
+        </div>
+      )}
+
+      {/* Share/Save/Like unified into one row of same-size pills
+          (2026-10-15 — founder's own ask) — Share used to sit alone on
+          its own line above everything else, disconnected from the
+          other two "do something with this drop" actions. */}
       <div className="drop-controls-row">
+        <ShareButton url={shareUrl} title={drop.title ?? `Drop ${drop.num}`} />
         <DropSaveButton dropId={drop.id} initialSaved={viewerDropSaved ?? false} />
         <DropLikeButton
           dropId={drop.id}
           initialLiked={viewerDropLiked ?? false}
           initialCount={drop.dropLikeCount}
         />
+      </div>
+
+      {/* Moved below Share/Save/Like, and the average/count now sits
+          inline next to the stars instead of as its own stacked line
+          above them (2026-10-15 round 2 — founder's own ask: keep
+          showing the number, just not duplicated right on top of the
+          interactive control). RateDropControl itself is the viewer's
+          own "rate this drop" action — distinct from each track's own
+          per-song rating in the tracklist below; the inline number is
+          just the drop's overall average, shown whenever anyone's
+          rated it. */}
+      <div className="rate-row">
+        <RateDropControl dropId={drop.id} initialRating={viewerRating ?? null} />
+        {drop.rating.count > 0 && (
+          <span className="mut rate-summary">
+            {drop.rating.average?.toFixed(1)} · {drop.rating.count}{" "}
+            {drop.rating.count === 1 ? "rating" : "ratings"}
+          </span>
+        )}
       </div>
 
       <Tracklist songs={curatorSongs} likedSet={likedSet} songRatings={songRatings} />

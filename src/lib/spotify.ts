@@ -276,7 +276,14 @@ export type CreatedPlaylist = { id: string; url: string };
 
 export async function createSpotifyPlaylist(
   accessToken: string,
-  name: string
+  name: string,
+  // Defaults to the site name (2026-10-15 — founder's own report: a
+  // playlist created with no description at all shows up on Spotify
+  // with its description literally reading "null," not blank — passing
+  // a real string avoids that Spotify quirk). Callers that want
+  // something more specific (see listenerPlaylist.ts) can still pass
+  // their own.
+  description = "project music club"
 ): Promise<CreatedPlaylist | null> {
   try {
     const res = await fetch(`${API_BASE}/me/playlists`, {
@@ -285,7 +292,7 @@ export async function createSpotifyPlaylist(
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ name, public: true }),
+      body: JSON.stringify({ name, public: true, description }),
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return null;

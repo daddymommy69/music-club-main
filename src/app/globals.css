@@ -795,37 +795,31 @@ input {
    and left-aligned, same spirit/placement as the line it replaces —
    this is a secondary action, not a full-width CTA like .btn-outline
    below it. */
-/* New primary CTA (2026-10-09 design-pass round — founder's own
-   report: "no clear primary action" — see PlayDropButton.tsx). Sits
-   right above the share control, which stays the small secondary
-   action it always was. */
+/* Primary CTA (2026-10-09 design-pass round — founder's own report:
+   "no clear primary action" — see PlayDropButton.tsx). As of 2026-10-15
+   it shares a row with the Spotify link instead of standing full-width
+   alone — see .listen-row-primary below, which owns the row's margin
+   now (this rule just keeps old markup that doesn't go through that
+   wrapper from losing its spacing). */
 .drop-detail .play-drop-btn {
   margin: 12px 0 14px;
 }
 
-.drop-detail .share-btn {
-  display: inline-flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 12px;
-  margin-bottom: 20px;
-  border-radius: 999px;
-  border: 1px solid var(--ln);
-  background: transparent;
-  color: var(--mut);
-  font-size: 11px;
-  cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
+/* Play + "Spotify ↗" side by side, half-width each (2026-10-15 —
+   founder's own ask: Play alone read as too heavy as the page's one
+   full-width action). Both children just flex evenly — when only one
+   is present (no Spotify playlist yet), it naturally fills the row,
+   same as before. */
+.drop-detail .listen-row-primary {
+  display: flex;
+  gap: 10px;
+  margin: 12px 0 14px;
 }
 
-.drop-detail .share-btn:hover {
-  color: var(--fg);
-  border-color: var(--fg);
-}
-
-.drop-detail .share-btn.is-copied {
-  color: var(--accent);
-  border-color: var(--accent);
+.drop-detail .listen-row-primary .btn {
+  width: auto;
+  flex: 1;
+  margin: 0;
 }
 
 .drop-detail .listen-row {
@@ -1534,22 +1528,25 @@ input {
   color: var(--accent);
 }
 
-/* Tightened (2026-10-09 design-pass round — founder's own report of an
-   "odd dead gap"): this line and .rate-control right below it are one
-   visual unit — the average rating, then the control for adding your
-   own — so they now sit close together, with the larger breathing room
-   (.rate-control's own margin-bottom) kept for the gap AFTER that whole
-   unit, before the listen-row that follows. */
-.drop-rating-line {
-  font-size: 11.5px;
-  color: var(--mut);
-  margin-bottom: 6px;
+/* Stars + the drop's average/count inline together (2026-10-15 round 2
+   — founder's own ask: move the whole rating block below Share/Save/
+   Like, but keep showing the number — just inline next to the stars
+   now instead of its own stacked line above them, which is what read
+   as a duplicate the first time around). */
+.rate-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 26px;
 }
 
 .rate-control {
   display: flex;
   gap: 4px;
-  margin-bottom: 26px;
+}
+
+.rate-summary {
+  font-size: 11.5px;
 }
 
 .rate-control button {
