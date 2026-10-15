@@ -867,7 +867,21 @@ input {
    then back down here (round 2 — "wider and thinner," paired with the
    flex:1 stretch above) — same corner language as Play/Spotify, but
    deliberately a shorter, lighter secondary row underneath it rather
-   than equal visual weight. */
+   than equal visual weight.
+   2026-10-15 round 3 — the plain var(--fill) grey background (used
+   for Share always, and for Save/Like whenever they're NOT yet active)
+   read as "harsh"/generic against the near-black page background —
+   founder's own report, with Share the only one of the three visible
+   in that state in his screenshots. Switched the neutral state to the
+   same transparent + 1px border language .btn-outline already uses
+   (the Spotify button right above this row) instead of a flat fill —
+   same move fixes a corner-rounding illusion he also flagged: a
+   low-contrast fill against black made the 5px radius hard to see at
+   all, while an actual border traces the curve clearly. The active
+   state (Save/Like once toggled on) keeps its solid soft-accent fill,
+   matching .btn-primary's own "filled = done/primary" convention
+   elsewhere on the site — border-color goes transparent there rather
+   than removed outright, so the box size never shifts on toggle. */
 .drop-action-btn {
   display: inline-flex;
   align-items: center;
@@ -876,14 +890,14 @@ input {
   height: 34px;
   padding: 0 14px;
   border-radius: 5px;
-  border: none;
-  background: var(--fill);
+  border: 1px solid var(--ln);
+  background: transparent;
   color: var(--fg);
   font-family: inherit;
   font-size: 12.5px;
   font-weight: 500;
   cursor: pointer;
-  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease;
+  transition: transform 0.15s ease, background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
 .drop-action-btn:hover {
@@ -896,6 +910,7 @@ input {
 
 .drop-action-btn.active {
   background: var(--acc-soft);
+  border-color: transparent;
   color: var(--accent);
 }
 
