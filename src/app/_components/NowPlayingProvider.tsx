@@ -780,12 +780,7 @@ function NowPlayingRating({ songId }: { songId: number }) {
   return (
     <div className="now-playing-rate">
       <LikeButton songId={songId} initialLiked={status.liked} initialCount={status.likeCount} />
-      <SongRatingControl
-        songId={songId}
-        initialRating={status.rating}
-        initialAverage={status.ratingAverage}
-        initialCount={status.ratingCount}
-      />
+      <SongRatingControl songId={songId} initialRating={status.rating} />
     </div>
   );
 }

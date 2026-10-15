@@ -305,12 +305,7 @@ function Tracklist({
                   claude/next-build.md). */}
               <div className="track-row-controls">
                 <LikeButton songId={song.id} initialLiked={likedSet.has(song.id)} initialCount={song.likeCount} />
-                <SongRatingControl
-                  songId={song.id}
-                  initialRating={songRatings[song.id] ?? null}
-                  initialAverage={song.rating.average}
-                  initialCount={song.rating.count}
-                />
+                <SongRatingControl songId={song.id} initialRating={songRatings[song.id] ?? null} />
               </div>
             </div>
           </div>

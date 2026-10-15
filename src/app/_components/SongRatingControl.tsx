@@ -8,20 +8,20 @@ import Link from "next/link";
  * claude/next-build.md): stacked with LikeButton next to a track row's
  * title/artist, "matching" its size — same compact bordered-chip
  * treatment as .like-btn, just with 5 small stars instead of a heart.
- * The public average/count ("shows everywhere") lives right inside the
- * same chip rather than as a separate line, so the two controls really
- * do stay the same size stacked on top of each other.
+ *
+ * 2026-10-15 — dropped the public average/count number that used to
+ * sit right after the stars ("4.5") — founder's own ask, as part of
+ * the same drop-page declutter as the whole-drop rating line. Just the
+ * star row now; a song's own average/count still lives in the DB
+ * (songRatings.ts) for whenever it's needed again, this just stopped
+ * rendering it here.
  */
 export default function SongRatingControl({
   songId,
   initialRating,
-  initialAverage,
-  initialCount,
 }: {
   songId: number;
   initialRating: number | null;
-  initialAverage: number | null;
-  initialCount: number;
 }) {
   const [rating, setRating] = useState(initialRating ?? 0);
   const [busy, setBusy] = useState(false);
@@ -69,9 +69,6 @@ export default function SongRatingControl({
           ★
         </button>
       ))}
-      {initialCount > 0 && (
-        <span className="song-rate-avg">{initialAverage?.toFixed(1)}</span>
-      )}
       {needsLogin && (
         <Link href="/account" className="mut" style={{ fontSize: 10 }}>
           Log in →

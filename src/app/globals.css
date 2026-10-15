@@ -851,13 +851,19 @@ input {
    solid-accent-fill active state ("too bright green") — still a real
    button with its own fill so it reads as tappable, just much
    quieter. */
+/* Height/radius match the site's base .btn (Play/Spotify above this
+   row) as of 2026-10-15 — founder's own report that Share/Save/Like
+   looked "out of place" with their own 38px/10px shape once they sat
+   right under Play/Spotify's 40px/5px one. Fill/border still differ on
+   purpose (these are secondary actions, not full-width CTAs), just the
+   box shape now matches every other button on the page. */
 .drop-action-btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 38px;
+  height: 40px;
   padding: 0 16px;
-  border-radius: 10px;
+  border-radius: 5px;
   border: none;
   background: var(--fill);
   color: var(--fg);
@@ -1039,12 +1045,6 @@ input {
 
 .song-rate-control button.filled {
   color: var(--accent);
-}
-
-.song-rate-avg {
-  margin-left: 4px;
-  font-size: 11px;
-  color: var(--mut);
 }
 
 /* Per-song embedded player — the iframe itself sets its own chrome, so
