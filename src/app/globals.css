@@ -836,8 +836,17 @@ input {
 .drop-controls-row {
   display: flex;
   gap: 10px;
-  flex-wrap: wrap;
   margin-bottom: 26px;
+}
+
+/* Stretch to share the row evenly instead of clumping to the left at
+   their own content width (2026-10-15 round 2 — founder's own report
+   that the live page didn't match the preview: wanted "wider and
+   thinner" — full-bleed like the Play/Spotify row above them, just a
+   shorter, lighter-weight version of it for these secondary actions). */
+.drop-controls-row .drop-action-btn {
+  flex: 1;
+  justify-content: center;
 }
 
 /* Bigger + filled-when-active (2026-10-07 "make it easier to like and
@@ -851,18 +860,21 @@ input {
    solid-accent-fill active state ("too bright green") — still a real
    button with its own fill so it reads as tappable, just much
    quieter. */
-/* Height/radius match the site's base .btn (Play/Spotify above this
-   row) as of 2026-10-15 — founder's own report that Share/Save/Like
-   looked "out of place" with their own 38px/10px shape once they sat
-   right under Play/Spotify's 40px/5px one. Fill/border still differ on
-   purpose (these are secondary actions, not full-width CTAs), just the
-   box shape now matches every other button on the page. */
+/* Radius matches the site's base .btn (Play/Spotify above this row) as
+   of 2026-10-15 — founder's own report that Share/Save/Like looked
+   "out of place" with their own 10px-radius shape right under Play/
+   Spotify's 5px one. Height went to 40px to match in that same round,
+   then back down here (round 2 — "wider and thinner," paired with the
+   flex:1 stretch above) — same corner language as Play/Spotify, but
+   deliberately a shorter, lighter secondary row underneath it rather
+   than equal visual weight. */
 .drop-action-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  height: 40px;
-  padding: 0 16px;
+  height: 34px;
+  padding: 0 14px;
   border-radius: 5px;
   border: none;
   background: var(--fill);
