@@ -31,19 +31,24 @@ export async function generateMetadata(): Promise<Metadata> {
       : "curated by jacob & friends";
   const pageUrl = siteUrl("/releases");
 
+  // Link-preview title only (2026-10-16 — founder's own report:
+  // "when sharing the releases, it says drop so far on the link, just
+  // make it say releases"). The on-page <h1> a few lines down keeps its
+  // own "Every drop so far" heading — that's a different, unrelated
+  // piece of copy he didn't ask to change.
   return {
-    title: "Every drop so far",
+    title: "Releases",
     description,
     alternates: { canonical: pageUrl },
     openGraph: {
-      title: "Every drop so far",
+      title: "Releases",
       description,
       url: pageUrl,
       siteName: "project music club",
     },
     twitter: {
       card: "summary",
-      title: "Every drop so far",
+      title: "Releases",
       description,
     },
   };
