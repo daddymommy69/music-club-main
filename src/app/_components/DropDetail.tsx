@@ -308,6 +308,21 @@ function Tracklist({
                 <SongRatingControl songId={song.id} initialRating={songRatings[song.id] ?? null} />
               </div>
             </div>
+            {/* Per-song curator blurbs (2026-10-16 — see
+                CuratorToolsPanel.tsx's NotesCard for the write side).
+                Sits under the whole row rather than inside
+                track-row-body, which is a two-column space-between
+                flex row that a third block wouldn't fit into cleanly. */}
+            {song.notes.length > 0 && (
+              <div className="track-notes">
+                {song.notes.map((note, j) => (
+                  <div className="track-note" key={j}>
+                    <RoleName name={note.curatorName} isCurator />
+                    {note.text}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
         </div>

@@ -8,6 +8,7 @@ import { formatRelativeTime } from "@/lib/relativeTime";
 import FallbackImg from "./FallbackImg";
 import ShipDropCard from "./ShipDropCard";
 import Top10Card, { type Top10CardProps } from "./Top10Card";
+import RoleName from "./RoleName";
 
 /**
  * The curator workspace (formerly the standalone /room + /overview
@@ -109,6 +110,19 @@ type MissingPlaylistDrop = {
   title: string | null;
 };
 
+/** One curator's blurb — about the drop, or about a single song,
+ * depending on which list it's in (2026-10-16 — see NotesCard below).
+ * `mine` is computed server-side (src/app/account/page.tsx) from the
+ * viewer's own member id, so the composer can pre-fill the viewer's
+ * own text and leave it out of "everyone else's" list without the
+ * client needing to know its own id for anything else. */
+type Note = {
+  curatorId: number;
+  curatorName: string;
+  text: string;
+  mine: boolean;
+};
+
 export type CuratorToolsPanelProps = {
   dropNum: number;
   isManual: boolean;
@@ -125,6 +139,12 @@ export type CuratorToolsPanelProps = {
   canceledDrop: CanceledDrop | null;
   top10: Top10CardProps | null;
   dropsMissingPlaylist: MissingPlaylistDrop[];
+  /** The open drop's own "about this drop" blurbs, one per curator who's
+   * written one (2026-10-16). Empty whenever there's no open drop. */
+  dropNotes: Note[];
+  /** Per-song blurbs for the open drop, keyed by song id (2026-10-16).
+   * A song with no blurbs yet just has no entry here. */
+  songNotes: Record<number, Note[]>;
 };
 
 type DuplicateInfo = { title: string | null; artist: string | null };
@@ -173,6 +193,8 @@ export default function CuratorToolsPanel({
   canceledDrop,
   top10,
   dropsMissingPlaylist,
+  dropNotes,
+  songNotes,
 }: CuratorToolsPanelProps) {
   const router = useRouter();
 
@@ -213,6 +235,18 @@ export default function CuratorToolsPanel({
         <>
           <AddPick onAdded={refresh} />
           <PicksCard picks={picks} onRemoved={refresh} />
+          {shipCandidate && (
+            <NotesCard
+              dropNum={shipCandidate.dropNum}
+              title={shipCandidate.title}
+              startedBy={shipCandidate.startedBy}
+              titleUpdatedBy={shipCandidate.titleUpdatedBy}
+              picks={picks}
+              dropNotes={dropNotes}
+              songNotes={songNotes}
+              onChanged={refresh}
+            />
+          )}
         </>
       )}
 
@@ -520,23 +554,13 @@ function toDatetimeLocalValue(iso: string): string {
  * CanceledDropBanner above for the un-cancel side of that.
  */
 function ManageDropCard({ shipCandidate, onChanged }: { shipCandidate: ShipCandidate; onChanged: () => void }) {
-  const { dropId, dropNum, title, pickCount, startedBy, titleUpdatedBy, scheduledShipAt } = shipCandidate;
+  const { dropId, dropNum, pickCount, scheduledShipAt } = shipCandidate;
 
   return (
     <div className="ct-card-emphasis gz-up" style={{ marginTop: 20 }} key={dropId}>
       <p className="label" style={{ marginBottom: 10 }}>
         Manage drop {dropNum}
       </p>
-
-      <RenameDropField
-        dropNum={dropNum}
-        title={title}
-        startedBy={startedBy}
-        titleUpdatedBy={titleUpdatedBy}
-        onChanged={onChanged}
-      />
-
-      <hr className="hairline" style={{ margin: "16px 0" }} />
 
       <ScheduleShipField scheduledShipAt={scheduledShipAt} onChanged={onChanged} />
 
@@ -554,8 +578,12 @@ function ManageDropCard({ shipCandidate, onChanged }: { shipCandidate: ShipCandi
 /** Any current curator can rename an open drop, any time before it
  * ships (founder's own answers: "whoever is a curator during the time
  * of the drop can rename it," "just before the drop, cant change
- * after" — the field living only inside the open-drop Manage panel is
- * what enforces the latter; there's nothing to lock separately). */
+ * after" — the field living only inside the open-drop Notes/Details
+ * panel below is what enforces the latter; there's nothing to lock
+ * separately). Moved here from Manage drop N (2026-10-16 — the
+ * founder's own ask: "no place to change the name" in the new blurb
+ * area, so rename now lives in the same card as the blurbs instead of
+ * being split off into Manage drop N further down). */
 function RenameDropField({
   dropNum,
   title,
@@ -659,6 +687,191 @@ function RenameDropField({
           Cancel
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * "Drop {N} details" (2026-10-16 — founder's own ask: an area in
+ * curator tools to write a blurb about each song, maybe about the drop
+ * too, and a place to rename the drop since there wasn't one "in this
+ * area"). Rename is the same RenameDropField as before, just relocated
+ * here from Manage drop N below. The drop blurb reuses curatorNotes
+ * (it already had public display built, see DropDetail.tsx — this is
+ * only the write side); song blurbs are the new songNotes table, same
+ * one-row-per-curator pattern. Any current curator can write their own
+ * blurb for the drop and for any individual song — more than one
+ * curator's blurb can exist for the same song, each attributed by name
+ * (RoleName) wherever it's shown. The drop blurb also goes out in the
+ * release email (src/lib/messages.ts's releaseEmailHtml). Scoped to
+ * the open drop only, same as rename — the founder's own "only new
+ * drops necessary" call, nothing here reaches back into a shipped
+ * drop.
+ */
+function NotesCard({
+  dropNum,
+  title,
+  startedBy,
+  titleUpdatedBy,
+  picks,
+  dropNotes,
+  songNotes,
+  onChanged,
+}: {
+  dropNum: number;
+  title: string | null;
+  startedBy: string | null;
+  titleUpdatedBy: string | null;
+  picks: Pick[];
+  dropNotes: Note[];
+  songNotes: Record<number, Note[]>;
+  onChanged: () => void;
+}) {
+  return (
+    <div className="ct-card-emphasis gz-up" style={{ marginTop: 20 }}>
+      <p className="label" style={{ marginBottom: 10 }}>
+        Drop {dropNum} details
+      </p>
+
+      <RenameDropField
+        dropNum={dropNum}
+        title={title}
+        startedBy={startedBy}
+        titleUpdatedBy={titleUpdatedBy}
+        onChanged={onChanged}
+      />
+
+      <hr className="hairline" style={{ margin: "16px 0" }} />
+
+      <p className="label" style={{ marginBottom: 8 }}>
+        About this drop
+      </p>
+      <BlurbField
+        notes={dropNotes}
+        placeholder="What's this drop about? (shows on the drop page and in the release email)"
+        onSave={async (text) => {
+          const res = await fetch("/api/overview/drop-note", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error ?? "Couldn't save that. Try again.");
+        }}
+        onChanged={onChanged}
+      />
+
+      {picks.length > 0 && (
+        <>
+          <hr className="hairline" style={{ margin: "16px 0" }} />
+          <p className="label" style={{ marginBottom: 10 }}>
+            Song blurbs
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            {picks.map((p) => (
+              <div key={p.id}>
+                <p className="mut" style={{ fontSize: 11.5, marginBottom: 6 }}>
+                  {p.title} — {p.artist}
+                </p>
+                <BlurbField
+                  notes={songNotes[p.id] ?? []}
+                  placeholder="Say something about this song (shows on the drop page)"
+                  onSave={async (text) => {
+                    const res = await fetch("/api/overview/song-note", {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ songId: p.id, text }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(data.error ?? "Couldn't save that. Try again.");
+                  }}
+                  onChanged={onChanged}
+                />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** One blurb composer — the viewer's own textarea (pre-filled with
+ * whatever they already wrote, blank otherwise) plus everyone else's
+ * existing blurbs underneath, attributed by name. Shared by the drop
+ * blurb and every song blurb in NotesCard above — only the placeholder
+ * and save target differ, passed in via onSave. Reuses the same
+ * .curator-notes/.curator-note classes the public drop page's curator
+ * notes block already uses (globals.css) for the "everyone else's"
+ * list, so it reads the same way here as it will once it's live. */
+function BlurbField({
+  notes,
+  placeholder,
+  onSave,
+  onChanged,
+}: {
+  notes: Note[];
+  placeholder: string;
+  onSave: (text: string) => Promise<void>;
+  onChanged: () => void;
+}) {
+  const mine = notes.find((n) => n.mine);
+  const others = notes.filter((n) => !n.mine);
+  const [value, setValue] = useState(mine?.text ?? "");
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(value);
+      setDirty(false);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save that. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div>
+      <textarea
+        className="settings-input"
+        style={{ resize: "vertical", padding: "10px 12px", lineHeight: 1.6, minHeight: 60 }}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => {
+          setValue(e.target.value);
+          setDirty(true);
+        }}
+      />
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+        <button
+          type="button"
+          className="btn"
+          style={{ width: "auto", minHeight: 30, height: 30, padding: "0 12px", fontSize: 11.5 }}
+          disabled={saving || !dirty}
+          onClick={save}
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
+        {error && <p className="notice error">{error}</p>}
+      </div>
+      {others.length > 0 && (
+        <div className="curator-notes" style={{ marginTop: 14, gap: 12 }}>
+          {others.map((n, i) => (
+            <div className="curator-note" key={i}>
+              <div className="curator-name">
+                <RoleName name={n.curatorName} isCurator />
+              </div>
+              <div className="note-text">{n.text}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

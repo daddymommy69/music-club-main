@@ -6,6 +6,7 @@ import { getDefaultClub } from "@/lib/club";
 import { getSessionMember } from "@/lib/memberSession";
 import { getOpenDrop, getRoomData } from "@/lib/room";
 import { getOverviewData } from "@/lib/overview";
+import { getDropNotes, getSongNotesForDrop, type NoteRow } from "@/lib/notes";
 import { getTargetDropForTop10, getTop10Summary } from "@/lib/top10Data";
 import { getListenerPick } from "@/lib/listenerPicks";
 import { getMemberSubmissionHistory } from "@/lib/memberProfile";
@@ -25,12 +26,18 @@ const LIKED_SONGS_LIMIT = 20;
  * those pages were folded into /account (2026-10 account consolidation
  * — see claude/next-build.md).
  */
-async function getCuratorToolsProps(club: Club, openDrop: Drop | null): Promise<CuratorToolsPanelProps> {
-  const [overview, room, top10Drop, dropsMissingPlaylist] = await Promise.all([
+async function getCuratorToolsProps(
+  club: Club,
+  openDrop: Drop | null,
+  viewerId: number
+): Promise<CuratorToolsPanelProps> {
+  const [overview, room, top10Drop, dropsMissingPlaylist, dropNoteRows, songNoteMap] = await Promise.all([
     getOverviewData(club),
     openDrop ? getRoomData(club, openDrop) : Promise.resolve(null),
     getTargetDropForTop10(club.id),
     getDropsMissingPlaylist(club.id),
+    openDrop ? getDropNotes(openDrop.id) : Promise.resolve([] as NoteRow[]),
+    openDrop ? getSongNotesForDrop(openDrop.id) : Promise.resolve({} as Record<number, NoteRow[]>),
   ]);
   const top10Summary = top10Drop ? await getTop10Summary(top10Drop) : null;
   const top10Visible =
@@ -119,6 +126,17 @@ async function getCuratorToolsProps(club: Club, openDrop: Drop | null): Promise<
         }
       : null,
     dropsMissingPlaylist,
+    // "Mine" lets the composer pre-fill the viewer's own textarea and
+    // keep it out of the "everyone else's blurbs" list below it,
+    // without the client ever needing to know its own member id for
+    // anything else (2026-10-16 — see CuratorToolsPanel.tsx's NotesCard).
+    dropNotes: dropNoteRows.map((n) => ({ ...n, mine: n.curatorId === viewerId })),
+    songNotes: Object.fromEntries(
+      Object.entries(songNoteMap).map(([songId, notes]) => [
+        songId,
+        notes.map((n) => ({ ...n, mine: n.curatorId === viewerId })),
+      ])
+    ),
   };
 }
 
@@ -217,7 +235,7 @@ export default async function AccountPage() {
       // real server-side gate (AccountBoard's own `member.isCurator`
       // check is just what decides whether to render it, not whether
       // the data exists at all).
-      member.isCurator ? getCuratorToolsProps(club, openDrop) : Promise.resolve(null),
+      member.isCurator ? getCuratorToolsProps(club, openDrop, member.id) : Promise.resolve(null),
     ]);
 
   return (

@@ -30,7 +30,7 @@ export default function SiteHeader() {
           project music club
         </Link>
         <p className="mut" style={{ fontSize: 11.5, marginTop: 4 }}>
-          A shared playlist, sent to you.
+          curated by jacob &amp; friends
         </p>
         <nav
           style={{

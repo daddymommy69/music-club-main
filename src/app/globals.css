@@ -3,6 +3,21 @@
 @import "@fontsource/jetbrains-mono/700.css";
 @import "@fontsource/martian-mono/700.css";
 
+/* The founder's dad's custom font (2026-10-16 — see
+   src/app/_components/SiteFooter.tsx's own comment), scoped to just
+   the site-wide footer signature via .site-footer below — never
+   applied anywhere else on the site. Served from /public/fonts since
+   it isn't an installed package like the fonts above. The uploaded
+   file is actually TrueType data despite its original .otf name (see
+   the delivery notes) — format("truetype") matches the real bytes. */
+@font-face {
+  font-family: "IceCityArchitect";
+  src: url("/fonts/IceCityArchitect-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 /*
  * Design tokens — values are from the design handoff
  * (claude/design-handoff.md), reproduced exactly. Light is the
@@ -2048,4 +2063,57 @@ input {
   .info-tip:hover .info-tip-bubble {
     display: block;
   }
+}
+
+/* Site-wide footer signature (2026-10-16 — see SiteFooter.tsx's own
+   comment). Fixed in the bottom-right corner on every page, same spot
+   regardless of scroll — the founder's own call, "just have it float
+   down there bottom right corner." pointer-events: none on the
+   wrapper + auto on just the link keeps this tiny corner from ever
+   blocking a click on whatever's underneath it except the link itself. */
+.site-footer {
+  position: fixed;
+  bottom: 14px;
+  right: 16px;
+  z-index: 40;
+  pointer-events: none;
+}
+
+.site-footer a {
+  pointer-events: auto;
+  font-family: "IceCityArchitect", var(--font-display), sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  color: var(--mut);
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  color: var(--fg);
+}
+
+/* Per-song blurbs (2026-10-16 — see DropDetail.tsx's Tracklist, and
+   CuratorToolsPanel.tsx's NotesCard for where curators write these).
+   Sits under the whole track row, indented to roughly line up under
+   the title/artist text (18px num + 14px gap + 40px art + 14px gap =
+   86px) rather than under the row's left edge. Same curator-notes/
+   curator-note classes below (the drop-level blurb block) are reused
+   as-is inside the curator tools composer's "everyone else's blurbs"
+   list — this block is just the public, per-song, on-the-drop-page
+   version, smaller since it repeats once per track. */
+.track-notes {
+  margin: 4px 0 0 86px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.track-notes .track-note {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--mut);
+}
+
+.track-notes .track-note .role-name {
+  margin-right: 4px;
 }

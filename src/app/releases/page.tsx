@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import SiteHeader from "@/app/_components/SiteHeader";
 import SignupPopup from "@/app/_components/SignupPopup";
@@ -7,10 +8,46 @@ import { getDefaultClub } from "@/lib/club";
 import { getPublishedDrops, getPublicStats } from "@/lib/archive";
 import { getDropStatus } from "@/lib/dropStatus";
 import { formatDropMeta, formatScheduledDate } from "@/lib/format";
+import { siteUrl } from "@/lib/site";
 
 // Drops change whenever curators ship a new one — never freeze this
 // at build time.
 export const dynamic = "force-dynamic";
+
+/**
+ * Link-preview metadata for the home/releases page (2026-10-15 —
+ * founder's own ask, "make it consistent for the link adding," once
+ * the per-drop version shipped). Same idea as drop/[num]/page.tsx's
+ * generateMetadata: a real description instead of the static layout
+ * default, built from the same getPublicStats() totals already shown
+ * on this page, so sharing the home link previews with real numbers.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const club = await getDefaultClub();
+  const stats = await getPublicStats(club.id);
+  const description =
+    stats.dropCount > 0
+      ? `${stats.dropCount} drops, ${stats.songCount} songs, from ${stats.artistCount} artists.`
+      : "curated by jacob & friends";
+  const pageUrl = siteUrl("/releases");
+
+  return {
+    title: "Every drop so far",
+    description,
+    alternates: { canonical: pageUrl },
+    openGraph: {
+      title: "Every drop so far",
+      description,
+      url: pageUrl,
+      siteName: "project music club",
+    },
+    twitter: {
+      card: "summary",
+      title: "Every drop so far",
+      description,
+    },
+  };
+}
 
 // Releases is the site's home page (design decision, 2026-10) — "/"
 // just redirects here. Lived at /archive until 2026-10, when the URL

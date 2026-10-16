@@ -659,6 +659,40 @@ export type LoginCode = typeof loginCodes.$inferSelect;
 export type NewLoginCode = typeof loginCodes.$inferInsert;
 export type CuratorNote = typeof curatorNotes.$inferSelect;
 export type NewCuratorNote = typeof curatorNotes.$inferInsert;
+
+/**
+ * Per-song blurbs (2026-10-16 — founder's own ask: "add an area in the
+ * curator area where we can write a blurb about each song... anyone
+ * can write about each song"). Exact same shape/pattern as
+ * curatorNotes above, just keyed by songId instead of dropId — one row
+ * per curator per song, so "more than one blurb per song" falls out
+ * naturally (each curator keeps their own; nothing stops two curators
+ * from each writing one for the same song). Shown publicly under each
+ * track on the drop page (src/lib/archive.ts, DropDetail.tsx) and the
+ * writer's name attributed via RoleName, same as curatorNotes always
+ * has been. Written from the new curator-tools "Drop details" card
+ * (CuratorToolsPanel.tsx's NotesCard) — src/app/api/overview/song-note.
+ */
+export const songNotes = pgTable(
+  "song_notes",
+  {
+    id: serial("id").primaryKey(),
+    songId: integer("song_id")
+      .notNull()
+      .references(() => songs.id, { onDelete: "cascade" }),
+    curatorId: integer("curator_id")
+      .notNull()
+      .references(() => members.id, { onDelete: "cascade" }),
+    text: text("text").notNull().default(""),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [unique().on(table.songId, table.curatorId)],
+);
+
+export type SongNote = typeof songNotes.$inferSelect;
+export type NewSongNote = typeof songNotes.$inferInsert;
 export type Comment = typeof comments.$inferSelect;
 export type NewComment = typeof comments.$inferInsert;
 export type Top10Entry = typeof top10Entries.$inferSelect;

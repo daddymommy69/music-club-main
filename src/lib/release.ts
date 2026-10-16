@@ -6,6 +6,7 @@ import { sendSms } from "./sms";
 import { sendEmail } from "./email";
 import { releaseSmsBody, releaseEmailHtml, top10ReleaseSmsBody, top10ReleaseEmailHtml } from "./messages";
 import { generateMemberToken } from "./memberToken";
+import { getDropNotes } from "./notes";
 
 /**
  * The drop that hasn't shipped yet (or most recent one, if all have).
@@ -76,6 +77,12 @@ export async function sendDropToSubscribers(drop: Drop, shippedBy?: string) {
     return { sent: 0, skipped: "already shipped, or canceled just before it could ship" };
   }
 
+  // Fetched once, outside the per-subscriber loop below (2026-10-16 —
+  // the founder's own "this blurb will be the email writing as well"
+  // ask) — every subscriber's email gets the same curator blurb(s)
+  // about this drop, not a per-recipient query.
+  const dropNotes = await getDropNotes(drop.id);
+
   const active = await db
     .select()
     .from(members)
@@ -113,7 +120,7 @@ export async function sendDropToSubscribers(drop: Drop, shippedBy?: string) {
         // memberToken — it links to the drop's own public page now,
         // not a personal /you link — memberToken is still generated
         // above for the SMS body just below, which is unchanged.
-        await sendEmail(sub.email, "new playlist is here", releaseEmailHtml(drop));
+        await sendEmail(sub.email, "new playlist is here", releaseEmailHtml(drop, dropNotes));
       }
       sent += 1;
     } catch (err) {

@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { getDb } from "@/db/client";
-import { drops, songs, curatorNotes, members, top10Entries, type Drop } from "@/db/schema";
+import { drops, songs, curatorNotes, songNotes, members, top10Entries, type Drop } from "@/db/schema";
 import { getTop10Phase } from "./top10";
 import { getTop10Summary } from "./top10Data";
 import { getLikeCounts } from "./songLikes";
@@ -146,6 +146,11 @@ export type PublicSongRow = {
    * round — see claude/next-build.md) — same null-means-nobody's-rated-
    * it-yet contract as the whole-drop rating above. */
   rating: SongRatingSummary;
+  /** Per-curator blurbs about this song (2026-10-16 — see
+   * CuratorToolsPanel.tsx's NotesCard for the write side). Empty when
+   * nobody's written one — same shape as the drop-level notes below,
+   * one entry per curator who has. */
+  notes: PublicCuratorNote[];
 };
 
 export type PublicCuratorNote = {
@@ -234,12 +239,33 @@ export async function getPublicDrop(
     .where(eq(songs.dropId, drop.id))
     .orderBy(asc(songs.position));
 
-  const [likeCounts, ratingSummary, dropLikeCounts, songRatingSummaries] = await Promise.all([
+  const [likeCounts, ratingSummary, dropLikeCounts, songRatingSummaries, songNoteRows] = await Promise.all([
     getLikeCounts(songRows.map((s) => s.id)),
     getDropRatingSummary(drop.id),
     getDropLikeCounts([drop.id]),
     getSongRatingSummaries(songRows.map((s) => s.id)),
+    // Per-song blurbs (2026-10-16) — guarded the same way as the helpers
+    // above implicitly are: a drop with no songs has nothing to query.
+    songRows.length > 0
+      ? db
+          .select({ songId: songNotes.songId, curatorName: members.name, text: songNotes.text })
+          .from(songNotes)
+          .innerJoin(members, eq(songNotes.curatorId, members.id))
+          .where(
+            inArray(
+              songNotes.songId,
+              songRows.map((s) => s.id)
+            )
+          )
+      : Promise.resolve([]),
   ]);
+
+  const songNotesBySongId = new Map<number, PublicCuratorNote[]>();
+  for (const row of songNoteRows) {
+    const list = songNotesBySongId.get(row.songId) ?? [];
+    list.push({ curatorName: row.curatorName ?? "", text: row.text });
+    songNotesBySongId.set(row.songId, list);
+  }
 
   const publicSongs: PublicSongRow[] = songRows.map((s) => ({
     id: s.id,
@@ -254,6 +280,7 @@ export async function getPublicDrop(
     listenerIsCurator: s.pickType === "listener" ? s.listenerIsCurator ?? false : false,
     likeCount: likeCounts.get(s.id) ?? 0,
     rating: songRatingSummaries.get(s.id) ?? { average: null, count: 0 },
+    notes: songNotesBySongId.get(s.id) ?? [],
   }));
 
   // members.name is nullable (unlike the old curators.name, which was

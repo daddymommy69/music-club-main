@@ -119,15 +119,31 @@ function dropCoverImageUrl(dropNum: number) {
  * here is personalized. drop.spotifyUrl is null only when a drop
  * shipped with just an Apple Music link pasted in by hand; the "on
  * spotify" link is simply skipped in that case rather than pointing
- * nowhere — the drop's own page still has the Apple Music option. */
-export function releaseEmailHtml(drop: Drop) {
+ * nowhere — the drop's own page still has the Apple Music option.
+ *
+ * `notes` (2026-10-16 — founder's own ask: "this blurb will be the
+ * email writing as well") is whatever curators wrote in the new
+ * "About this drop" blurb (CuratorToolsPanel.tsx's NotesCard) — the
+ * drop-level blurb only; the per-song blurbs show on the drop page
+ * itself but aren't folded into this email, since the email doesn't
+ * list individual songs at all today. Caller (src/lib/release.ts)
+ * fetches these once before the send loop and passes them in; empty
+ * when nobody's written one, same quiet-by-default spirit as every
+ * other optional block here. */
+export function releaseEmailHtml(drop: Drop, notes: { curatorName: string; text: string }[] = []) {
   const label = drop.title ? `drop ${drop.num} — "${drop.title}"` : `drop ${drop.num}`;
   const page = dropUrl(drop.num);
   const cover = `<a href="${page}"><img src="${dropCoverImageUrl(
     drop.num
   )}" alt="${label}" width="320" style="display:block;max-width:100%;height:auto;border:0;" /></a>`;
   const spotifyLink = drop.spotifyUrl ? ` or go straight to it <a href="${drop.spotifyUrl}">on spotify</a>` : "";
-  return `<p>new playlist from <strong>${CLUB_NAME}</strong> — ${label}.</p>${cover}<p><a href="${page}">check it out</a>${spotifyLink}.</p>`;
+  const notesHtml = notes
+    .map(
+      (n) =>
+        `<p>${n.text}<br/><span style="color:#888;font-size:12px;">— ${n.curatorName}</span></p>`
+    )
+    .join("");
+  return `<p>new playlist from <strong>${CLUB_NAME}</strong> — ${label}.</p>${cover}${notesHtml}<p><a href="${page}">check it out</a>${spotifyLink}.</p>`;
 }
 
 /** Sent once a curator pastes in the Top 10 playlist link — i.e. only
