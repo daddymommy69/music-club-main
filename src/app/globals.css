@@ -288,6 +288,22 @@ input {
   flex: 1;
 }
 
+/* "Saved ✓" resting state for a blurb's Save button (2026-10-16 —
+   founder's own report that saving "doesn't really feel like
+   anything saved," confirmed he wants the site's existing green
+   "done" look reused here, same formula as .drop-action-btn.active/
+   .tops-fav-toggle.active, rather than a one-off style of its own).
+   Stays up until the textarea is edited again (BlurbField clears
+   savedState on change), not just a brief toast — paired with the
+   .gz-pop entrance animation on the button itself for the "more
+   animation" he asked for. */
+.btn.blurb-saved {
+  background: var(--acc-soft);
+  border-color: transparent;
+  color: var(--accent);
+  cursor: default;
+}
+
 .btn-outline {
   height: 40px;
   width: 100%;

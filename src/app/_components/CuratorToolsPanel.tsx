@@ -759,6 +759,18 @@ function BlurbField({
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Whether the textarea's current contents match what's actually
+  // persisted — starts true when there's already a saved note on
+  // load, goes false the instant you type (2026-10-16 — founder's own
+  // report: "when saving a blurb, it doesnt really feel like anything
+  // saved", confirmed he wants it to reuse the site's existing green
+  // "done" language and "stay visible until you edit it again" rather
+  // than a one-off toast). `pulseKey` just forces the "Saved ✓" button
+  // to remount on every successful save so its .gz-pop entrance
+  // animation (same keyframe Like/Save "done" states already use)
+  // replays each time, not only the first.
+  const [savedState, setSavedState] = useState(!!mine);
+  const [pulseKey, setPulseKey] = useState(0);
 
   async function save() {
     setSaving(true);
@@ -766,6 +778,8 @@ function BlurbField({
     try {
       await onSave(value);
       setDirty(false);
+      setSavedState(true);
+      setPulseKey((k) => k + 1);
       onChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't save that. Try again.");
@@ -784,18 +798,31 @@ function BlurbField({
         onChange={(e) => {
           setValue(e.target.value);
           setDirty(true);
+          setSavedState(false);
         }}
       />
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
-        <button
-          type="button"
-          className="btn"
-          style={{ width: "auto", minHeight: 30, height: 30, padding: "0 12px", fontSize: 11.5 }}
-          disabled={saving || !dirty}
-          onClick={save}
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
+        {!saving && !dirty && savedState ? (
+          <button
+            key={pulseKey}
+            type="button"
+            className="btn blurb-saved gz-pop"
+            style={{ width: "auto", minHeight: 30, height: 30, padding: "0 12px", fontSize: 11.5 }}
+            disabled
+          >
+            Saved ✓
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn"
+            style={{ width: "auto", minHeight: 30, height: 30, padding: "0 12px", fontSize: 11.5 }}
+            disabled={saving || !dirty}
+            onClick={save}
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+        )}
         {error && <p className="notice error">{error}</p>}
       </div>
       {others.length > 0 && (
