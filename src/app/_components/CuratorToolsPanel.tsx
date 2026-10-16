@@ -795,6 +795,18 @@ function BlurbField({
         style={{ resize: "vertical", padding: "10px 12px", lineHeight: 1.6, minHeight: 60 }}
         placeholder={placeholder}
         value={value}
+        // Opted out of the device's own text-replacement/autocorrect
+        // engine (2026-10-16 — founder's report: typing repeated
+        // periods quickly on iOS was swallowing characters after the
+        // 2nd one). Every iOS browser runs on WebKit regardless of
+        // which app it is, so this isn't Safari-specific — any iOS
+        // browser can trigger it. These four attributes are the
+        // standard opt-out; they don't change anything for anyone
+        // typing normally.
+        autoCorrect="off"
+        autoCapitalize="off"
+        autoComplete="off"
+        spellCheck={false}
         onChange={(e) => {
           setValue(e.target.value);
           setDirty(true);
