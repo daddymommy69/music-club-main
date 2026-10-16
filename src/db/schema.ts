@@ -381,23 +381,35 @@ export const loginCodes = pgTable("login_codes", {
     .defaultNow(),
 });
 
-export const curatorNotes = pgTable(
-  "curator_notes",
-  {
-    id: serial("id").primaryKey(),
-    dropId: integer("drop_id")
-      .notNull()
-      .references(() => drops.id, { onDelete: "cascade" }),
-    curatorId: integer("curator_id")
-      .notNull()
-      .references(() => members.id, { onDelete: "cascade" }),
-    text: text("text").notNull().default(""),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [unique().on(table.dropId, table.curatorId)],
-);
+/**
+ * 2026-10-16 "feed of posts" redesign — founder's own ask, after the
+ * original one-row-per-curator model (upserted forever, see git
+ * history) didn't actually feel like "saving" anything: every row here
+ * used to be the one editable draft a curator kept rewriting. No more
+ * unique(dropId, curatorId) — a curator can post as many of these as
+ * they want now, each one its own standalone, individually timestamped
+ * entry, editable/deletable only by whoever wrote it (checked by
+ * curatorId match at the query layer in src/lib/notes.ts, not just by
+ * what the UI exposes). createdAt is the post's own fixed moment;
+ * updatedAt moves on edit — the UI treats a gap between the two as
+ * "edited."
+ */
+export const curatorNotes = pgTable("curator_notes", {
+  id: serial("id").primaryKey(),
+  dropId: integer("drop_id")
+    .notNull()
+    .references(() => drops.id, { onDelete: "cascade" }),
+  curatorId: integer("curator_id")
+    .notNull()
+    .references(() => members.id, { onDelete: "cascade" }),
+  text: text("text").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 /**
  * Subscriber Top 10 (design-handoff.md doesn't cover this — it's the old
@@ -673,23 +685,26 @@ export type NewCuratorNote = typeof curatorNotes.$inferInsert;
  * has been. Written from the new curator-tools "Drop details" card
  * (CuratorToolsPanel.tsx's NotesCard) — src/app/api/overview/song-note.
  */
-export const songNotes = pgTable(
-  "song_notes",
-  {
-    id: serial("id").primaryKey(),
-    songId: integer("song_id")
-      .notNull()
-      .references(() => songs.id, { onDelete: "cascade" }),
-    curatorId: integer("curator_id")
-      .notNull()
-      .references(() => members.id, { onDelete: "cascade" }),
-    text: text("text").notNull().default(""),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [unique().on(table.songId, table.curatorId)],
-);
+/** Same "feed of posts" redesign as curatorNotes above (2026-10-16) —
+ * no more unique(songId, curatorId), createdAt added alongside the
+ * existing updatedAt. See curatorNotes's own comment for the full
+ * rationale; this table is otherwise unchanged. */
+export const songNotes = pgTable("song_notes", {
+  id: serial("id").primaryKey(),
+  songId: integer("song_id")
+    .notNull()
+    .references(() => songs.id, { onDelete: "cascade" }),
+  curatorId: integer("curator_id")
+    .notNull()
+    .references(() => members.id, { onDelete: "cascade" }),
+  text: text("text").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 export type SongNote = typeof songNotes.$inferSelect;
 export type NewSongNote = typeof songNotes.$inferInsert;

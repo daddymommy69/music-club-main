@@ -126,15 +126,26 @@ async function getCuratorToolsProps(
         }
       : null,
     dropsMissingPlaylist,
-    // "Mine" lets the composer pre-fill the viewer's own textarea and
-    // keep it out of the "everyone else's blurbs" list below it,
-    // without the client ever needing to know its own member id for
-    // anything else (2026-10-16 — see CuratorToolsPanel.tsx's NotesCard).
-    dropNotes: dropNoteRows.map((n) => ({ ...n, mine: n.curatorId === viewerId })),
+    // "Mine" lets the feed show Edit/Delete only on the viewer's own
+    // posts, without the client ever needing to know its own member id
+    // for anything else (2026-10-16 — see CuratorToolsPanel.tsx's
+    // BlurbFeed). Dates serialize to ISO strings crossing the server/
+    // client boundary, same as every other date in this props object.
+    dropNotes: dropNoteRows.map((n) => ({
+      ...n,
+      createdAt: n.createdAt.toISOString(),
+      updatedAt: n.updatedAt.toISOString(),
+      mine: n.curatorId === viewerId,
+    })),
     songNotes: Object.fromEntries(
       Object.entries(songNoteMap).map(([songId, notes]) => [
         songId,
-        notes.map((n) => ({ ...n, mine: n.curatorId === viewerId })),
+        notes.map((n) => ({
+          ...n,
+          createdAt: n.createdAt.toISOString(),
+          updatedAt: n.updatedAt.toISOString(),
+          mine: n.curatorId === viewerId,
+        })),
       ])
     ),
   };

@@ -257,6 +257,10 @@ export async function getPublicDrop(
               songRows.map((s) => s.id)
             )
           )
+          // Oldest first (2026-10-16 "feed of posts" redesign — a
+          // curator can post more than one of these now, and reads
+          // naturally as a little journal in the order it was written).
+          .orderBy(asc(songNotes.createdAt))
       : Promise.resolve([]),
   ]);
 
@@ -295,6 +299,7 @@ export async function getPublicDrop(
       .from(curatorNotes)
       .innerJoin(members, eq(curatorNotes.curatorId, members.id))
       .where(eq(curatorNotes.dropId, drop.id))
+      .orderBy(asc(curatorNotes.createdAt))
   ).map((row) => ({ curatorName: row.curatorName ?? "", text: row.text }));
 
   const top10Summary = await getTop10Summary(drop);

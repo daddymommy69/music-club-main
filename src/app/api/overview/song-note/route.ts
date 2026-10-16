@@ -5,20 +5,17 @@ import { songs } from "@/db/schema";
 import { getSessionMember } from "@/lib/memberSession";
 import { getDefaultClub } from "@/lib/club";
 import { getOpenDrop } from "@/lib/room";
-import { upsertSongNote } from "@/lib/notes";
+import { createSongNote } from "@/lib/notes";
 
 /**
- * Write path for a per-song blurb (2026-10-16 — founder's own ask:
- * "we can write a blurb about each song... anyone can write about each
- * song," any current curator, more than one blurb per song since each
- * curator keeps their own row — same pattern as the drop-level blurb's
- * /api/overview/drop-note). Scoped to a song in the currently-open
- * drop only, checked server-side (not just by what the UI exposes) —
- * a song from any other drop 404s here. Saving blank text clears this
- * curator's own blurb rather than leaving an empty one behind (see
- * src/lib/notes.ts's upsertSongNote).
+ * Create path for a per-song blurb feed (2026-10-16 "feed of posts"
+ * redesign — same shape as drop-note/route.ts, just scoped to one
+ * song). Any current curator can post as many as they want per song.
+ * Scoped to a song in the currently-open drop only, checked
+ * server-side — a song from any other drop 404s here. Editing/deleting
+ * an existing post is handled by [id]/route.ts.
  */
-export async function PUT(request: Request) {
+export async function POST(request: Request) {
   const curator = await getSessionMember();
   if (!curator || !curator.isCurator) {
     return NextResponse.json({ error: "Not logged in" }, { status: 401 });
@@ -34,6 +31,10 @@ export async function PUT(request: Request) {
   if (!Number.isInteger(songId)) {
     return NextResponse.json({ error: "songId (integer) required" }, { status: 400 });
   }
+  const trimmed = (text ?? "").trim();
+  if (!trimmed) {
+    return NextResponse.json({ error: "Write something before posting." }, { status: 400 });
+  }
 
   const drop = await getOpenDrop(club);
   if (!drop) {
@@ -47,10 +48,10 @@ export async function PUT(request: Request) {
   }
 
   try {
-    await upsertSongNote(songId!, curator.id, text ?? "");
+    await createSongNote(songId!, curator.id, trimmed);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("Song blurb save failed:", err);
-    return NextResponse.json({ error: "Couldn't save that. Try again." }, { status: 500 });
+    console.error("Song blurb post failed:", err);
+    return NextResponse.json({ error: "Couldn't post that. Try again." }, { status: 500 });
   }
 }

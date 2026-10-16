@@ -2,20 +2,19 @@ import { NextResponse } from "next/server";
 import { getSessionMember } from "@/lib/memberSession";
 import { getDefaultClub } from "@/lib/club";
 import { getOpenDrop } from "@/lib/room";
-import { upsertDropNote } from "@/lib/notes";
+import { createDropNote } from "@/lib/notes";
 
 /**
- * Write path for the "about this drop" blurb (2026-10-16 — founder's
- * own ask: an area in curator tools where anyone can write about the
- * drop, reusing curatorNotes — which already had public display built
- * for it, just no write UI until now). Any current curator can write
- * their own blurb for the currently-open drop, same scoping as rename
- * (src/app/api/overview/rename) — getOpenDrop only ever returns an
- * unshipped, uncanceled drop, so this has nothing to write to once it
- * ships. Saving blank text clears this curator's own blurb rather than
- * leaving an empty one behind (see src/lib/notes.ts's upsertDropNote).
+ * Create path for the "about this drop" blurb feed (2026-10-16 "feed
+ * of posts" redesign — founder's own ask: every Save now posts a new,
+ * separately-timestamped entry instead of overwriting the same draft
+ * forever; a curator can post as many as they want). Editing/deleting
+ * an existing post is handled by [id]/route.ts, scoped to whoever
+ * actually wrote it. Any current curator can post while a drop's open
+ * — getOpenDrop only ever returns an unshipped, uncanceled drop, so
+ * there's nothing to post to once it ships.
  */
-export async function PUT(request: Request) {
+export async function POST(request: Request) {
   const curator = await getSessionMember();
   if (!curator || !curator.isCurator) {
     return NextResponse.json({ error: "Not logged in" }, { status: 401 });
@@ -28,6 +27,10 @@ export async function PUT(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const { text } = (body ?? {}) as { text?: string };
+  const trimmed = (text ?? "").trim();
+  if (!trimmed) {
+    return NextResponse.json({ error: "Write something before posting." }, { status: 400 });
+  }
 
   const drop = await getOpenDrop(club);
   if (!drop) {
@@ -35,10 +38,10 @@ export async function PUT(request: Request) {
   }
 
   try {
-    await upsertDropNote(drop.id, curator.id, text ?? "");
+    await createDropNote(drop.id, curator.id, trimmed);
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("Drop blurb save failed:", err);
-    return NextResponse.json({ error: "Couldn't save that. Try again." }, { status: 500 });
+    console.error("Drop blurb post failed:", err);
+    return NextResponse.json({ error: "Couldn't post that. Try again." }, { status: 500 });
   }
 }

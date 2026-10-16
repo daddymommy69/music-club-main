@@ -109,16 +109,22 @@ type MissingPlaylistDrop = {
   title: string | null;
 };
 
-/** One curator's blurb — about the drop, or about a single song,
- * depending on which list it's in (2026-10-16 — see NotesCard below).
- * `mine` is computed server-side (src/app/account/page.tsx) from the
- * viewer's own member id, so the composer can pre-fill the viewer's
- * own text and leave it out of "everyone else's" list without the
- * client needing to know its own id for anything else. */
+/** One post in a curator's blurb feed — about the drop, or about a
+ * single song, depending on which list it's in (2026-10-16 "feed of
+ * posts" redesign — see BlurbFeed below). A curator can have more than
+ * one of these per drop/song now; `mine` is computed server-side
+ * (src/app/account/page.tsx) from the viewer's own member id so the
+ * feed can show Edit/Delete only on the viewer's own posts, without
+ * the client needing to know its own id for anything else. `createdAt`
+ * is the post's fixed moment; `updatedAt` moves on edit — the feed
+ * shows "edited" whenever the two meaningfully differ. */
 type Note = {
+  id: number;
   curatorId: number;
   curatorName: string;
   text: string;
+  createdAt: string;
+  updatedAt: string;
   mine: boolean;
 };
 
@@ -716,11 +722,20 @@ function DropBlurbCard({ dropNotes, onChanged }: { dropNotes: Note[]; onChanged:
       <p className="label" style={{ marginBottom: 8 }}>
         About this drop
       </p>
-      <BlurbField
+      <BlurbFeed
         notes={dropNotes}
         placeholder="What's this drop about? Any notes you want to say about the songs, or your own thoughts — think of this as a musical journal, let it spill."
-        onSave={async (text) => {
+        onCreate={async (text) => {
           const res = await fetch("/api/overview/drop-note", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error ?? "Couldn't post that. Try again.");
+        }}
+        onUpdate={async (id, text) => {
+          const res = await fetch(`/api/overview/drop-note/${id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text }),
@@ -728,58 +743,187 @@ function DropBlurbCard({ dropNotes, onChanged }: { dropNotes: Note[]; onChanged:
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error ?? "Couldn't save that. Try again.");
         }}
+        onDelete={async (id) => {
+          const res = await fetch(`/api/overview/drop-note/${id}`, { method: "DELETE" });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error ?? "Couldn't delete that. Try again.");
+        }}
         onChanged={onChanged}
       />
     </div>
   );
 }
 
-/** One blurb composer — the viewer's own textarea (pre-filled with
- * whatever they already wrote, blank otherwise) plus everyone else's
- * existing blurbs underneath, attributed by name. Shared by the drop
- * blurb and every song blurb in NotesCard above — only the placeholder
- * and save target differ, passed in via onSave. Reuses the same
- * .curator-notes/.curator-note classes the public drop page's curator
- * notes block already uses (globals.css) for the "everyone else's"
- * list, so it reads the same way here as it will once it's live. */
-function BlurbField({
+/** A textarea that grows to fit whatever's typed instead of starting
+ * short and needing a manual drag (2026-10-16 — founder's own ask: "can
+ * [the blurb box] autofill size to make sure you can read all the
+ * writing when writing?"). Resizes on every value change (including the
+ * very first render, so a box pre-filled with a long post opens already
+ * tall) by measuring scrollHeight — the standard height:auto-then-
+ * scrollHeight trick, since there's no CSS-only way to size a textarea
+ * to its content. Manual dragging (`resize`) is turned off since
+ * there's no longer anything for it to do that this doesn't already
+ * handle. Shared by BlurbFeed's compose box and BlurbPost's inline
+ * editor below. */
+function AutoGrowTextarea({
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  autoFocus,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  autoFocus?: boolean;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+
+  return (
+    <textarea
+      ref={ref}
+      className="settings-input"
+      style={{ resize: "none", overflow: "hidden", padding: "10px 12px", lineHeight: 1.6, minHeight: 60 }}
+      placeholder={placeholder}
+      value={value}
+      disabled={disabled}
+      autoFocus={autoFocus}
+      // Opted out of the device's own text-replacement/autocorrect
+      // engine (2026-10-16 — founder's report: typing repeated periods
+      // quickly on iOS was swallowing characters after the 2nd one).
+      // Every iOS browser runs on WebKit regardless of which app it is,
+      // so this isn't Safari-specific — any iOS browser can trigger it.
+      // These four attributes are the standard opt-out; they don't
+      // change anything for anyone typing normally.
+      autoCorrect="off"
+      autoCapitalize="off"
+      autoComplete="off"
+      spellCheck={false}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
+}
+
+/** A compose box plus the running feed of everyone's posts underneath,
+ * oldest first (2026-10-16 "feed of posts" redesign — founder's own
+ * ask, after the original one-ever-editable-draft-per-curator model
+ * "didn't really feel like anything saved": every Post now appends a
+ * brand-new, separately-timestamped entry instead of overwriting the
+ * same draft forever, and the compose box clears right after so it's
+ * obviously ready for the next thought. A curator can post as many as
+ * they want per drop/song. Shared by the drop blurb and every song
+ * blurb — only the placeholder and the three API calls differ, passed
+ * in via props. Reuses the same .curator-notes/.curator-note classes
+ * the public drop page's curator-notes block already uses. */
+function BlurbFeed({
   notes,
   placeholder,
-  onSave,
+  onCreate,
+  onUpdate,
+  onDelete,
   onChanged,
 }: {
   notes: Note[];
   placeholder: string;
-  onSave: (text: string) => Promise<void>;
+  onCreate: (text: string) => Promise<void>;
+  onUpdate: (id: number, text: string) => Promise<void>;
+  onDelete: (id: number) => Promise<void>;
   onChanged: () => void;
 }) {
-  const mine = notes.find((n) => n.mine);
-  const others = notes.filter((n) => !n.mine);
-  const [value, setValue] = useState(mine?.text ?? "");
-  const [dirty, setDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [posting, setPosting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Whether the textarea's current contents match what's actually
-  // persisted — starts true when there's already a saved note on
-  // load, goes false the instant you type (2026-10-16 — founder's own
-  // report: "when saving a blurb, it doesnt really feel like anything
-  // saved", confirmed he wants it to reuse the site's existing green
-  // "done" language and "stay visible until you edit it again" rather
-  // than a one-off toast). `pulseKey` just forces the "Saved ✓" button
-  // to remount on every successful save so its .gz-pop entrance
-  // animation (same keyframe Like/Save "done" states already use)
-  // replays each time, not only the first.
-  const [savedState, setSavedState] = useState(!!mine);
-  const [pulseKey, setPulseKey] = useState(0);
+
+  async function post() {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    setPosting(true);
+    setError(null);
+    try {
+      await onCreate(trimmed);
+      setDraft("");
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't post that. Try again.");
+    } finally {
+      setPosting(false);
+    }
+  }
+
+  return (
+    <div>
+      <AutoGrowTextarea value={draft} onChange={setDraft} placeholder={placeholder} disabled={posting} />
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+        <button
+          type="button"
+          className="btn"
+          style={{ width: "auto", minHeight: 30, height: 30, padding: "0 12px", fontSize: 11.5 }}
+          disabled={posting || !draft.trim()}
+          onClick={post}
+        >
+          {posting ? "Posting…" : "Post"}
+        </button>
+        {error && <p className="notice error">{error}</p>}
+      </div>
+      {notes.length > 0 && (
+        <div className="curator-notes gz-up" style={{ marginTop: 14, gap: 12 }}>
+          {notes.map((n) => (
+            <BlurbPost key={n.id} note={n} onUpdate={onUpdate} onDelete={onDelete} onChanged={onChanged} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** One post in a BlurbFeed. Read-only (name + relative time + text) for
+ * everyone else's; the viewer's own posts (`note.mine`) grow a small
+ * Edit/Delete pair — Edit swaps the post in place for an auto-growing
+ * textarea with Save/Cancel, same spirit as Rename's own inline-edit
+ * pattern elsewhere in this file; Delete swaps to an are-you-sure
+ * confirmation in place, same two-step pattern ShipDropCard's Cancel
+ * already uses, since a post is enough work to write that an accidental
+ * tap shouldn't be able to lose it. "edited" shows whenever a post's
+ * updatedAt has actually moved past its createdAt by more than a
+ * minute — small slop so the save that creates a post (createdAt and
+ * updatedAt land within milliseconds of each other) never misreads as
+ * an edit. */
+function BlurbPost({
+  note,
+  onUpdate,
+  onDelete,
+  onChanged,
+}: {
+  note: Note;
+  onUpdate: (id: number, text: string) => Promise<void>;
+  onDelete: (id: number) => Promise<void>;
+  onChanged: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(note.text);
+  const [saving, setSaving] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const edited = new Date(note.updatedAt).getTime() - new Date(note.createdAt).getTime() > 60_000;
 
   async function save() {
+    const trimmed = value.trim();
+    if (!trimmed) return;
     setSaving(true);
     setError(null);
     try {
-      await onSave(value);
-      setDirty(false);
-      setSavedState(true);
-      setPulseKey((k) => k + 1);
+      await onUpdate(note.id, trimmed);
+      setEditing(false);
       onChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't save that. Try again.");
@@ -788,66 +932,114 @@ function BlurbField({
     }
   }
 
-  return (
-    <div>
-      <textarea
-        className="settings-input"
-        style={{ resize: "vertical", padding: "10px 12px", lineHeight: 1.6, minHeight: 60 }}
-        placeholder={placeholder}
-        value={value}
-        // Opted out of the device's own text-replacement/autocorrect
-        // engine (2026-10-16 — founder's report: typing repeated
-        // periods quickly on iOS was swallowing characters after the
-        // 2nd one). Every iOS browser runs on WebKit regardless of
-        // which app it is, so this isn't Safari-specific — any iOS
-        // browser can trigger it. These four attributes are the
-        // standard opt-out; they don't change anything for anyone
-        // typing normally.
-        autoCorrect="off"
-        autoCapitalize="off"
-        autoComplete="off"
-        spellCheck={false}
-        onChange={(e) => {
-          setValue(e.target.value);
-          setDirty(true);
-          setSavedState(false);
-        }}
-      />
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
-        {!saving && !dirty && savedState ? (
+  async function doDelete() {
+    setDeleting(true);
+    setError(null);
+    try {
+      await onDelete(note.id);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't delete that. Try again.");
+      setDeleting(false);
+    }
+  }
+
+  if (confirmingDelete) {
+    return (
+      <div className="curator-note">
+        <p style={{ fontSize: 12, lineHeight: 1.6 }}>Delete this post? This can&rsquo;t be undone.</p>
+        <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
           <button
-            key={pulseKey}
             type="button"
-            className="btn blurb-saved gz-pop"
-            style={{ width: "auto", minHeight: 30, height: 30, padding: "0 12px", fontSize: 11.5 }}
-            disabled
+            className="btn btn-danger"
+            style={{ width: "auto", minHeight: 28, height: 28, padding: "0 12px", fontSize: 11.5 }}
+            disabled={deleting}
+            onClick={doDelete}
           >
-            Saved ✓
+            {deleting ? "Deleting…" : "Yes, delete it"}
           </button>
-        ) : (
+          <button
+            type="button"
+            className="link-btn"
+            disabled={deleting}
+            onClick={() => {
+              setConfirmingDelete(false);
+              setError(null);
+            }}
+          >
+            Never mind
+          </button>
+        </div>
+        {error && (
+          <p className="notice error" style={{ marginTop: 8 }}>
+            {error}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  if (editing) {
+    return (
+      <div className="curator-note">
+        <AutoGrowTextarea value={value} onChange={setValue} disabled={saving} autoFocus />
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
           <button
             type="button"
             className="btn"
-            style={{ width: "auto", minHeight: 30, height: 30, padding: "0 12px", fontSize: 11.5 }}
-            disabled={saving || !dirty}
+            style={{ width: "auto", minHeight: 28, height: 28, padding: "0 12px", fontSize: 11.5 }}
+            disabled={saving || !value.trim()}
             onClick={save}
           >
             {saving ? "Saving…" : "Save"}
           </button>
-        )}
-        {error && <p className="notice error">{error}</p>}
-      </div>
-      {others.length > 0 && (
-        <div className="curator-notes" style={{ marginTop: 14, gap: 12 }}>
-          {others.map((n, i) => (
-            <div className="curator-note" key={i}>
-              <div className="curator-name">
-                <RoleName name={n.curatorName} isCurator />
-              </div>
-              <div className="note-text">{n.text}</div>
-            </div>
-          ))}
+          <button
+            type="button"
+            className="link-btn"
+            disabled={saving}
+            onClick={() => {
+              setValue(note.text);
+              setEditing(false);
+              setError(null);
+            }}
+          >
+            Cancel
+          </button>
+          {error && <p className="notice error">{error}</p>}
         </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="curator-note">
+      <div className="curator-name">
+        <RoleName name={note.curatorName} isCurator />
+        <span className="mut" style={{ fontSize: 10.5, marginLeft: 6 }}>
+          {formatRelativeTime(new Date(note.createdAt))}
+          {edited ? " · edited" : ""}
+        </span>
+      </div>
+      <div className="note-text">{note.text}</div>
+      {note.mine && (
+        <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+          <button type="button" className="link-btn" style={{ fontSize: 11 }} onClick={() => setEditing(true)}>
+            Edit
+          </button>
+          <button
+            type="button"
+            className="link-btn"
+            style={{ fontSize: 11, color: "var(--err)" }}
+            onClick={() => setConfirmingDelete(true)}
+          >
+            Delete
+          </button>
+        </div>
+      )}
+      {error && (
+        <p className="notice error" style={{ marginTop: 6 }}>
+          {error}
+        </p>
       )}
     </div>
   );
@@ -1251,17 +1443,31 @@ function PickRow({
           )}
         </div>
       </div>
-      <BlurbField
+      <BlurbFeed
         notes={notes}
         placeholder="Any notes you want to say about this song, or your thoughts — think of this as a musical journal, let it spill."
-        onSave={async (text) => {
+        onCreate={async (text) => {
           const res = await fetch("/api/overview/song-note", {
-            method: "PUT",
+            method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ songId: pick.id, text }),
           });
           const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error ?? "Couldn't post that. Try again.");
+        }}
+        onUpdate={async (id, text) => {
+          const res = await fetch(`/api/overview/song-note/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text }),
+          });
+          const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error ?? "Couldn't save that. Try again.");
+        }}
+        onDelete={async (id) => {
+          const res = await fetch(`/api/overview/song-note/${id}`, { method: "DELETE" });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error ?? "Couldn't delete that. Try again.");
         }}
         onChanged={onChanged}
       />
