@@ -40,7 +40,7 @@ export default async function AboutPage() {
         <p>
           take a look at the{" "}
           <Link href="/releases" className="about-link">
-            old drops
+            archives
           </Link>{" "}
           and the music we listen to. please enjoy and{" "}
           <Link href="/account" className="about-link">
