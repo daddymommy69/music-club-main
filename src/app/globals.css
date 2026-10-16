@@ -31,6 +31,11 @@
   --ln: rgba(23, 22, 18, 0.16);
   --fill: rgba(23, 22, 18, 0.035);
   --err: oklch(0.55 0.17 25);
+  /* Same soft-tint formula as --acc-soft, just over --err's hue
+   * (2026-10-16 — Cancel's new .btn-danger, matching Ship's
+   * .btn-primary shape but in red: "make the cancel drop to match the
+   * ship drop 2 but in red"). */
+  --err-soft: oklch(0.55 0.17 25 / 0.1);
   --accent: oklch(0.55 0.13 160);
   --acc-soft: oklch(0.55 0.13 160 / 0.1);
   /* Curator role color (2026-10 "next build" — see claude/next-build.md)
@@ -63,6 +68,7 @@
     --ln: rgba(236, 234, 228, 0.16);
     --fill: rgba(236, 234, 228, 0.045);
     --err: oklch(0.7 0.15 25);
+    --err-soft: oklch(0.7 0.15 25 / 0.15);
     --accent: oklch(0.72 0.13 160);
     --acc-soft: oklch(0.72 0.13 160 / 0.13);
     /* Brighter than light mode's --role-curator, same lift the other
@@ -254,6 +260,32 @@ input {
   background: var(--acc-soft);
   color: var(--accent);
   font-weight: 500;
+}
+
+/* Cancel's matched-pair partner for .btn-primary (2026-10-16 — see
+   ShipDropCard.tsx's own comment) — identical shape, same soft-tint
+   formula, just over --err instead of --accent. */
+.btn-danger {
+  height: 40px;
+  width: 100%;
+  border: none;
+  background: var(--err-soft);
+  color: var(--err);
+  font-weight: 500;
+}
+
+/* Ship + Cancel side by side, equal width (2026-10-16). Overrides
+   .btn-primary/.btn-danger's own width:100% the same way
+   .listen-row-primary already does for Play/Spotify on the public
+   drop page. */
+.ship-cancel-row {
+  display: flex;
+  gap: 10px;
+}
+
+.ship-cancel-row .btn {
+  width: auto;
+  flex: 1;
 }
 
 .btn-outline {
@@ -1340,6 +1372,31 @@ input {
 
 .pile-row:last-child {
   border-bottom: none;
+}
+
+/* This cycle's picks + each song's blurb, meshed into one row
+   (2026-10-16 — founder's own ask: "i want them to be meshed, where
+   you write the notes under the song"). The row-separating border
+   moves here from .pile-row itself, since .pile-row is no longer the
+   direct child of .pile-list that owns that border — the blurb box
+   needs to sit inside the same bordered block, under the song, not
+   past its bottom edge. */
+.pile-row-wrap {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ln);
+}
+
+.pile-row-wrap:last-child {
+  border-bottom: none;
+}
+
+.pile-row-wrap .pile-row {
+  padding: 0;
+  border-bottom: none;
+}
+
+.pile-row-wrap .pile-row + div {
+  margin-top: 10px;
 }
 
 .pile-info {

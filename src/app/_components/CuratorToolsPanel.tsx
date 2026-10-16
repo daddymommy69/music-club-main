@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { isValidMusicLink } from "@/lib/musicLink";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import FallbackImg from "./FallbackImg";
 import ShipDropCard from "./ShipDropCard";
@@ -149,8 +148,6 @@ export type CuratorToolsPanelProps = {
 
 type DuplicateInfo = { title: string | null; artist: string | null };
 
-const LINK_ERROR = "That link doesn't look right — try pasting it again.";
-
 /**
  * 2026-10-13 bug fix (see claude/next-build.md "site clarity" round —
  * the founder's own report: "the date isnt being linked with the set
@@ -231,22 +228,17 @@ export default function CuratorToolsPanel({
         <StartDropCard dropNum={dropNum} nextDropOpensAt={nextDropOpensAt} onChanged={refresh} />
       )}
 
+      {/* Manage drop N moved to the top of the open-drop view (2026-10-16
+          — founder's own ask: "bring the drop manager to the top instead
+          of the bottom," "above the add a pick area"). Rename now lives
+          inside it too — see ManageDropCard's own comment. */}
+      {shipCandidate && <ManageDropCard shipCandidate={shipCandidate} onChanged={refresh} />}
+
       {hasOpenDrop && (
         <>
           <AddPick onAdded={refresh} />
-          <PicksCard picks={picks} onRemoved={refresh} />
-          {shipCandidate && (
-            <NotesCard
-              dropNum={shipCandidate.dropNum}
-              title={shipCandidate.title}
-              startedBy={shipCandidate.startedBy}
-              titleUpdatedBy={shipCandidate.titleUpdatedBy}
-              picks={picks}
-              dropNotes={dropNotes}
-              songNotes={songNotes}
-              onChanged={refresh}
-            />
-          )}
+          <DropBlurbCard dropNotes={dropNotes} onChanged={refresh} />
+          <PicksCard picks={picks} songNotes={songNotes} onRemoved={refresh} onChanged={refresh} />
         </>
       )}
 
@@ -257,8 +249,6 @@ export default function CuratorToolsPanel({
       )}
 
       <CuratorsDisclosure roster={roster} />
-
-      {shipCandidate && <ManageDropCard shipCandidate={shipCandidate} onChanged={refresh} />}
 
       {top10 && <Top10Disclosure top10={top10} />}
     </div>
@@ -550,11 +540,18 @@ function toDatetimeLocalValue(iso: string): string {
  * Rename works anytime while the drop's open (any current curator can
  * do it — there's no single owner), the schedule-ship date is the
  * other half of "pick actual dates and it ships automatically," and
- * Cancel is reversible with curator-only visibility — see
- * CanceledDropBanner above for the un-cancel side of that.
+ * Ship/Cancel are a matched pair inside ShipDropCard now — see that
+ * file's own comment. CanceledDropBanner (above) is the un-cancel
+ * side, shown instead of this once nothing's open.
+ *
+ * Moved to the top of the open-drop view, and Rename moved back in
+ * here (2026-10-16 revamp — founder's own ask: "bring the drop manager
+ * to the top instead of the bottom," and rename "should be in the
+ * manage drop 2 section honestly" — it had briefly lived in the
+ * drop-blurb area instead, which he found hard to find).
  */
 function ManageDropCard({ shipCandidate, onChanged }: { shipCandidate: ShipCandidate; onChanged: () => void }) {
-  const { dropId, dropNum, pickCount, scheduledShipAt } = shipCandidate;
+  const { dropId, dropNum, title, startedBy, titleUpdatedBy, pickCount, scheduledShipAt } = shipCandidate;
 
   return (
     <div className="ct-card-emphasis gz-up" style={{ marginTop: 20 }} key={dropId}>
@@ -562,15 +559,21 @@ function ManageDropCard({ shipCandidate, onChanged }: { shipCandidate: ShipCandi
         Manage drop {dropNum}
       </p>
 
+      <RenameDropField
+        dropNum={dropNum}
+        title={title}
+        startedBy={startedBy}
+        titleUpdatedBy={titleUpdatedBy}
+        onChanged={onChanged}
+      />
+
+      <hr className="hairline" style={{ margin: "16px 0" }} />
+
       <ScheduleShipField scheduledShipAt={scheduledShipAt} onChanged={onChanged} />
 
       <hr className="hairline" style={{ margin: "16px 0" }} />
 
-      <ShipDropCard dropNum={dropNum} pickCount={pickCount} />
-
-      <hr className="hairline" style={{ margin: "16px 0" }} />
-
-      <CancelDropControl dropNum={dropNum} onChanged={onChanged} />
+      <ShipDropCard dropNum={dropNum} pickCount={pickCount} onChanged={onChanged} />
     </div>
   );
 }
@@ -578,12 +581,12 @@ function ManageDropCard({ shipCandidate, onChanged }: { shipCandidate: ShipCandi
 /** Any current curator can rename an open drop, any time before it
  * ships (founder's own answers: "whoever is a curator during the time
  * of the drop can rename it," "just before the drop, cant change
- * after" — the field living only inside the open-drop Notes/Details
- * panel below is what enforces the latter; there's nothing to lock
- * separately). Moved here from Manage drop N (2026-10-16 — the
- * founder's own ask: "no place to change the name" in the new blurb
- * area, so rename now lives in the same card as the blurbs instead of
- * being split off into Manage drop N further down). */
+ * after" — the field living only inside Manage drop N (which only
+ * ever renders for the open drop) is what enforces the latter; there's
+ * nothing to lock separately). Briefly lived in the drop-blurb area
+ * instead (2026-10-16's first pass) — moved back here the same round
+ * once the founder found it hard to locate there: "that should be in
+ * the manage drop 2 section honestly." */
 function RenameDropField({
   dropNum,
   title,
@@ -649,8 +652,8 @@ function RenameDropField({
         </div>
         <button
           type="button"
-          className="link-btn"
-          style={{ flexShrink: 0 }}
+          className="btn"
+          style={{ width: "auto", flexShrink: 0, minHeight: 32, height: 32, padding: "0 14px", fontSize: 11.5 }}
           onClick={() => {
             setValue(title ?? `Drop ${dropNum}`);
             setError(null);
@@ -692,63 +695,30 @@ function RenameDropField({
 }
 
 /**
- * "Drop {N} details" (2026-10-16 — founder's own ask: an area in
- * curator tools to write a blurb about each song, maybe about the drop
- * too, and a place to rename the drop since there wasn't one "in this
- * area"). Rename is the same RenameDropField as before, just relocated
- * here from Manage drop N below. The drop blurb reuses curatorNotes
- * (it already had public display built, see DropDetail.tsx — this is
- * only the write side); song blurbs are the new songNotes table, same
- * one-row-per-curator pattern. Any current curator can write their own
- * blurb for the drop and for any individual song — more than one
- * curator's blurb can exist for the same song, each attributed by name
- * (RoleName) wherever it's shown. The drop blurb also goes out in the
- * release email (src/lib/messages.ts's releaseEmailHtml). Scoped to
- * the open drop only, same as rename — the founder's own "only new
- * drops necessary" call, nothing here reaches back into a shipped
- * drop.
+ * "About this drop" (2026-10-16 revamp — founder's own ask). Used to
+ * also hold rename and a repeated "Song blurbs" list; both moved out
+ * this round — rename now lives in Manage drop N (the founder's own
+ * "that should be in the manage drop 2 section honestly"), and the
+ * per-song blurbs are meshed directly into each pick's own row in
+ * PicksCard below ("i want them to be meshed, where you write the
+ * notes under the song") instead of repeating the whole picks list a
+ * second time here. This card is now just the one drop-level blurb,
+ * kept above the picks list per the founder's own "keep that above
+ * all the songs." The placeholder's loosened, journal-style wording is
+ * also his own ask, now matched by each song blurb's placeholder in
+ * PicksCard. Reuses curatorNotes, which already had public display
+ * built (DropDetail.tsx) — this is only the write side — and also goes
+ * out in the release email (src/lib/messages.ts's releaseEmailHtml).
  */
-function NotesCard({
-  dropNum,
-  title,
-  startedBy,
-  titleUpdatedBy,
-  picks,
-  dropNotes,
-  songNotes,
-  onChanged,
-}: {
-  dropNum: number;
-  title: string | null;
-  startedBy: string | null;
-  titleUpdatedBy: string | null;
-  picks: Pick[];
-  dropNotes: Note[];
-  songNotes: Record<number, Note[]>;
-  onChanged: () => void;
-}) {
+function DropBlurbCard({ dropNotes, onChanged }: { dropNotes: Note[]; onChanged: () => void }) {
   return (
-    <div className="ct-card-emphasis gz-up" style={{ marginTop: 20 }}>
-      <p className="label" style={{ marginBottom: 10 }}>
-        Drop {dropNum} details
-      </p>
-
-      <RenameDropField
-        dropNum={dropNum}
-        title={title}
-        startedBy={startedBy}
-        titleUpdatedBy={titleUpdatedBy}
-        onChanged={onChanged}
-      />
-
-      <hr className="hairline" style={{ margin: "16px 0" }} />
-
+    <div className="ct-card" style={{ marginTop: 20 }}>
       <p className="label" style={{ marginBottom: 8 }}>
         About this drop
       </p>
       <BlurbField
         notes={dropNotes}
-        placeholder="What's this drop about? (shows on the drop page and in the release email)"
+        placeholder="What's this drop about? Any notes you want to say about the songs, or your own thoughts — think of this as a musical journal, let it spill."
         onSave={async (text) => {
           const res = await fetch("/api/overview/drop-note", {
             method: "PUT",
@@ -760,38 +730,6 @@ function NotesCard({
         }}
         onChanged={onChanged}
       />
-
-      {picks.length > 0 && (
-        <>
-          <hr className="hairline" style={{ margin: "16px 0" }} />
-          <p className="label" style={{ marginBottom: 10 }}>
-            Song blurbs
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            {picks.map((p) => (
-              <div key={p.id}>
-                <p className="mut" style={{ fontSize: 11.5, marginBottom: 6 }}>
-                  {p.title} — {p.artist}
-                </p>
-                <BlurbField
-                  notes={songNotes[p.id] ?? []}
-                  placeholder="Say something about this song (shows on the drop page)"
-                  onSave={async (text) => {
-                    const res = await fetch("/api/overview/song-note", {
-                      method: "PUT",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ songId: p.id, text }),
-                    });
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok) throw new Error(data.error ?? "Couldn't save that. Try again.");
-                  }}
-                  onChanged={onChanged}
-                />
-              </div>
-            ))}
-          </div>
-        </>
-      )}
     </div>
   );
 }
@@ -957,71 +895,6 @@ function ScheduleShipField({
   );
 }
 
-/** Reversible — nothing's deleted, curator-only visibility, the drop
- * number stays used up either way (founder's own calls: "wouldnt want
- * it to lose all the data... closed off for curators eyes only" /
- * "can be uncancelled"). The un-cancel side lives in
- * CanceledDropBanner above, shown instead of this once nothing's open. */
-function CancelDropControl({ dropNum, onChanged }: { dropNum: number; onChanged: () => void }) {
-  const [confirming, setConfirming] = useState(false);
-  const [canceling, setCanceling] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function cancel() {
-    setCanceling(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/overview/cancel", { method: "POST" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(data.error ?? "Couldn't cancel that. Try again.");
-        return;
-      }
-      onChanged();
-    } catch {
-      setError("Couldn't cancel that. Try again.");
-    } finally {
-      setCanceling(false);
-    }
-  }
-
-  if (!confirming) {
-    return (
-      <button type="button" className="link-btn" style={{ color: "var(--err)" }} onClick={() => setConfirming(true)}>
-        Cancel drop {dropNum}
-      </button>
-    );
-  }
-
-  return (
-    <div className="duplicate-notice gz-up">
-      <p style={{ fontSize: 12, lineHeight: 1.6 }}>
-        Cancel drop {dropNum}? Nothing&rsquo;s deleted — its picks stay put and a curator can
-        un-cancel it later. It just closes off from here on, and the drop number stays used up.
-      </p>
-      <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-        <button
-          type="button"
-          className="btn"
-          style={{ width: "auto", minHeight: 32, height: 32, padding: "0 12px", fontSize: 11.5 }}
-          disabled={canceling}
-          onClick={cancel}
-        >
-          {canceling ? "Canceling…" : "Yes, cancel it"}
-        </button>
-        <button type="button" className="link-btn" disabled={canceling} onClick={() => setConfirming(false)}>
-          Never mind
-        </button>
-      </div>
-      {error && (
-        <p className="notice error" style={{ marginTop: 8 }}>
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
 type SearchResult = {
   id: string;
   title: string;
@@ -1031,10 +904,15 @@ type SearchResult = {
 };
 
 /** Live Spotify search, debounced as you type — same pattern as
- * Browse's search bar (src/app/_components/BrowseSearch.tsx). Falls
- * back to ManualAddPick (the original paste-a-link flow) whenever this
- * club's Spotify connection isn't available, so a curator is never
- * stuck either way. */
+ * Browse's search bar (src/app/_components/BrowseSearch.tsx).
+ * Search-only now (2026-10-16 — founder's own ask, removing the old
+ * "paste a link directly" fallback that used to sit right below this:
+ * "we can remove that in this drop ship area"). Note this does mean a
+ * curator has no way to add a song by hand anymore if Spotify search
+ * itself is ever unavailable — flagged to the founder before making
+ * this change, since an earlier round had deliberately made that paste
+ * path always-visible for curators who mostly paste Apple Music links;
+ * this round's explicit answer was still "yes, remove it." */
 function AddPick({ onAdded }: { onAdded: () => void }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[] | null>(null);
@@ -1107,7 +985,7 @@ function AddPick({ onAdded }: { onAdded: () => void }) {
 
       {!loading && trimmed && spotifyUnavailable && (
         <p className="mut" style={{ fontSize: 11.5, marginTop: 10 }}>
-          Spotify search isn&rsquo;t available right now — paste a link instead, below.
+          Spotify search isn&rsquo;t available right now — try again in a bit.
         </p>
       )}
 
@@ -1124,18 +1002,6 @@ function AddPick({ onAdded }: { onAdded: () => void }) {
           ))}
         </div>
       )}
-
-      {/* Always visible now, not just an automatic fallback (2026-10-08
-          "drop control" round — founder's own ask: his actual curators
-          mostly paste Apple Music links, so that path needs to be
-          right there next to the search, not hidden until Spotify
-          happens to be unavailable — see claude/next-build.md). */}
-      <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--ln)" }}>
-        <p className="mut" style={{ fontSize: 11, marginBottom: 10 }}>
-          Or paste a Spotify/Apple Music link directly:
-        </p>
-        <ManualAddPick onAdded={handleAdded} />
-      </div>
     </div>
   );
 }
@@ -1245,110 +1111,25 @@ function SearchResultRow({ result, onAdded }: { result: SearchResult; onAdded: (
   );
 }
 
-/** The original paste-a-link flow — always visible now, next to the
- * search box, not just a fallback for when Spotify search is down
- * (2026-10-08 "drop control" round — see claude/next-build.md). Posts
- * to the same /api/room/picks route it always has. */
-function ManualAddPick({ onAdded }: { onAdded: () => void }) {
-  const [link, setLink] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [shakeGen, setShakeGen] = useState(0);
-  const [submitting, setSubmitting] = useState(false);
-  const [duplicate, setDuplicate] = useState<DuplicateInfo | null>(null);
-
-  async function submit(force: boolean) {
-    setError(null);
-    setSubmitting(true);
-    try {
-      const res = await fetch("/api/room/picks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ link, force }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(data.error ?? LINK_ERROR);
-        setShakeGen((g) => g + 1);
-        return;
-      }
-      if (data.duplicate) {
-        setDuplicate(data.existing ?? {});
-        return;
-      }
-      setLink("");
-      setDuplicate(null);
-      onAdded();
-    } catch {
-      setError("Something went wrong. Try again.");
-      setShakeGen((g) => g + 1);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!link.trim() || !isValidMusicLink(link)) {
-      setError(LINK_ERROR);
-      setShakeGen((g) => g + 1);
-      return;
-    }
-    await submit(false);
-  }
-
-  return (
-    <form onSubmit={handleSubmit} noValidate>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <input
-          type="url"
-          className="settings-input"
-          style={{ flex: 1, minWidth: 200 }}
-          placeholder="Paste a Spotify or Apple Music link…"
-          value={link}
-          onChange={(e) => {
-            setLink(e.target.value);
-            setError(null);
-            setDuplicate(null);
-          }}
-        />
-        <button type="submit" className="btn btn-primary" disabled={submitting} style={{ width: "auto" }}>
-          {submitting ? "Adding…" : "Add"}
-        </button>
-      </div>
-      {error && (
-        <p key={`pick-${shakeGen}`} className="notice error gz-shake" style={{ marginTop: 8 }}>
-          {error}
-        </p>
-      )}
-      {duplicate && (
-        <div className="duplicate-notice gz-up" style={{ marginTop: 8 }}>
-          <p style={{ fontSize: 12, lineHeight: 1.6 }}>
-            {duplicate.title && duplicate.artist
-              ? `"${duplicate.title}" by ${duplicate.artist} is already in for this drop.`
-              : "This link is already in for this drop."}{" "}
-            Still want to add it?
-          </p>
-          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-            <button
-              type="button"
-              className="btn"
-              style={{ width: "auto", minHeight: 32, height: 32, padding: "0 12px", fontSize: 11.5 }}
-              disabled={submitting}
-              onClick={() => submit(true)}
-            >
-              {submitting ? "Adding…" : "Add it anyway"}
-            </button>
-            <button type="button" className="link-btn" onClick={() => setDuplicate(null)}>
-              Never mind
-            </button>
-          </div>
-        </div>
-      )}
-    </form>
-  );
-}
-
-function PicksCard({ picks, onRemoved }: { picks: Pick[]; onRemoved: () => void }) {
+/**
+ * "This cycle's picks" + the per-song blurb boxes, meshed into one
+ * list (2026-10-16 — founder's own ask: "i want them to be meshed,
+ * where you write the notes under the song" — previously these were
+ * two separate lists that each repeated every song). Each row is now
+ * the song itself plus its blurb composer, always open underneath —
+ * no collapsing disclosure, per his "always open" answer.
+ */
+function PicksCard({
+  picks,
+  songNotes,
+  onRemoved,
+  onChanged,
+}: {
+  picks: Pick[];
+  songNotes: Record<number, Note[]>;
+  onRemoved: () => void;
+  onChanged: () => void;
+}) {
   return (
     <div className="ct-card" style={{ marginTop: 20 }}>
       <p className="label" style={{ marginBottom: 10 }}>
@@ -1361,7 +1142,7 @@ function PicksCard({ picks, onRemoved }: { picks: Pick[]; onRemoved: () => void 
       ) : (
         <div className="pile-list">
           {picks.map((p) => (
-            <PickRow key={p.id} pick={p} onRemoved={onRemoved} />
+            <PickRow key={p.id} pick={p} notes={songNotes[p.id] ?? []} onRemoved={onRemoved} onChanged={onChanged} />
           ))}
         </div>
       )}
@@ -1369,7 +1150,17 @@ function PicksCard({ picks, onRemoved }: { picks: Pick[]; onRemoved: () => void 
   );
 }
 
-function PickRow({ pick, onRemoved }: { pick: Pick; onRemoved: () => void }) {
+function PickRow({
+  pick,
+  notes,
+  onRemoved,
+  onChanged,
+}: {
+  pick: Pick;
+  notes: Note[];
+  onRemoved: () => void;
+  onChanged: () => void;
+}) {
   const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1392,33 +1183,49 @@ function PickRow({ pick, onRemoved }: { pick: Pick; onRemoved: () => void }) {
   }
 
   return (
-    <div className="pile-row">
-      <div className="pile-info" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        {pick.artworkUrl ? (
-          <FallbackImg
-            src={pick.artworkUrl}
-            className="track-row-art"
-            fallbackClassName="track-row-art track-row-art-empty"
-          />
-        ) : (
-          <div className="track-row-art track-row-art-empty" aria-hidden="true" />
-        )}
-        <div style={{ minWidth: 0 }}>
-          <div className="track-title">{pick.title}</div>
-          <div className="track-artist">{pick.artist}</div>
-          {pick.curatorCredit && <div className="pile-meta">picked by {pick.curatorCredit}</div>}
+    <div className="pile-row-wrap">
+      <div className="pile-row">
+        <div className="pile-info" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {pick.artworkUrl ? (
+            <FallbackImg
+              src={pick.artworkUrl}
+              className="track-row-art"
+              fallbackClassName="track-row-art track-row-art-empty"
+            />
+          ) : (
+            <div className="track-row-art track-row-art-empty" aria-hidden="true" />
+          )}
+          <div style={{ minWidth: 0 }}>
+            <div className="track-title">{pick.title}</div>
+            <div className="track-artist">{pick.artist}</div>
+            {pick.curatorCredit && <div className="pile-meta">picked by {pick.curatorCredit}</div>}
+          </div>
+        </div>
+        <div className="pile-action">
+          <button type="button" className="link-btn" onClick={remove} disabled={removing}>
+            {removing ? "Removing…" : "Remove"}
+          </button>
+          {error && (
+            <p className="notice error" style={{ marginTop: 6, maxWidth: 160 }}>
+              {error}
+            </p>
+          )}
         </div>
       </div>
-      <div className="pile-action">
-        <button type="button" className="link-btn" onClick={remove} disabled={removing}>
-          {removing ? "Removing…" : "Remove"}
-        </button>
-        {error && (
-          <p className="notice error" style={{ marginTop: 6, maxWidth: 160 }}>
-            {error}
-          </p>
-        )}
-      </div>
+      <BlurbField
+        notes={notes}
+        placeholder="Any notes you want to say about this song, or your thoughts — think of this as a musical journal, let it spill."
+        onSave={async (text) => {
+          const res = await fetch("/api/overview/song-note", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ songId: pick.id, text }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error ?? "Couldn't save that. Try again.");
+        }}
+        onChanged={onChanged}
+      />
     </div>
   );
 }
