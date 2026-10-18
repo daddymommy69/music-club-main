@@ -63,6 +63,17 @@ export default async function SettingsPage({
         pendingCurators={pendingCurators.map((p) => ({ id: p.id, email: p.email, invitedBy: p.invitedBy }))}
       />
 
+      {/* Admin-only, same gate as the curator-grant panel inside
+          SettingsBoard above (2026-10-18 — see src/app/admin/copy/page.tsx's
+          own comment for why this is "just me" rather than every curator). */}
+      {curator.isAdmin && (
+        <div style={{ marginTop: 20 }}>
+          <Link href="/admin/copy" className="link-btn">
+            Edit site copy →
+          </Link>
+        </div>
+      )}
+
       <div style={{ marginTop: 28 }}>
         <LogoutButton />
       </div>

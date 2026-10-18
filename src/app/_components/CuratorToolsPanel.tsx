@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { formatRelativeTime } from "@/lib/relativeTime";
+import { siteCopy } from "@/lib/copy";
 import FallbackImg from "./FallbackImg";
 import ShipDropCard from "./ShipDropCard";
 import Top10Card, { type Top10CardProps } from "./Top10Card";
@@ -109,6 +110,16 @@ type MissingPlaylistDrop = {
   title: string | null;
 };
 
+/** Every shipped drop, for the cover-download list below (2026-10-18 —
+ * founder's own ask: "a place in curator where i can automatically
+ * download the covers created from the drops"). Same shape as
+ * MissingPlaylistDrop (num + title) but a different list — this is
+ * every published drop, not just the ones missing a Spotify playlist. */
+type PublishedDropSummary = {
+  num: number;
+  title: string | null;
+};
+
 /** One post in a curator's blurb feed — about the drop, or about a
  * single song, depending on which list it's in (2026-10-16 "feed of
  * posts" redesign — see BlurbFeed below). A curator can have more than
@@ -150,6 +161,10 @@ export type CuratorToolsPanelProps = {
   /** Per-song blurbs for the open drop, keyed by song id (2026-10-16).
    * A song with no blurbs yet just has no entry here. */
   songNotes: Record<number, Note[]>;
+  /** Every shipped drop, oldest or newest first doesn't matter here —
+   * DropCoversDisclosure sorts its own way. Powers the cover-download
+   * list (2026-10-18). */
+  publishedDrops: PublishedDropSummary[];
 };
 
 type DuplicateInfo = { title: string | null; artist: string | null };
@@ -198,6 +213,7 @@ export default function CuratorToolsPanel({
   dropsMissingPlaylist,
   dropNotes,
   songNotes,
+  publishedDrops,
 }: CuratorToolsPanelProps) {
   const router = useRouter();
 
@@ -257,6 +273,8 @@ export default function CuratorToolsPanel({
       <CuratorsDisclosure roster={roster} />
 
       {top10 && <Top10Disclosure top10={top10} />}
+
+      {publishedDrops.length > 0 && <DropCoversDisclosure drops={publishedDrops} />}
     </div>
   );
 }
@@ -724,7 +742,7 @@ function DropBlurbCard({ dropNotes, onChanged }: { dropNotes: Note[]; onChanged:
       </p>
       <BlurbFeed
         notes={dropNotes}
-        placeholder="What's this drop about? Any notes you want to say about the songs, or your own thoughts — think of this as a musical journal, let it spill."
+        placeholder={siteCopy.dropBlurbPlaceholder}
         onCreate={async (text) => {
           const res = await fetch("/api/overview/drop-note", {
             method: "POST",
@@ -1445,7 +1463,7 @@ function PickRow({
       </div>
       <BlurbFeed
         notes={notes}
-        placeholder="Any notes you want to say about this song, or your thoughts — think of this as a musical journal, let it spill."
+        placeholder={siteCopy.songBlurbPlaceholder}
         onCreate={async (text) => {
           const res = await fetch("/api/overview/song-note", {
             method: "POST",
@@ -1740,6 +1758,51 @@ function Top10Disclosure({ top10 }: { top10: Top10CardProps }) {
       {open && (
         <div style={{ marginTop: 12 }}>
           <Top10Card {...top10} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One download link per shipped drop (2026-10-18 — founder's own ask:
+ * "a place in curator where i can automatically download the covers
+ * created from the drops," for making social posts). Reuses the exact
+ * same cover /api/drops/[num]/cover already builds for the release
+ * email and the auto-built Spotify playlist — no new image anywhere,
+ * just a convenient link to the one that already exists. That route is
+ * public/unauthenticated by design (so email clients can load the
+ * <img>), but the link to it only ever shows up here, inside curator
+ * tools — so in practice only a curator ever sees it, matching the
+ * founder's own "only curators can download. since this is a tool for
+ * me." The `download` attribute makes a same-origin click save the
+ * file straight away instead of opening it in a new tab.
+ */
+function DropCoversDisclosure({ drops }: { drops: PublishedDropSummary[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="ct-card" style={{ marginTop: 20 }}>
+      <button type="button" className="ct-disclosure" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className="label" style={{ marginBottom: 0 }}>
+          Drop covers ({drops.length})
+        </span>
+        <span className="mut" style={{ fontSize: 11 }}>
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+      {open && (
+        <div className="roster-list" style={{ marginTop: 12 }}>
+          {drops.map((d) => (
+            <div key={d.num} className="roster-row">
+              <span className="roster-name">
+                Drop {d.num}
+                {d.title ? ` — ${d.title}` : ""}
+              </span>
+              <a href={`/api/drops/${d.num}/cover`} download={`drop-${d.num}-cover.jpg`} className="link-btn">
+                Download
+              </a>
+            </div>
+          ))}
         </div>
       )}
     </div>

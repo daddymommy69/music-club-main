@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { siteCopy } from "@/lib/copy";
 
-// "/" itself isn't in this list — it just redirects to /releases (the
-// site's home since 2026-10), so the active check below only ever
-// needs to match real routes.
+// "/" itself isn't in this list — it renders the exact same content as
+// /releases directly now (2026-10-18, see src/app/page.tsx), so the
+// active check below only ever needs to match real routes; landing on
+// bare "/" just shows no active tab, which is fine since Releases is
+// effectively always "home" either way.
 const NAV_ITEMS = [
   { href: "/releases", label: "Releases" },
   { href: "/browse", label: "Browse" },
@@ -30,7 +33,7 @@ export default function SiteHeader() {
           project music club
         </Link>
         <p className="mut" style={{ fontSize: 11.5, marginTop: 4 }}>
-          curated by jacob &amp; friends
+          {siteCopy.tagline}
         </p>
         <nav
           style={{

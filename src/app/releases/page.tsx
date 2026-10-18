@@ -9,6 +9,7 @@ import { getPublishedDrops, getPublicStats } from "@/lib/archive";
 import { getDropStatus } from "@/lib/dropStatus";
 import { formatDropMeta, formatScheduledDate } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
+import { siteCopy } from "@/lib/copy";
 
 // Drops change whenever curators ship a new one — never freeze this
 // at build time.
@@ -21,15 +22,22 @@ export const dynamic = "force-dynamic";
  * generateMetadata: a real description instead of the static layout
  * default, built from the same getPublicStats() totals already shown
  * on this page, so sharing the home link previews with real numbers.
+ *
+ * Shared by both route files that render this page (2026-10-18 —
+ * "/" became the real home, not just a redirect — see src/app/page.tsx
+ * and this file's own default export below): the canonical URL always
+ * points at the bare domain now, regardless of which route actually
+ * served the request, so search engines/share cards treat "/" and
+ * "/releases" as the same page rather than two separate ones.
  */
-export async function generateMetadata(): Promise<Metadata> {
+export async function generateReleasesMetadata(): Promise<Metadata> {
   const club = await getDefaultClub();
   const stats = await getPublicStats(club.id);
   const description =
     stats.dropCount > 0
       ? `${stats.dropCount} drops, ${stats.songCount} songs, from ${stats.artistCount} artists.`
-      : "curated by jacob & friends";
-  const pageUrl = siteUrl("/releases");
+      : siteCopy.tagline;
+  const pageUrl = siteUrl("/");
 
   // Link-preview title only (2026-10-16 — founder's own report:
   // "when sharing the releases, it says drop so far on the link, just
@@ -54,18 +62,27 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-// Releases is the site's home page (design decision, 2026-10) — "/"
-// just redirects here. Lived at /archive until 2026-10, when the URL
-// (only — everything else, including this component's internals and
-// the shared getPublishedDrops()/archive.ts naming, is unchanged) was
-// renamed to /releases to match the nav label it already carried.
+export async function generateMetadata(): Promise<Metadata> {
+  return generateReleasesMetadata();
+}
+
+// Releases is the site's home page (design decision, 2026-10). Used to
+// be reached only via "/" redirecting here; as of 2026-10-18 (founder's
+// own ask: "the releases link is just musicclub.fyi") "/" renders this
+// exact content directly (src/app/page.tsx imports ReleasesPageContent
+// below) instead of redirecting, while "/releases" itself keeps working
+// too, same content either way — his own "its fine" to leaving the old
+// URL alive. Lived at /archive until 2026-10, when the URL (only —
+// everything else, including this component's internals and the shared
+// getPublishedDrops()/archive.ts naming, is unchanged) was renamed to
+// /releases to match the nav label it already carried.
 //
 // The "Join the club" entry point (SignupPopup, despite its name — see
 // that component) just links to /account now, same as the nav's
 // Account item — /signup folded into /account in the 2026-10
 // release-page redesign (see claude/next-build.md), so this page no
 // longer needs its own copy of getSignupContext/the popup form.
-export default async function ReleasesPage() {
+export async function ReleasesPageContent() {
   const club = await getDefaultClub();
   const [dropList, status, stats] = await Promise.all([
     getPublishedDrops(club.id),
@@ -90,6 +107,22 @@ export default async function ReleasesPage() {
     <>
       <SiteHeader />
       <main className="col page gz-up">
+        {/* "What is this" line, top of the page, above everything else
+            (2026-10-18 — founder's own goal: "i want people to
+            understand what the website is when they open it up on the
+            drops page"). Kept short on purpose — the page's real job is
+            showing the drops below, not re-explaining the whole site —
+            with a link down to /about for anyone who wants the fuller
+            version (which stays its own page, unchanged). Pulled from
+            siteCopy so he can rewrite it himself via /admin/copy
+            without asking for a code change each time. */}
+        <p className="mut" style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 20 }}>
+          {siteCopy.homeIntro}{" "}
+          <Link href="/about" className="about-link" style={{ fontSize: 13 }}>
+            more about this →
+          </Link>
+        </p>
+
         <h1 style={{ fontSize: 20, letterSpacing: "-0.02em", marginBottom: 12 }}>
           Every drop so far
           {dropList.length > 0 && (
@@ -157,4 +190,8 @@ export default async function ReleasesPage() {
       </main>
     </>
   );
+}
+
+export default async function ReleasesPage() {
+  return ReleasesPageContent();
 }

@@ -29,7 +29,8 @@ const LIKED_SONGS_LIMIT = 20;
 async function getCuratorToolsProps(
   club: Club,
   openDrop: Drop | null,
-  viewerId: number
+  viewerId: number,
+  publishedDrops: { num: number; title: string | null }[]
 ): Promise<CuratorToolsPanelProps> {
   const [overview, room, top10Drop, dropsMissingPlaylist, dropNoteRows, songNoteMap] = await Promise.all([
     getOverviewData(club),
@@ -148,6 +149,10 @@ async function getCuratorToolsProps(
         })),
       ])
     ),
+    // Powers DropCoversDisclosure's download list (2026-10-18). The
+    // fuller publishedDrops the caller already fetched for AccountBoard
+    // carries more than this panel needs — just num/title here.
+    publishedDrops: publishedDrops.map((d) => ({ num: d.num, title: d.title })),
   };
 }
 
@@ -246,7 +251,9 @@ export default async function AccountPage() {
       // real server-side gate (AccountBoard's own `member.isCurator`
       // check is just what decides whether to render it, not whether
       // the data exists at all).
-      member.isCurator ? getCuratorToolsProps(club, openDrop, member.id) : Promise.resolve(null),
+      member.isCurator
+        ? getCuratorToolsProps(club, openDrop, member.id, publishedDrops)
+        : Promise.resolve(null),
     ]);
 
   return (

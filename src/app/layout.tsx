@@ -3,12 +3,13 @@ import "./globals.css";
 import NowPlayingProvider from "./_components/NowPlayingProvider";
 import SiteFooter from "./_components/SiteFooter";
 import { SITE_URL } from "@/lib/site";
+import { siteCopy } from "@/lib/copy";
 
 export const metadata: Metadata = {
   // lowercase on purpose (2026-10-09 — founder's own ask), matching the
   // in-page wordmark in SiteHeader.tsx, which has always been lowercase.
   title: "project music club",
-  description: "curated by jacob & friends",
+  description: siteCopy.tagline,
   // Lets Next resolve the absolute image/URL values a per-route
   // generateMetadata sets (drop/[num]/page.tsx's OG cover image, 2026-10-15)
   // without a build warning — those routes already pass full siteUrl()

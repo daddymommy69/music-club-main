@@ -1,3 +1,5 @@
+import { siteCopy } from "@/lib/copy";
+
 /**
  * Site-wide signature (2026-10-16 — founder's own ask: "i still want
  * the footer of my dads font that leads to my portfolio"). Rendered
@@ -13,7 +15,7 @@ export default function SiteFooter() {
   return (
     <footer className="site-footer">
       <a href="https://portfolio.jacobfogelhut.workers.dev/" target="_blank" rel="noreferrer">
-        powered by jacob fogelhut
+        {siteCopy.footerSignature}
       </a>
     </footer>
   );
