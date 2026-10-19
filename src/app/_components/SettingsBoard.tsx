@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CYCLE_OPTIONS, type CycleValue } from "@/lib/cycle";
 import { useDirtyField } from "@/lib/useDirtyField";
+import { siteCopy } from "@/lib/copy";
 
 type CuratorRow = { id: number; name: string | null; email: string | null };
 type PendingCuratorRow = { id: number; email: string; invitedBy: string | null };
@@ -168,7 +169,7 @@ function CycleSection({
         Drop cycle
       </label>
       <p className="mut" style={{ fontSize: 11, marginTop: 0 }}>
-        Manual means no scheduled date — every countdown in the app disappears.
+        {siteCopy.cycleManualHint}
       </p>
       <div className="cycle-grid">
         {CYCLE_OPTIONS.map((opt) => (
@@ -277,8 +278,7 @@ function SpotifySection({
       {connected ? (
         <>
           <p className="mut" style={{ fontSize: 11.5, marginBottom: 10 }}>
-            Connected — shipping a drop with the Spotify field left blank auto-builds that
-            playlist.
+            {siteCopy.spotifyConnectedHint}
           </p>
           <button
             type="button"
@@ -293,8 +293,7 @@ function SpotifySection({
       ) : (
         <>
           <p className="mut" style={{ fontSize: 11.5, marginBottom: 10 }}>
-            Not connected — ship currently needs a Spotify link pasted in by hand. Connect your
-            account to auto-build it instead.
+            {siteCopy.spotifyNotConnectedHint}
           </p>
           <a
             href="/api/spotify/connect"
@@ -440,7 +439,7 @@ function AdminSection({
 
       {curators.length === 0 ? (
         <p className="mut" style={{ fontSize: 11.5, marginBottom: 12 }}>
-          No curators yet.
+          {siteCopy.noCuratorsText}
         </p>
       ) : (
         <div className="roster-list" style={{ marginBottom: 12 }}>
@@ -468,7 +467,7 @@ function AdminSection({
               <span className="roster-name">
                 {p.email}
                 <span className="mut" style={{ fontSize: 10.5, marginLeft: 6 }}>
-                  pending — becomes curator on signup
+                  {siteCopy.pendingCuratorHint}
                 </span>
               </span>
               <button
@@ -489,7 +488,7 @@ function AdminSection({
         <input
           className="settings-input"
           type="email"
-          placeholder="their@email.com"
+          placeholder={siteCopy.curatorEmailPlaceholder}
           value={email}
           onChange={(e) => {
             setEmail(e.target.value);
@@ -506,8 +505,7 @@ function AdminSection({
         </button>
       </form>
       <p className="mut" style={{ fontSize: 11, marginTop: 8 }}>
-        Already signed up? They become a curator right away. Haven&rsquo;t signed up yet? It&rsquo;s
-        saved here and applies automatically the moment they do.
+        {siteCopy.curatorInviteHint}
       </p>
       {error && (
         <p className="notice error" style={{ marginTop: 10 }}>

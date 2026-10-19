@@ -657,6 +657,34 @@ export const artistSpotifyCache = pgTable("artist_spotify_cache", {
     .defaultNow(),
 });
 
+/**
+ * Admin's own in-progress draft of site copy (2026-10-19 — founder's
+ * own ask: "i want to be able to change the copy and it save here, so
+ * that i can play around with the copy" before committing to a
+ * download). One row per club, the whole draft stored as a single JSON
+ * blob — deliberately NOT read anywhere the live site renders; only
+ * /admin/copy and its one API route touch this table, so there's no
+ * live-write risk here at all. Downloading from that page still
+ * generates the real src/lib/copy.ts file to upload by hand, same as
+ * always — this table only ever saves what's mid-edit.
+ */
+export const copyDrafts = pgTable("copy_drafts", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id")
+    .notNull()
+    .references(() => clubs.id, { onDelete: "cascade" })
+    .unique(),
+  // JSON.stringify of a Partial<Record<SiteCopyKey, string>> — plain
+  // text rather than jsonb since nothing ever queries into it, only
+  // reads/writes the whole blob.
+  data: text("data").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+export type CopyDraft = typeof copyDrafts.$inferSelect;
+export type NewCopyDraft = typeof copyDrafts.$inferInsert;
+
 export type Club = typeof clubs.$inferSelect;
 export type NewClub = typeof clubs.$inferInsert;
 export type Drop = typeof drops.$inferSelect;

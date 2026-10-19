@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { artistHref } from "@/lib/artistLink";
+import { siteCopy } from "@/lib/copy";
 import RoleName from "./RoleName";
 import ListenerPickForm from "./ListenerPickForm";
 import RateDropControl from "./RateDropControl";
@@ -130,7 +131,7 @@ export default function AccountBoard({
               <ListenerPickForm openDrop={openDrop} initialPick={listenerPick} />
             ) : (
               <p className="mut" style={{ fontSize: 12.5 }}>
-                No drop is open for submissions right now.
+                {siteCopy.noOpenDropText}
               </p>
             )}
           </Section>
@@ -260,7 +261,7 @@ function ProfileCard({ member }: { member: Member }) {
             )}
           </div>
           <p className="mut" style={{ fontSize: 12.5, lineHeight: 1.6 }}>
-            {member.bio?.trim() || "No bio yet."}
+            {member.bio?.trim() || siteCopy.noBioText}
           </p>
         </div>
         <button type="button" className="link-btn" style={{ flexShrink: 0 }} onClick={startEditing}>
@@ -279,7 +280,7 @@ function ProfileCard({ member }: { member: Member }) {
         <input
           type="text"
           className="settings-input"
-          placeholder="Your name"
+          placeholder={siteCopy.namePlaceholder}
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
@@ -292,7 +293,7 @@ function ProfileCard({ member }: { member: Member }) {
           ref={bioRef}
           className="settings-input"
           style={{ resize: "none", overflow: "hidden", padding: "10px 12px", lineHeight: 1.6, minHeight: 44 }}
-          placeholder="A short line about you"
+          placeholder={siteCopy.bioPlaceholder}
           value={bio}
           onChange={(e) => {
             setBio(e.target.value);
@@ -385,7 +386,7 @@ function SpotifyConnectControl({ connected }: { connected: boolean }) {
 
 function SubmissionHistory({ rows }: { rows: SubmissionRow[] }) {
   if (rows.length === 0) {
-    return <p className="mut" style={{ fontSize: 12.5 }}>No picks yet.</p>;
+    return <p className="mut" style={{ fontSize: 12.5 }}>{siteCopy.noPicksYetText}</p>;
   }
   return (
     // Player revamp (2026-10-08 — see claude/next-build.md): your own
@@ -434,7 +435,7 @@ function LikedSongsGrid({ songs }: { songs: LikedSong[] }) {
   if (songs.length === 0) {
     return (
       <p className="mut" style={{ fontSize: 12.5 }}>
-        Nothing liked yet — songs you like will show up here as artwork.
+        {siteCopy.noLikesYetText}
       </p>
     );
   }
@@ -460,7 +461,7 @@ function LikedSongsGrid({ songs }: { songs: LikedSong[] }) {
 
 function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
   if (rows.length === 0) {
-    return <p className="mut" style={{ fontSize: 12.5 }}>No shipped picks yet.</p>;
+    return <p className="mut" style={{ fontSize: 12.5 }}>{siteCopy.noShippedPicksText}</p>;
   }
   return (
     <div className="roster-list">
@@ -534,7 +535,7 @@ function TopsGrid({
   }
 
   if (drops.length === 0) {
-    return <p className="mut" style={{ fontSize: 12.5 }}>No shipped drops yet.</p>;
+    return <p className="mut" style={{ fontSize: 12.5 }}>{siteCopy.noShippedDropsText}</p>;
   }
 
   return (

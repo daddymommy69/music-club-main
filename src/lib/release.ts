@@ -4,7 +4,14 @@ import { members, drops, type Drop } from "@/db/schema";
 import { getDefaultClub } from "./club";
 import { sendSms } from "./sms";
 import { sendEmail } from "./email";
-import { releaseSmsBody, releaseEmailHtml, top10ReleaseSmsBody, top10ReleaseEmailHtml } from "./messages";
+import {
+  releaseSmsBody,
+  releaseEmailHtml,
+  RELEASE_SUBJECT,
+  top10ReleaseSmsBody,
+  top10ReleaseEmailHtml,
+  TOP10_RELEASE_SUBJECT,
+} from "./messages";
 import { generateMemberToken } from "./memberToken";
 import { getDropNotes } from "./notes";
 
@@ -120,7 +127,7 @@ export async function sendDropToSubscribers(drop: Drop, shippedBy?: string) {
         // memberToken — it links to the drop's own public page now,
         // not a personal /you link — memberToken is still generated
         // above for the SMS body just below, which is unchanged.
-        await sendEmail(sub.email, "new playlist is here", releaseEmailHtml(drop, dropNotes));
+        await sendEmail(sub.email, RELEASE_SUBJECT, releaseEmailHtml(drop, dropNotes));
       }
       sent += 1;
     } catch (err) {
@@ -164,7 +171,7 @@ export async function sendTop10ToSubscribers(dropNum: number) {
         await sendSms(sub.phone, top10ReleaseSmsBody(dropNum));
       }
       if (sub.wantsEmail && sub.email) {
-        await sendEmail(sub.email, "The Subscriber Top 10 is up 🎶", top10ReleaseEmailHtml(dropNum));
+        await sendEmail(sub.email, TOP10_RELEASE_SUBJECT, top10ReleaseEmailHtml(dropNum));
       }
       sent += 1;
     } catch (err) {

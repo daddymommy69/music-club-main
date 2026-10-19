@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { formatRelativeTime } from "@/lib/relativeTime";
-import { siteCopy } from "@/lib/copy";
+import { siteCopy, splitParagraphs } from "@/lib/copy";
 import FallbackImg from "./FallbackImg";
 import ShipDropCard from "./ShipDropCard";
 import Top10Card, { type Top10CardProps } from "./Top10Card";
@@ -295,6 +295,7 @@ export default function CuratorToolsPanel({
  */
 function CuratorHelpDisclosure() {
   const [open, setOpen] = useState(false);
+  const paragraphs = splitParagraphs(siteCopy.curatorHelpText);
   return (
     <div className="ct-card" style={{ marginBottom: 20 }}>
       <button type="button" className="ct-disclosure" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
@@ -307,17 +308,17 @@ function CuratorHelpDisclosure() {
       </button>
       {open && (
         <p className="mut" style={{ fontSize: 12, lineHeight: 1.6, marginTop: 12 }}>
-          when you ship a drop, we try to build the spotify playlist automatically from this
-          cycle&rsquo;s picks — but only if spotify&rsquo;s connected in settings. if it&rsquo;s not
-          connected, nothing gets built on its own, so paste a playlist link in yourself before
-          shipping.
-          <br />
-          <br />
-          you can also schedule a drop to open and ship on its own — set the dates in settings and
-          it handles itself from there.
-          <br />
-          <br />
-          subscribers get emailed the second it ships, so double check the picks first.
+          {paragraphs.map((para, i) => (
+            <span key={i}>
+              {para}
+              {i < paragraphs.length - 1 && (
+                <>
+                  <br />
+                  <br />
+                </>
+              )}
+            </span>
+          ))}
         </p>
       )}
     </div>
@@ -1221,7 +1222,7 @@ function AddPick({ onAdded }: { onAdded: () => void }) {
       <input
         type="text"
         className="settings-input"
-        placeholder="Search Spotify for a song…"
+        placeholder={siteCopy.addPickSearchPlaceholder}
         value={query}
         onChange={(e) => handleQueryChange(e.target.value)}
       />
@@ -1386,7 +1387,7 @@ function PicksCard({
       </p>
       {picks.length === 0 ? (
         <div className="empty-state" style={{ padding: "12px 0" }}>
-          No picks yet — search above to add one.
+          {siteCopy.emptyPicksText}
         </div>
       ) : (
         <div className="pile-list">
@@ -1513,11 +1514,11 @@ function PileCard({
           screenshot, so it stays as a plain line rather than something
           hidden behind an icon someone has to find. */}
       <p className="mut" style={{ fontSize: 11, marginBottom: 10 }}>
-        Songs people submit land here first — Quick-add pulls one into this cycle&rsquo;s picks.
+        {siteCopy.pilePickHint}
       </p>
       {pile.length === 0 ? (
         <div className="empty-state" style={{ padding: "12px 0" }}>
-          Nothing submitted for this drop yet.
+          {siteCopy.emptyPileText}
         </div>
       ) : (
         <div className="pile-list">

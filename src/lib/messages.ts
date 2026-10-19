@@ -1,5 +1,6 @@
 import type { Drop } from "@/db/schema";
 import { siteUrl } from "@/lib/site";
+import { siteCopy, renderTemplate } from "@/lib/copy";
 
 const CLUB_NAME = process.env.NEXT_PUBLIC_CLUB_NAME || "the music club";
 
@@ -7,8 +8,12 @@ export function confirmationSmsBody() {
   return `You're in! Welcome to ${CLUB_NAME}. You'll get a text when the next playlist drops. Reply STOP anytime to unsubscribe.`;
 }
 
+/** 2026-10-19 — subject/body moved into siteCopy (src/lib/copy.ts),
+ * editable from /admin/copy. {clubName} is the one dynamic piece. */
+export const CONFIRMATION_SUBJECT = siteCopy.confirmationEmailSubject;
+
 export function confirmationEmailHtml() {
-  return `<p>You're in! Welcome to <strong>${CLUB_NAME}</strong>.</p><p>You'll get an email when the next playlist drops.</p>`;
+  return renderTemplate(siteCopy.confirmationEmailBody, { clubName: CLUB_NAME });
 }
 
 /** Where "here"/"the website" in the welcome email below point — the
@@ -24,20 +29,24 @@ function releasesUrl() {
  * lightweight, no-code signup path, so this fires immediately on
  * signup itself, not after some later "verification" step; a
  * brand-new member never goes through one). 2026-10-10 — founder's own
- * wording, see claude/next-build.md. */
-export const WELCOME_SUBJECT = "welcome to the club";
+ * wording, see claude/next-build.md. 2026-10-19 — moved into siteCopy,
+ * editable from /admin/copy. */
+export const WELCOME_SUBJECT = siteCopy.welcomeEmailSubject;
 
 /** currentDrop is whatever getLatestPublicDrop() returned — null if
  * nobody's shipped a drop yet, in which case the "check out the
  * current drop" line is skipped entirely (founder's own call) rather
- * than showing a placeholder. */
+ * than showing a placeholder. That whole dynamic paragraph is built
+ * here and dropped into {currentDropLine} — it's not itself part of
+ * the editable template, since it has to stay in sync with whether a
+ * drop actually exists. */
 export function welcomeEmailHtml(currentDrop: { num: number; title: string | null } | null) {
   const dropLine = currentDrop
     ? `<p>check out the current drop <a href="${releasesUrl()}">here</a>: ${
         currentDrop.title ? `drop ${currentDrop.num} — "${currentDrop.title}"` : `drop ${currentDrop.num}`
       }.</p>`
     : "";
-  return `<p>you will get emailed each drop when they drop.</p>${dropLine}<p>check the <a href="${releasesUrl()}">website</a> to see when the next one is coming.</p><p>thanks player and enjoy</p>`;
+  return renderTemplate(siteCopy.welcomeEmailBody, { currentDropLine: dropLine, websiteUrl: releasesUrl() });
 }
 
 /** Where the "you're a chosen one" email's link points — the curator
@@ -56,11 +65,12 @@ function curatorLoginUrl() {
  * route) or a pending invite consumed on signup (members.ts's
  * findOrCreateMember). Never sent for a revoke, and never sent for the
  * founder's own bootstrap grant (ensureFounderAccess) — see
- * claude/next-build.md, 2026-10-09 curator-notification round. */
-export const CURATOR_GRANTED_SUBJECT = "you're a chosen one";
+ * claude/next-build.md, 2026-10-09 curator-notification round.
+ * 2026-10-19 — moved into siteCopy. */
+export const CURATOR_GRANTED_SUBJECT = siteCopy.curatorGrantedEmailSubject;
 
 export function curatorGrantedEmailHtml() {
-  return `<p>you are now a chosen curator for our music club. <a href="${curatorLoginUrl()}">click the link to start the playerz parade</a></p>`;
+  return renderTemplate(siteCopy.curatorGrantedEmailBody, { curatorLink: curatorLoginUrl() });
 }
 
 /** Sent right when an admin grants curator to an email with no member
@@ -70,12 +80,11 @@ export function curatorGrantedEmailHtml() {
  * differ is the link, since /curators itself refuses anyone with no
  * member row yet. Once they actually sign up, findOrCreateMember
  * promotes them and sends curatorGrantedEmailHtml() above — same
- * subject, same wording, now pointed at /curators since it'll
- * actually work by then. */
+ * subject, same wording (both come from siteCopy.curatorGrantedEmailBody
+ * as of 2026-10-19), now pointed at /curators since it'll actually
+ * work by then. */
 export function curatorInviteEmailHtml() {
-  return `<p>you are now a chosen curator for our music club. <a href="${siteUrl(
-    "/signup"
-  )}">click the link to start the playerz parade</a></p>`;
+  return renderTemplate(siteCopy.curatorGrantedEmailBody, { curatorLink: siteUrl("/signup") });
 }
 
 /** Every text/email points here, not straight at the raw playlist URLs —
@@ -129,7 +138,13 @@ function dropCoverImageUrl(dropNum: number) {
  * list individual songs at all today. Caller (src/lib/release.ts)
  * fetches these once before the send loop and passes them in; empty
  * when nobody's written one, same quiet-by-default spirit as every
- * other optional block here. */
+ * other optional block here.
+ *
+ * 2026-10-19 — subject/body moved into siteCopy; everything built here
+ * (cover, notesHtml, spotifyLink, the label/page) stays dynamic and is
+ * dropped into the template's {tokens}. */
+export const RELEASE_SUBJECT = siteCopy.releaseEmailSubject;
+
 export function releaseEmailHtml(drop: Drop, notes: { curatorName: string; text: string }[] = []) {
   const label = drop.title ? `drop ${drop.num} — "${drop.title}"` : `drop ${drop.num}`;
   const page = dropUrl(drop.num);
@@ -143,7 +158,14 @@ export function releaseEmailHtml(drop: Drop, notes: { curatorName: string; text:
         `<p>${n.text}<br/><span style="color:#888;font-size:12px;">— ${n.curatorName}</span></p>`
     )
     .join("");
-  return `<p>new playlist from <strong>${CLUB_NAME}</strong> — ${label}.</p>${cover}${notesHtml}<p><a href="${page}">check it out</a>${spotifyLink}.</p>`;
+  return renderTemplate(siteCopy.releaseEmailBody, {
+    clubName: CLUB_NAME,
+    dropLabel: label,
+    cover,
+    notesHtml,
+    page,
+    spotifyLink,
+  });
 }
 
 /** Sent once a curator pastes in the Top 10 playlist link — i.e. only
@@ -158,10 +180,19 @@ export function top10ReleaseSmsBody(dropNum: number) {
   return lines.join("\n");
 }
 
+export const TOP10_RELEASE_SUBJECT = siteCopy.top10ReleaseEmailSubject;
+
 export function top10ReleaseEmailHtml(dropNum: number) {
-  return `<p>The Subscriber Top 10 for drop ${dropNum} is up — songs you all voted for:</p><p><a href="${dropUrl(
-    dropNum
-  )}">See the results</a></p>`;
+  return renderTemplate(siteCopy.top10ReleaseEmailBody, { dropNum: String(dropNum), page: dropUrl(dropNum) });
+}
+
+/** Sent once a login code is issued (src/lib/members.ts's
+ * issueLoginCode). 2026-10-19 — moved into siteCopy; {code} is the
+ * one dynamic piece. */
+export const LOGIN_CODE_SUBJECT = siteCopy.loginCodeEmailSubject;
+
+export function loginCodeEmailHtml(code: string) {
+  return renderTemplate(siteCopy.loginCodeEmailBody, { code });
 }
 
 /**

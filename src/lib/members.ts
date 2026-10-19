@@ -4,7 +4,7 @@ import { getDb } from "@/db/client";
 import { members, loginCodes, pendingCurators, type Club, type Member } from "@/db/schema";
 import { normalizePhone, normalizeEmail, isUniqueViolation } from "./normalize";
 import { sendEmail } from "./email";
-import { CURATOR_GRANTED_SUBJECT, curatorGrantedEmailHtml } from "./messages";
+import { CURATOR_GRANTED_SUBJECT, curatorGrantedEmailHtml, LOGIN_CODE_SUBJECT, loginCodeEmailHtml } from "./messages";
 import { generateMemberToken } from "./memberToken";
 
 const CODE_TTL_MINUTES = 10;
@@ -244,7 +244,7 @@ export async function issueLoginCode(member: Member): Promise<void> {
   console.log(`[login] code for member ${member.id} (${member.email}): ${code}`);
 
   try {
-    await sendEmail(member.email, "Your login code", `<p>Your code: <strong>${code}</strong></p>`);
+    await sendEmail(member.email, LOGIN_CODE_SUBJECT, loginCodeEmailHtml(code));
   } catch (err) {
     console.error("Login code send failed (code is still valid, see server log above):", err);
   }

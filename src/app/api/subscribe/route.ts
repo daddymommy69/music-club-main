@@ -9,7 +9,7 @@ import { generateMemberToken } from "@/lib/memberToken";
 import { normalizePhone, isUniqueViolation } from "@/lib/normalize";
 import { sendSms } from "@/lib/sms";
 import { sendEmail } from "@/lib/email";
-import { confirmationSmsBody, confirmationEmailHtml } from "@/lib/messages";
+import { confirmationSmsBody, confirmationEmailHtml, CONFIRMATION_SUBJECT } from "@/lib/messages";
 
 /** Indexed lookup on the normalized phoneKey column — for the
  * phone-only (no email) signup path, see the comment below. */
@@ -128,7 +128,7 @@ export async function POST(request: Request) {
         await sendSms(created.phone, confirmationSmsBody());
       }
       if (created.wantsEmail && created.email) {
-        await sendEmail(created.email, "You're in!", confirmationEmailHtml());
+        await sendEmail(created.email, CONFIRMATION_SUBJECT, confirmationEmailHtml());
       }
     } catch (err) {
       console.error("Confirmation send failed:", err);
