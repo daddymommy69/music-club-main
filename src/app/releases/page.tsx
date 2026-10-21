@@ -129,13 +129,24 @@ export async function ReleasesPageContent() {
             with a link down to /about for anyone who wants the fuller
             version (which stays its own page, unchanged). Pulled from
             siteCopy so he can rewrite it himself via /admin/copy
-            without asking for a code change each time. */}
+            without asking for a code change each time.
+
+            2026-10-21 — founder's own ask: the "more about this" link
+            now always starts on its own line under the intro text
+            (a <br />, not just a wrapping space) rather than running
+            on inline right after it. */}
         <p className="mut" style={{ fontSize: 13, lineHeight: 1.6, marginBottom: 20 }}>
-          {siteCopy.homeIntro}{" "}
+          {siteCopy.homeIntro}
+          <br />
           <Link href="/about" className="about-link" style={{ fontSize: 13 }}>
             more about this →
           </Link>
         </p>
+
+        {/* Moved above "Every drop so far" (2026-10-21 — founder's own
+            ask: "make the join the club button above the every drop so
+            far"). Was between the stats line and the drop grid before. */}
+        <SignupPopup />
 
         <h1 style={{ fontSize: 20, letterSpacing: "-0.02em", marginBottom: 12 }}>
           Every drop so far
@@ -156,14 +167,6 @@ export async function ReleasesPageContent() {
             <span className="about-num">{stats.artistCount}</span> artists.
           </p>
         )}
-
-        {scheduleLine && (
-          <p className="mut" style={{ fontSize: 12, marginTop: -4, marginBottom: 16 }}>
-            {scheduleLine}
-          </p>
-        )}
-
-        <SignupPopup />
 
         {dropList.length === 0 ? (
           <p className="empty-state">
@@ -200,6 +203,16 @@ export async function ReleasesPageContent() {
               </div>
             ))}
           </div>
+        )}
+
+        {/* Moved below every drop (2026-10-21 — founder's own ask: "i
+            tihnk i want to bring the next release information with the
+            dates, to be below all the drops on the main page"). Was
+            right under the stats line before. */}
+        {scheduleLine && (
+          <p className="mut" style={{ fontSize: 12, marginTop: 16 }}>
+            {scheduleLine}
+          </p>
         )}
       </main>
     </>
