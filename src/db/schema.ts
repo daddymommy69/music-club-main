@@ -290,6 +290,16 @@ export const members = pgTable(
     smsConsent: boolean("sms_consent").notNull().default(false),
     smsOptInAt: timestamp("sms_opt_in_at", { withTimezone: true }),
     optedOut: boolean("opted_out").notNull().default(false),
+    // Public profile URL key (/u/[slug], 2026-10-19 — founder's own
+    // ask: every member, curator or not, gets a clickable profile,
+    // keyed by a stable id rather than their display name since two
+    // members could share a name the way artist pages already allow
+    // for artists). Auto-generated from the member's name at signup
+    // (src/lib/members.ts's generateUniqueMemberSlug) so every member
+    // has a working page immediately with no setup — editable later
+    // from Account settings. Globally unique (not club-scoped) since
+    // the URL itself carries no club segment.
+    slug: varchar("slug", { length: 60 }).unique(),
     // Unguessable per-member token for the magic-link straight into the
     // unified account page — every release text/email link uses this so
     // clicking it lands you already signed in, no code needed. Typing

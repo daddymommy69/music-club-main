@@ -13,12 +13,17 @@ import { songs, drops, members } from "@/db/schema";
  */
 export async function updateMemberProfile(
   memberId: number,
-  changes: { name?: string; bio?: string }
+  changes: { name?: string; bio?: string; slug?: string }
 ): Promise<void> {
   const db = getDb();
-  const set: { name?: string | null; bio?: string | null } = {};
+  const set: { name?: string | null; bio?: string | null; slug?: string } = {};
   if (changes.name !== undefined) set.name = changes.name.trim() || null;
   if (changes.bio !== undefined) set.bio = changes.bio.trim() || null;
+  // slug has no "clear it back to null" path — unlike name/bio it's a
+  // NOT NULL column (src/db/schema.ts) and the route calling this
+  // (/api/account/profile) already rejects a blank value before it
+  // gets here, so an empty string is never what lands in `set`.
+  if (changes.slug !== undefined && changes.slug.trim()) set.slug = changes.slug.trim();
   if (Object.keys(set).length === 0) return;
   await db.update(members).set(set).where(eq(members.id, memberId));
 }

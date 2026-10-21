@@ -2,7 +2,7 @@ import { randomInt } from "crypto";
 import { and, asc, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { members, loginCodes, pendingCurators, type Club, type Member } from "@/db/schema";
-import { normalizePhone, normalizeEmail, isUniqueViolation } from "./normalize";
+import { normalizePhone, normalizeEmail, isUniqueViolation, slugify } from "./normalize";
 import { sendEmail } from "./email";
 import { CURATOR_GRANTED_SUBJECT, curatorGrantedEmailHtml, LOGIN_CODE_SUBJECT, loginCodeEmailHtml } from "./messages";
 import { generateMemberToken } from "./memberToken";
@@ -67,6 +67,47 @@ export async function optOutMember(id: number): Promise<void> {
   await db.update(members).set({ optedOut: true }).where(eq(members.id, id));
 }
 
+export async function getMemberBySlug(slug: string): Promise<Member | null> {
+  const db = getDb();
+  const [row] = await db.select().from(members).where(eq(members.slug, slug)).limit(1);
+  return row ?? null;
+}
+
+/** True if `slug` is free to use — either nobody has it, or it already
+ * belongs to `excludeMemberId` (so saving your own unchanged handle
+ * never reports itself as taken). Used by the account-profile route
+ * when someone edits their own handle. */
+export async function isSlugAvailable(slug: string, excludeMemberId?: number): Promise<boolean> {
+  const db = getDb();
+  const [row] = await db.select({ id: members.id }).from(members).where(eq(members.slug, slug)).limit(1);
+  if (!row) return true;
+  return excludeMemberId != null && row.id === excludeMemberId;
+}
+
+/**
+ * Resolves a free-text name into a unique /u/[slug] value (2026-10-19
+ * — founder's own ask: every member, not just curators, gets a public
+ * profile page). Auto-generated at signup so every member has a
+ * working URL immediately with no setup required — editable later from
+ * Account settings. Falls back to "member" for a name-less signup
+ * (phone-only, no name typed), then to "member-<n>" suffixes if that's
+ * also taken. The caller (findOrCreateMember et al.) still has to
+ * handle a lost race against a concurrent signup for the exact same
+ * candidate — this just makes that race rare, not impossible, same
+ * spirit as every other "check then insert" path in this file.
+ */
+export async function generateUniqueMemberSlug(name: string | null): Promise<string> {
+  const base = slugify(name?.trim() || "") || "member";
+  let candidate = base;
+  let suffix = 2;
+  for (let i = 0; i < 50; i++) {
+    if (await isSlugAvailable(candidate)) return candidate;
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  return `${base}-${Date.now()}`;
+}
+
 export type NewMemberInput = {
   name?: string | null;
   email: string;
@@ -90,74 +131,95 @@ export async function findOrCreateMember(club: Club, input: NewMemberInput): Pro
   if (existing) return existing;
 
   const emailKey = normalizeEmail(input.email);
+  const name = input.name?.trim() || null;
 
-  try {
-    const [created] = await db
-      .insert(members)
-      .values({
-        clubId: club.id,
-        name: input.name?.trim() || null,
-        email: input.email.trim(),
-        emailKey,
-        phone: input.phone?.trim() || null,
-        phoneKey: input.phone ? normalizePhone(input.phone) : null,
-        wantsText: input.wantsText ?? false,
-        wantsEmail: input.wantsEmail ?? true,
-        smsConsent: input.smsConsent ?? false,
-        smsOptInAt: input.smsConsent ? new Date() : null,
-        memberToken: generateMemberToken(),
-      })
-      .returning();
+  // Bounded retry loop (2026-10-19 — /u/[slug] launch): almost always
+  // succeeds on the first attempt, since generateUniqueMemberSlug
+  // already checked availability moments ago — this loop only exists
+  // to survive the rare case where a concurrent signup takes the exact
+  // same candidate slug in between that check and this insert. Mirrors
+  // the existing emailKey race-handling below, just for slug instead.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const slug = await generateUniqueMemberSlug(name);
 
-    // Consume a pending curator invite, if an admin typed this exact
-    // email into Settings' Curators panel before this person ever
-    // signed up (2026-10-09 — see claude/next-build.md and
-    // addPendingCurator/listPendingCurators below). The DELETE...
-    // RETURNING is the "claim" — only this signup gets to consume a
-    // given invite, same atomic-claim pattern as Round 9's double-ship
-    // fix, so two near-simultaneous signups for the same email can't
-    // both see the invite and both grant themselves curator. Best
-    // effort: a failure here shouldn't fail the signup itself — it
-    // would just leave the invite sitting there for the admin to
-    // notice and grant by hand instead.
     try {
-      const [claimed] = await db
-        .delete(pendingCurators)
-        .where(and(eq(pendingCurators.clubId, club.id), eq(pendingCurators.emailKey, emailKey)))
+      const [created] = await db
+        .insert(members)
+        .values({
+          clubId: club.id,
+          name,
+          email: input.email.trim(),
+          emailKey,
+          phone: input.phone?.trim() || null,
+          phoneKey: input.phone ? normalizePhone(input.phone) : null,
+          wantsText: input.wantsText ?? false,
+          wantsEmail: input.wantsEmail ?? true,
+          smsConsent: input.smsConsent ?? false,
+          smsOptInAt: input.smsConsent ? new Date() : null,
+          memberToken: generateMemberToken(),
+          slug,
+        })
         .returning();
-      if (claimed) {
-        const [promoted] = await db
-          .update(members)
-          .set({ isCurator: true })
-          .where(eq(members.id, created.id))
-          .returning();
-        // Best-effort "you're a chosen one" notification, same as the
-        // immediate-grant path in /api/admin/members/curator — never
-        // blocks the signup itself on a delivery failure.
-        if (promoted.email) {
-          try {
-            await sendEmail(promoted.email, CURATOR_GRANTED_SUBJECT, curatorGrantedEmailHtml());
-          } catch (err) {
-            console.error("Curator-granted email failed (grant still applied):", err);
-          }
-        }
-        return promoted;
-      }
-    } catch (err) {
-      console.error("Pending-curator invite consume failed (member still created fine):", err);
-    }
 
-    return created;
-  } catch (err) {
-    // Lost a race with another request creating the same member between
-    // our lookup and this insert — the unique constraint on emailKey
-    // caught it. Treat it the same as "this member already exists."
-    if (isUniqueViolation(err)) {
-      const raced = await findMemberByEmail(club, input.email);
-      if (raced) return raced;
+      // Consume a pending curator invite, if an admin typed this exact
+      // email into Settings' Curators panel before this person ever
+      // signed up (2026-10-09 — see claude/next-build.md and
+      // addPendingCurator/listPendingCurators below). The DELETE...
+      // RETURNING is the "claim" — only this signup gets to consume a
+      // given invite, same atomic-claim pattern as Round 9's double-ship
+      // fix, so two near-simultaneous signups for the same email can't
+      // both see the invite and both grant themselves curator. Best
+      // effort: a failure here shouldn't fail the signup itself — it
+      // would just leave the invite sitting there for the admin to
+      // notice and grant by hand instead.
+      try {
+        const [claimed] = await db
+          .delete(pendingCurators)
+          .where(and(eq(pendingCurators.clubId, club.id), eq(pendingCurators.emailKey, emailKey)))
+          .returning();
+        if (claimed) {
+          const [promoted] = await db
+            .update(members)
+            .set({ isCurator: true })
+            .where(eq(members.id, created.id))
+            .returning();
+          // Best-effort "you're a chosen one" notification, same as the
+          // immediate-grant path in /api/admin/members/curator — never
+          // blocks the signup itself on a delivery failure.
+          if (promoted.email) {
+            try {
+              await sendEmail(promoted.email, CURATOR_GRANTED_SUBJECT, curatorGrantedEmailHtml());
+            } catch (err) {
+              console.error("Curator-granted email failed (grant still applied):", err);
+            }
+          }
+          return promoted;
+        }
+      } catch (err) {
+        console.error("Pending-curator invite consume failed (member still created fine):", err);
+      }
+
+      return created;
+    } catch (err) {
+      // Lost a race with another request creating the same member
+      // between our lookup and this insert — the unique constraint on
+      // emailKey caught it. Treat it the same as "this member already
+      // exists."
+      if (isUniqueViolation(err)) {
+        const raced = await findMemberByEmail(club, input.email);
+        if (raced) return raced;
+
+        // Not an email race — must be the slug's unique constraint
+        // losing to a concurrent signup that grabbed the same candidate
+        // first. Retry with a freshly-generated slug rather than
+        // failing the whole signup over it.
+        continue;
+      }
+      throw err;
     }
-    throw err;
   }
+
+  throw new Error("findOrCreateMember: exhausted slug-collision retries");
 }
 
 /**

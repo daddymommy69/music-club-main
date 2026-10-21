@@ -4,6 +4,7 @@ import { songs, drops, type Club } from "@/db/schema";
 import { normalizeArtistName } from "./normalize";
 import { getLikeCounts } from "./songLikes";
 import { getSongRatingSummary, getSongRatingSummaries, type SongRatingSummary } from "./songRatings";
+import { getAllUsersDirectory, type UserDirectoryEntry } from "./userProfile";
 
 /**
  * /browse (2026-10-07 — see claude/next-build.md): replaces /submit.
@@ -37,6 +38,12 @@ const BROWSE_SONGS_LIMIT = 40;
 export type BrowseDirectory = {
   artists: ArtistDirectoryEntry[];
   songs: BrowseSongEntry[];
+  /** Every member on the site, for Browse's "Users" tab (2026-10-19 —
+   * see src/lib/userProfile.ts's getAllUsersDirectory for the full
+   * reasoning/ordering). Fetched alongside artists/songs here so the
+   * Browse page has one directory call to make, same as before this
+   * tab existed. */
+  users: UserDirectoryEntry[];
 };
 
 export async function getBrowseDirectory(clubId: number): Promise<BrowseDirectory> {
@@ -84,7 +91,9 @@ export async function getBrowseDirectory(clubId: number): Promise<BrowseDirector
     spotifyUri: r.spotifyUri,
   }));
 
-  return { artists, songs: songsOut };
+  const users = await getAllUsersDirectory(clubId);
+
+  return { artists, songs: songsOut, users };
 }
 
 export type SongSiteStats = {

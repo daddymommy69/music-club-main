@@ -19,6 +19,10 @@ type Member = {
   id: number;
   name: string | null;
   bio: string | null;
+  /** Public-profile handle (/u/[slug], 2026-10-19) — null only for the
+   * logged-out preview's placeholder row; every real member always has
+   * one (auto-generated at signup, see src/lib/members.ts). */
+  slug: string | null;
   isCurator: boolean;
   /** Whether this visitor has their own Spotify account connected
    * (2026-10-08 "drop control + playback" round — see
@@ -199,6 +203,7 @@ function ProfileCard({ member }: { member: Member }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(member.name ?? "");
   const [bio, setBio] = useState(member.bio ?? "");
+  const [handle, setHandle] = useState(member.slug ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bioRef = useRef<HTMLTextAreaElement>(null);
@@ -206,6 +211,7 @@ function ProfileCard({ member }: { member: Member }) {
   function startEditing() {
     setName(member.name ?? "");
     setBio(member.bio ?? "");
+    setHandle(member.slug ?? "");
     setError(null);
     setEditing(true);
     // Auto-grow the bio box to whatever's already in it, not just
@@ -226,12 +232,20 @@ function ProfileCard({ member }: { member: Member }) {
       const res = await fetch("/api/account/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, bio }),
+        body: JSON.stringify({ name, bio, slug: handle }),
       });
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
         member.name = name.trim() || null;
         member.bio = bio.trim() || null;
+        if (typeof data.slug === "string") member.slug = data.slug;
         setEditing(false);
+      } else if (res.status === 409) {
+        // That exact handle belongs to someone else — more likely than
+        // not here since the 400/other-error cases below only cover
+        // malformed input (empty/typed-into-nothing), caught before
+        // this ever reaches the server.
+        setError("That handle is already taken — try another.");
       } else {
         const data = await res.json().catch(() => ({}));
         setError(data.error ?? "Couldn't save your profile. Try again.");
@@ -263,6 +277,14 @@ function ProfileCard({ member }: { member: Member }) {
           <p className="mut" style={{ fontSize: 12.5, lineHeight: 1.6 }}>
             {member.bio?.trim() || siteCopy.noBioText}
           </p>
+          {/* Public profile link (/u/[slug], 2026-10-19) — null only for
+              the logged-out preview row (see PREVIEW_MEMBER in
+              account/page.tsx); every real member always has one. */}
+          {member.slug && (
+            <Link href={`/u/${member.slug}`} className="about-link" style={{ fontSize: 12 }}>
+              musicclub.fyi/u/{member.slug} →
+            </Link>
+          )}
         </div>
         <button type="button" className="link-btn" style={{ flexShrink: 0 }} onClick={startEditing}>
           Edit
@@ -301,6 +323,26 @@ function ProfileCard({ member }: { member: Member }) {
             autoGrow(e.target);
           }}
         />
+      </label>
+      <label style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 14 }}>
+        <span className="mut" style={{ fontSize: 11.5 }}>
+          Handle (your public profile link)
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span className="mut" style={{ fontSize: 12.5 }}>
+            musicclub.fyi/u/
+          </span>
+          <input
+            type="text"
+            className="settings-input"
+            placeholder="jacob"
+            value={handle}
+            onChange={(e) => {
+              setHandle(e.target.value);
+              setError(null);
+            }}
+          />
+        </div>
       </label>
       {error && (
         <p className="notice error" style={{ marginTop: 8 }}>

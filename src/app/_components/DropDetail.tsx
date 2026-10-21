@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { PublicDropDetail, PublicSongRow } from "@/lib/archive";
 import { formatDropMonth } from "@/lib/format";
 import { artistHref } from "@/lib/artistLink";
+import { userHref } from "@/lib/userHref";
 import CloseButton from "./CloseButton";
 import DropTile from "./DropTile";
 import PlayableArt from "./PlayableArt";
@@ -101,6 +102,33 @@ export default function DropDetail({
         {formatDropMonth(drop.publishedAt)} · {curatorSongs.length}{" "}
         {curatorSongs.length === 1 ? "song" : "songs"}
       </div>
+
+      {/* Contributing curators (2026-10-19 — founder's own ask: "add
+          contributing curators to the drop, so people can see who
+          contributed to it"). Curator Picks only, one name per curator
+          regardless of how many songs they added, in the order their
+          song was added — see getPublicDrop's contributors query. Each
+          name links to that curator's new public profile page; a
+          curator with no slug yet (shouldn't happen for a real member,
+          but see members.slug's nullability note in db/schema.ts)
+          renders as plain text instead of a dead link. */}
+      {drop.contributors.length > 0 && (
+        <div className="mut" style={{ fontSize: 11, marginTop: 2 }}>
+          curators:{" "}
+          {drop.contributors.map((c, i) => (
+            <span key={c.slug ?? `${c.name}-${i}`}>
+              {i > 0 && ", "}
+              {c.slug ? (
+                <Link href={userHref(c.slug)}>
+                  <RoleName name={c.name} isCurator />
+                </Link>
+              ) : (
+                <RoleName name={c.name} isCurator />
+              )}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Play + Spotify side by side, half-width each (2026-10-15 —
           founder's own ask: Play alone felt too big/heavy as the one

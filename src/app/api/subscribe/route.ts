@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { members } from "@/db/schema";
 import { getDefaultClub } from "@/lib/club";
-import { findMemberByEmail, findOrCreateMember } from "@/lib/members";
+import { findMemberByEmail, findOrCreateMember, generateUniqueMemberSlug } from "@/lib/members";
 import { setMemberSession } from "@/lib/memberSession";
 import { generateMemberToken } from "@/lib/memberToken";
 import { normalizePhone, isUniqueViolation } from "@/lib/normalize";
@@ -157,40 +157,54 @@ export async function POST(request: Request) {
   }
 
   const db = getDb();
-  let created;
-  try {
-    [created] = await db
-      .insert(members)
-      .values({
-        clubId: club.id,
-        name: name?.trim() || null,
-        phone: phone as string,
-        phoneKey,
-        wantsText: true,
-        wantsEmail: false,
-        smsConsent: !!smsOptIn,
-        smsOptInAt: new Date(),
-        memberToken: generateMemberToken(),
-      })
-      .returning();
-  } catch (err) {
-    // Lost a race with another request signing up the same phone
-    // between our check above and this insert. Same outcome as a normal
-    // duplicate: hand back the row that won.
-    if (isUniqueViolation(err)) {
-      const dupe = await findMemberByPhone(club.id, phoneKey);
-      if (dupe) {
-        await setMemberSession(dupe.id);
-        return NextResponse.json({
-          ok: true,
-          id: dupe.id,
-          duplicate: true,
-          wantsText: dupe.wantsText,
-          wantsEmail: dupe.wantsEmail,
-        });
+  let created: typeof members.$inferSelect | undefined;
+  // Retry loop mirrors findOrCreateMember's — see that function for why:
+  // this only matters for the rare case where a concurrent signup grabs
+  // the same candidate slug first.
+  for (let attempt = 0; attempt < 5 && !created; attempt++) {
+    const slug = await generateUniqueMemberSlug(name ?? null);
+    try {
+      [created] = await db
+        .insert(members)
+        .values({
+          clubId: club.id,
+          name: name?.trim() || null,
+          phone: phone as string,
+          phoneKey,
+          wantsText: true,
+          wantsEmail: false,
+          smsConsent: !!smsOptIn,
+          smsOptInAt: new Date(),
+          memberToken: generateMemberToken(),
+          slug,
+        })
+        .returning();
+    } catch (err) {
+      // Lost a race with another request signing up the same phone
+      // between our check above and this insert. Same outcome as a
+      // normal duplicate: hand back the row that won.
+      if (isUniqueViolation(err)) {
+        const dupe = await findMemberByPhone(club.id, phoneKey);
+        if (dupe) {
+          await setMemberSession(dupe.id);
+          return NextResponse.json({
+            ok: true,
+            id: dupe.id,
+            duplicate: true,
+            wantsText: dupe.wantsText,
+            wantsEmail: dupe.wantsEmail,
+          });
+        }
+        // Not a phone race — must be the slug's unique constraint
+        // losing to a concurrent signup. Retry with a fresh candidate.
+        continue;
       }
+      throw err;
     }
-    throw err;
+  }
+
+  if (!created) {
+    throw new Error("Phone-only signup: exhausted slug-collision retries");
   }
 
   await setMemberSession(created.id);

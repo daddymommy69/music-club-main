@@ -6,6 +6,7 @@ import { isValidMusicLink } from "@/lib/musicLink";
 import { resolveSongMetadata } from "@/lib/odesli";
 import { getSubmitContext } from "@/lib/submit";
 import { generateMemberToken } from "@/lib/memberToken";
+import { generateUniqueMemberSlug } from "@/lib/members";
 import {
   smsSubmitNoLinkBody,
   smsSubmitClosedBody,
@@ -88,31 +89,44 @@ export async function handleInboundSongText(
   let justSubscribed = false;
 
   if (!subscriber) {
-    try {
-      const [created] = await db
-        .insert(members)
-        .values({
-          clubId: club.id,
-          phone: from,
-          phoneKey,
-          wantsText: true,
-          smsConsent: true,
-          smsOptInAt: new Date(),
-          memberToken: generateMemberToken(),
-        })
-        .returning();
-      subscriber = created;
-      justSubscribed = true;
-    } catch (err) {
-      // Lost a race with another text from the same number landing at
-      // nearly the same moment — same recovery as /api/subscribe.
-      if (!isUniqueViolation(err)) throw err;
-      const [dupe] = await db
-        .select()
-        .from(members)
-        .where(and(eq(members.clubId, club.id), eq(members.phoneKey, phoneKey)))
-        .limit(1);
-      subscriber = dupe ?? null;
+    // Retry loop mirrors findOrCreateMember's — a text-in subscriber has
+    // no name yet, so generateUniqueMemberSlug(null) hands back
+    // "member"/"member-2"/... candidates; the loop only matters for the
+    // rare case where a concurrent signup grabs the same candidate
+    // first.
+    for (let attempt = 0; attempt < 5 && !subscriber; attempt++) {
+      const slug = await generateUniqueMemberSlug(null);
+      try {
+        const [created] = await db
+          .insert(members)
+          .values({
+            clubId: club.id,
+            phone: from,
+            phoneKey,
+            wantsText: true,
+            smsConsent: true,
+            smsOptInAt: new Date(),
+            memberToken: generateMemberToken(),
+            slug,
+          })
+          .returning();
+        subscriber = created;
+        justSubscribed = true;
+      } catch (err) {
+        // Lost a race with another text from the same number landing at
+        // nearly the same moment — same recovery as /api/subscribe.
+        if (!isUniqueViolation(err)) throw err;
+        const [dupe] = await db
+          .select()
+          .from(members)
+          .where(and(eq(members.clubId, club.id), eq(members.phoneKey, phoneKey)))
+          .limit(1);
+        if (dupe) {
+          subscriber = dupe;
+        }
+        // else: the violation was on slug, not phoneKey — loop again
+        // with a freshly-generated candidate.
+      }
     }
   }
 

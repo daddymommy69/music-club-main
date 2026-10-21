@@ -10,6 +10,8 @@ import { getSessionMember } from "@/lib/memberSession";
 import { getBrowseDirectory } from "@/lib/browse";
 import { getOrFetchArtistPhoto } from "@/lib/artists";
 import { artistHref } from "@/lib/artistLink";
+import { userHref } from "@/lib/userHref";
+import RoleName from "@/app/_components/RoleName";
 import type { Club } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
@@ -102,6 +104,39 @@ export default async function BrowsePage() {
                 </div>
               ))}
             </PlayQueue>
+          </div>
+        )}
+
+        {/* Users (2026-10-19 — founder's own ask: "a users tab in
+            browse so it can include anyone who is apart fo the
+            website"). Text-only tiles, no photo — unlike artists,
+            there's no Spotify lookup to pull one from. Everyone with a
+            slug shows up here, not just curators or contributors
+            (founder: "i think everyone does" get a profile page). */}
+        <div className="label" style={{ margin: "32px 0 12px" }}>
+          Users
+        </div>
+        {directory.users.length === 0 ? (
+          <p className="mut" style={{ fontSize: 12.5 }}>
+            No users yet.
+          </p>
+        ) : (
+          <div className="roster-list">
+            {directory.users.map((user) => (
+              <Link
+                key={user.slug}
+                href={userHref(user.slug)}
+                className="roster-row"
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+              >
+                <span className="roster-name">
+                  <RoleName name={user.name} isCurator={user.isCurator} />
+                </span>
+                <span className="roster-meta">
+                  {user.songCount} song{user.songCount === 1 ? "" : "s"}
+                </span>
+              </Link>
+            ))}
           </div>
         )}
       </main>

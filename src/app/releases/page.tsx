@@ -97,10 +97,24 @@ export async function ReleasesPageContent() {
   // nextDropOpensAt only ever meaningful when nothing's open — and
   // both are null (no line at all) whenever nothing's been scheduled,
   // same quiet-by-default spirit as the curator panel's own fields.
+  //
+  // 2026-10-19 — founder's own ask: the dynamic parts (drop number,
+  // date) should get the same big-green .about-num treatment as the
+  // "N drops, N songs, N artists" stats line above, so this is now a
+  // JSX node instead of a plain string — same class, no new CSS.
   const scheduleLine = status.scheduledShipAt
-    ? `Drop ${status.current?.num} ships ${formatScheduledDate(status.scheduledShipAt)}.`
+    ? (
+        <>
+          Drop <span className="about-num">{status.current?.num}</span> ships{" "}
+          <span className="about-num">{formatScheduledDate(status.scheduledShipAt)}</span>.
+        </>
+      )
     : status.nextDropOpensAt
-      ? `Next drop opens ${formatScheduledDate(status.nextDropOpensAt)}.`
+      ? (
+          <>
+            Next drop opens <span className="about-num">{formatScheduledDate(status.nextDropOpensAt)}</span>.
+          </>
+        )
       : null;
 
   return (

@@ -33,6 +33,23 @@ export function normalizeArtistName(artist: string): string {
 }
 
 /**
+ * Turns free text into a URL-safe slug: lowercase, every run of
+ * non-alphanumeric characters collapsed to a single dash, leading/
+ * trailing dashes trimmed. Used for member profile URLs (/u/[slug],
+ * 2026-10-19) — src/lib/members.ts's generateUniqueMemberSlug resolves
+ * collisions on top of whatever this returns, and
+ * scripts/migrate-next-build-11.sql does the same transform in SQL for
+ * the one-time backfill, so keep the two in sync if this ever changes.
+ */
+export function slugify(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
  * True if `err` is a Postgres unique-constraint violation (SQLSTATE
  * 23505). Checks both `err.code` and `err.cause.code` — drizzle-orm
  * wraps the raw postgres-js error in its own `DrizzleQueryError`, which

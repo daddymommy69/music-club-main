@@ -163,7 +163,7 @@ export const dynamic = "force-dynamic";
 // and every write action it can trigger (bio save, favorites, ratings,
 // a listener pick) requires its own real session server-side regardless
 // of what this placeholder says, so there's nothing this id could do.
-const PREVIEW_MEMBER = { id: 0, name: null, bio: null, isCurator: false, spotifyConnected: false };
+const PREVIEW_MEMBER = { id: 0, name: null, bio: null, slug: null, isCurator: false, spotifyConnected: false };
 
 /**
  * /account (2026-10 "next build" — see claude/next-build.md): the
@@ -268,6 +268,7 @@ export default async function AccountPage() {
             id: member.id,
             name: member.name,
             bio: member.bio,
+            slug: member.slug,
             isCurator: member.isCurator,
             spotifyConnected: !!member.spotifyRefreshToken,
           }}

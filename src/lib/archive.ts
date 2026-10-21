@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { getDb } from "@/db/client";
 import { drops, songs, curatorNotes, songNotes, members, top10Entries, type Drop } from "@/db/schema";
@@ -200,6 +200,22 @@ export type PublicDropDetail = {
    * null/null until then. Never auto-built, never sent out. */
   listenerPlaylistUrl: string | null;
   listenerPlaylistBuiltAt: Date | null;
+  /** Everyone who contributed at least one Curator Pick to this drop
+   * (2026-10-19 — founder's own ask: "add contributing curators to the
+   * drop, so people can see who contributed to it"). Scoped to Curator
+   * Picks only, same as every other public curator-credit field on this
+   * page — Listener Picks aren't included (founder: "i havent
+   * implemented listener picks yet"). One entry per curator regardless
+   * of how many songs they added, ordered by whoever's song was added
+   * to the drop first. Applies to already-shipped drops too, not just
+   * new ones — this is a pure read over existing songs.curatorId data,
+   * no backfill required. */
+  contributors: PublicContributor[];
+};
+
+export type PublicContributor = {
+  name: string;
+  slug: string | null;
 };
 
 export async function getPublicDrop(
@@ -302,6 +318,29 @@ export async function getPublicDrop(
       .orderBy(asc(curatorNotes.createdAt))
   ).map((row) => ({ curatorName: row.curatorName ?? "", text: row.text }));
 
+  // Contributing curators (2026-10-19) — one row per curator who has at
+  // least one Curator Pick on this drop, ordered by whoever's song was
+  // added first. curatorId is nullable (an unclaimed subscriber
+  // submission a curator pulled in with no owner attached) — the inner
+  // join on members naturally excludes those rows, same as it would if
+  // this were filtered with isNotNull(songs.curatorId) explicitly.
+  const contributorRows = await db
+    .select({
+      name: members.name,
+      slug: members.slug,
+      firstAddedAt: sql<Date>`min(${songs.createdAt})`,
+    })
+    .from(songs)
+    .innerJoin(members, eq(songs.curatorId, members.id))
+    .where(and(eq(songs.dropId, drop.id), eq(songs.pickType, "curator")))
+    .groupBy(members.id, members.name, members.slug)
+    .orderBy(asc(sql`min(${songs.createdAt})`));
+
+  const contributors: PublicContributor[] = contributorRows.map((row) => ({
+    name: row.name?.trim() || "a curator",
+    slug: row.slug,
+  }));
+
   const top10Summary = await getTop10Summary(drop);
   const top10 =
     top10Summary.phase === "closed" && top10Summary.tally.length > 0
@@ -330,6 +369,7 @@ export async function getPublicDrop(
     dropLikeCount: dropLikeCounts.get(drop.id) ?? 0,
     listenerPlaylistUrl: drop.listenerPlaylistUrl,
     listenerPlaylistBuiltAt: drop.listenerPlaylistBuiltAt,
+    contributors,
   };
 }
 
