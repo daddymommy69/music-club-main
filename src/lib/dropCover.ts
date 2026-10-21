@@ -1,5 +1,5 @@
 import sharp from "sharp";
-import { DROP_COVER_FONT_BASE64 } from "./dropCoverFont";
+import { DROP_COVER_DIGITS, DIGIT_TILE_WIDTH, DIGIT_TILE_HEIGHT } from "./dropCoverDigits";
 
 /**
  * Builds the Spotify playlist cover for a drop: the same 2x2 artwork
@@ -30,7 +30,6 @@ const SIZE = 640;
 const GAP = 0;
 const HALF = Math.floor((SIZE - GAP) / 2);
 const BG = "#2b2b2b"; // approximates the site's dark tile background
-const FG = "#ffffff";
 
 async function fetchQuadBuffer(url: string | null): Promise<Buffer | null> {
   if (!url) return null;
@@ -44,17 +43,29 @@ async function fetchQuadBuffer(url: string | null): Promise<Buffer | null> {
   }
 }
 
-function numberSvg(num: number): Buffer {
+/**
+ * Two pre-rendered digit tiles (src/lib/dropCoverDigits.ts), stamped
+ * side by side — NOT live SVG `<text>` (2026-10-21, see that file's own
+ * comment for the full why: live text rendering kept silently failing
+ * to draw on Vercel even after the font-loading fix, confirmed by the
+ * founder downloading a cover with the gap fixed but the number still
+ * missing). Pure pixel compositing, same font (Martian Mono Bold) the
+ * on-site drop tile itself uses, so this can't fail the way the text
+ * approach did and now visually matches the website.
+ */
+function numberComposites(num: number): { input: Buffer; left: number; top: number }[] {
   const label = String(num).padStart(2, "0");
-  const fontFace = `@font-face { font-family: 'DropNum'; src: url(data:font/woff;base64,${DROP_COVER_FONT_BASE64}) format('woff'); font-weight: 800; }`;
-  const svg = `
-    <svg width="${SIZE}" height="${SIZE}" xmlns="http://www.w3.org/2000/svg">
-      <defs><style>${fontFace}</style></defs>
-      <text x="50%" y="52%" text-anchor="middle" dominant-baseline="middle"
-        font-family="DropNum, monospace" font-weight="800" font-size="${Math.round(SIZE * 0.14)}"
-        fill="${FG}">${label}</text>
-    </svg>`;
-  return Buffer.from(svg);
+  const totalW = DIGIT_TILE_WIDTH * label.length;
+  const left = Math.round((SIZE - totalW) / 2);
+  // Slightly below dead-center (matches the old live-text version's
+  // y="52%" rather than a plain 50% — an optical-balance nudge, not a
+  // bug) — same +2%-of-canvas offset, expressed directly in pixels now.
+  const top = Math.round((SIZE - DIGIT_TILE_HEIGHT) / 2 + SIZE * 0.02);
+  return label.split("").map((digit, i) => ({
+    input: Buffer.from(DROP_COVER_DIGITS[digit], "base64"),
+    left: left + i * DIGIT_TILE_WIDTH,
+    top,
+  }));
 }
 
 export async function buildDropCoverJpegBase64(
@@ -81,7 +92,7 @@ export async function buildDropCoverJpegBase64(
     quadBuffers.forEach((buf, i) => {
       if (buf) composites.push({ input: buf, left: positions[i].left, top: positions[i].top });
     });
-    composites.push({ input: numberSvg(num), left: 0, top: 0 });
+    composites.push(...numberComposites(num));
 
     const base = sharp({ create: { width: SIZE, height: SIZE, channels: 3, background: BG } });
     const jpeg = await base.composite(composites).jpeg({ quality: 82 }).toBuffer();
