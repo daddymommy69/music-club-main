@@ -57,10 +57,11 @@ function numberComposites(num: number): { input: Buffer; left: number; top: numb
   const label = String(num).padStart(2, "0");
   const totalW = DIGIT_TILE_WIDTH * label.length;
   const left = Math.round((SIZE - totalW) / 2);
-  // Slightly below dead-center (matches the old live-text version's
-  // y="52%" rather than a plain 50% — an optical-balance nudge, not a
-  // bug) — same +2%-of-canvas offset, expressed directly in pixels now.
-  const top = Math.round((SIZE - DIGIT_TILE_HEIGHT) / 2 + SIZE * 0.02);
+  // Dead-center vertically (2026-10-22: removed the old +2%-of-canvas
+  // downward nudge per explicit instruction — it was reading as "a
+  // little low" once the color changed to charcoal, so straight
+  // mathematical center it is now).
+  const top = Math.round((SIZE - DIGIT_TILE_HEIGHT) / 2);
   return label.split("").map((digit, i) => ({
     input: Buffer.from(DROP_COVER_DIGITS[digit], "base64"),
     left: left + i * DIGIT_TILE_WIDTH,
