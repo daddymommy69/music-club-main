@@ -9,6 +9,7 @@ import {
   uploadPlaylistCover,
 } from "./spotify";
 import { buildDropCoverJpegBase64 } from "./dropCover";
+import { buildSpotifyDescription } from "./spotifyDescription";
 
 export type SpotifyBuildResult = {
   url: string;
@@ -32,14 +33,21 @@ export type SpotifyBuildResult = {
  * but came up short on matches is NOT a null result — see
  * unmatchedTitles.
  *
- * Playlist name/description (2026-10-15 — founder's own spec): the
- * name is whatever the drop is actually titled (same curator-set
- * `title` shown everywhere else on the site), falling back to
- * "Drop {num}" for an untitled drop, same convention as every other
- * "Drop N" fallback on the site. The description is always
- * "Drop {num} | project music club" regardless of title, so the
- * playlist is still identifiable by number even when the title alone
- * wouldn't say which drop it is.
+ * Playlist name/description (2026-10-15 — founder's own spec, revised
+ * 2026-10-24): the name is whatever the drop is actually titled (same
+ * curator-set `title` shown everywhere else on the site), falling
+ * back to "Drop {num}" for an untitled drop, same convention as every
+ * other "Drop N" fallback on the site — lowercased either way
+ * (2026-10-24 round — founder's own call to make drop names lowercase
+ * everywhere, titles are already saved lowercase at the source, this
+ * just also covers the "Drop {num}" fallback, which isn't). The
+ * description leads with the drop's own combined "About this drop"
+ * blurb (empty if nothing's been posted yet), then always ends with
+ * "Drop {num} | project music club" so the playlist is still
+ * identifiable by number even when the title/blurb alone wouldn't say
+ * which drop it is — see spotifyDescription.ts for the shared
+ * budget/truncation logic the blurb's own character counter also
+ * uses.
  *
  * `songList` must already be ordered the way the drop's tracklist reads
  * on the site (position, then createdAt — same ordering src/lib/room.ts
@@ -50,7 +58,8 @@ export async function buildSpotifyPlaylistForDrop(
   club: Club,
   dropNum: number,
   dropTitle: string | null,
-  songList: Song[]
+  songList: Song[],
+  blurbText = ""
 ): Promise<SpotifyBuildResult | null> {
   if (songList.length === 0) return null;
 
@@ -61,8 +70,9 @@ export async function buildSpotifyPlaylistForDrop(
     songList.map((song) => searchSpotifyTrack(accessToken, song.title, song.artist))
   );
 
-  const playlistName = dropTitle?.trim() || `Drop ${dropNum}`;
-  const playlist = await createSpotifyPlaylist(accessToken, playlistName, `Drop ${dropNum} | project music club`);
+  const playlistName = (dropTitle?.trim() || `Drop ${dropNum}`).toLowerCase();
+  const description = buildSpotifyDescription(dropNum, blurbText);
+  const playlist = await createSpotifyPlaylist(accessToken, playlistName, description);
   if (!playlist) return null;
 
   const matchedUris = matches.filter((m): m is NonNullable<typeof m> => m != null).map((m) => m.uri);

@@ -5,6 +5,8 @@ import { drops, songs } from "@/db/schema";
 import { getDefaultClub } from "@/lib/club";
 import { checkBearerAuth } from "@/lib/adminAuth";
 import { buildSpotifyPlaylistForDrop } from "@/lib/spotifyBuild";
+import { getDropNotes } from "@/lib/notes";
+import { combineDropNotes } from "@/lib/spotifyDescription";
 
 /**
  * One-off: attach an auto-built Spotify playlist to a drop that already
@@ -49,7 +51,8 @@ export async function POST(request: Request) {
     .where(eq(songs.dropId, drop.id))
     .orderBy(asc(songs.position), asc(songs.createdAt));
 
-  const result = await buildSpotifyPlaylistForDrop(club, drop.num, drop.title, dropSongs);
+  const blurbText = combineDropNotes(await getDropNotes(drop.id));
+  const result = await buildSpotifyPlaylistForDrop(club, drop.num, drop.title, dropSongs, blurbText);
   if (!result) {
     return NextResponse.json(
       {

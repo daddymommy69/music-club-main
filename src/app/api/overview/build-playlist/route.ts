@@ -5,6 +5,8 @@ import { drops, songs } from "@/db/schema";
 import { getSessionMember } from "@/lib/memberSession";
 import { getDefaultClub } from "@/lib/club";
 import { buildSpotifyPlaylistForDrop } from "@/lib/spotifyBuild";
+import { getDropNotes } from "@/lib/notes";
+import { combineDropNotes } from "@/lib/spotifyDescription";
 
 /**
  * Curator-facing "build the Spotify playlist for this already-shipped
@@ -57,7 +59,8 @@ export async function PUT(request: Request) {
     .where(eq(songs.dropId, drop.id))
     .orderBy(asc(songs.position), asc(songs.createdAt));
 
-  const result = await buildSpotifyPlaylistForDrop(club, drop.num, drop.title, dropSongs);
+  const blurbText = combineDropNotes(await getDropNotes(drop.id));
+  const result = await buildSpotifyPlaylistForDrop(club, drop.num, drop.title, dropSongs, blurbText);
   if (!result) {
     return NextResponse.json(
       { error: "Couldn't build it — check that Spotify is connected in Settings." },

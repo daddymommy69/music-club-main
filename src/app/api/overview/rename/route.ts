@@ -46,7 +46,7 @@ export async function PUT(request: Request) {
     const [updated] = await db
       .update(drops)
       .set({
-        title: title?.trim() || null,
+        title: title?.trim().toLowerCase() || null,
         titleUpdatedBy: curator.name || "A curator",
         titleUpdatedAt: new Date(),
       })

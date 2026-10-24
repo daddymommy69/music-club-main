@@ -4,6 +4,8 @@ import { clubs, drops, songs, type Club, type Drop } from "@/db/schema";
 import { sendDropToSubscribers } from "./release";
 import { buildSpotifyPlaylistForDrop } from "./spotifyBuild";
 import { computeAutoOpenDate } from "./cycle";
+import { getDropNotes } from "./notes";
+import { combineDropNotes } from "./spotifyDescription";
 
 export type ShipResult = {
   ok: true;
@@ -40,7 +42,7 @@ export async function shipDrop(
 ): Promise<ShipResult | ShipFailure> {
   let spotifyUrl = opts.spotifyUrl?.trim() || null;
   const appleUrl = opts.appleUrl?.trim() || null;
-  const title = opts.title?.trim() || null;
+  const title = opts.title?.trim().toLowerCase() || null;
 
   let spotifyBuild: Awaited<ReturnType<typeof buildSpotifyPlaylistForDrop>> = null;
   if (!spotifyUrl) {
@@ -52,7 +54,8 @@ export async function shipDrop(
     // `title` wins when this same ship call is also setting a new one
     // (e.g. a curator renames right as they ship); otherwise this drop
     // keeps whatever it was already titled.
-    spotifyBuild = await buildSpotifyPlaylistForDrop(club, drop.num, title || drop.title, dropSongs);
+    const blurbText = combineDropNotes(await getDropNotes(drop.id));
+    spotifyBuild = await buildSpotifyPlaylistForDrop(club, drop.num, title || drop.title, dropSongs, blurbText);
     if (spotifyBuild) spotifyUrl = spotifyBuild.url;
   }
 

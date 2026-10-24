@@ -675,30 +675,48 @@ input {
 /* The square number+artwork tile — reused on the Releases grid and at
    the top of a drop's own page, so a drop always reads the same way
    wherever it shows up. */
+/* Literal white (not --fill, which is theme-aware and stays a dark
+   near-black tint in dark mode) — 2026-10-24 round: every drop tile
+   now gets the same true-white backdrop regardless of theme. Before
+   this, two drops could look wildly inconsistent on /releases purely
+   because one drop's song artwork happened to have white padding
+   baked into the image files and another's didn't — this makes that
+   backdrop a property of the tile itself instead of a lucky accident
+   of whichever photos a drop's songs came with. */
 .drop-tile {
   position: relative;
   aspect-ratio: 1 / 1;
   width: 100%;
   border-radius: 10px;
   overflow: hidden;
+  background: #fff;
 }
 
 /* The bordered-card look stays ONLY on /releases' main grid (2026-10-07
    — the founder's own call: it "looks great" there, but reads as an
    extra frame everywhere else DropTile is reused — the drop-detail
    hero and the account page's "Your tops" grid pass framed={false}
-   and skip this entirely). */
+   and skip this entirely). Background now lives on the base .drop-tile
+   above (2026-10-24 — it needs to be true white everywhere, not just
+   behind this frame), so this only adds the border.*/
 .drop-tile-framed {
   border: 1px solid var(--ln);
-  background: var(--fill);
 }
 
+/* Padded instead of edge-to-edge (2026-10-24 round — founder's own
+   ask: make every drop's collage read like a uniform matted print
+   instead of however each song's own artwork happens to butt up
+   against its neighbors). The gap plus this inset both show the same
+   white .drop-tile background underneath, which is what makes the
+   four quadrants look evenly matted no matter what each image's own
+   edges look like. */
 .drop-tile-grid {
   position: absolute;
-  inset: 0;
+  inset: 6%;
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
+  gap: 6%;
 }
 
 .drop-tile-quad {

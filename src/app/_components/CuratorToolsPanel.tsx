@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import { siteCopy, splitParagraphs } from "@/lib/copy";
+import { combineDropNotes, spotifyBlurbBudget } from "@/lib/spotifyDescription";
 import FallbackImg from "./FallbackImg";
 import ShipDropCard from "./ShipDropCard";
 import Top10Card, { type Top10CardProps } from "./Top10Card";
@@ -316,7 +317,7 @@ export default function CuratorToolsPanel({
       )}
 
       {tab === "thoughts" && (
-        <ThoughtsSection dropNotes={dropNotes} picks={picks} songNotes={songNotes} onChanged={refresh} />
+        <ThoughtsSection dropNum={dropNum} dropNotes={dropNotes} picks={picks} songNotes={songNotes} onChanged={refresh} />
       )}
 
       {tab === "more" && (
@@ -789,7 +790,15 @@ function RenameDropField({
  * built (DropDetail.tsx) — this is only the write side — and also goes
  * out in the release email (src/lib/messages.ts's releaseEmailHtml).
  */
-function DropBlurbCard({ dropNotes, onChanged }: { dropNotes: Note[]; onChanged: () => void }) {
+function DropBlurbCard({
+  dropNum,
+  dropNotes,
+  onChanged,
+}: {
+  dropNum: number;
+  dropNotes: Note[];
+  onChanged: () => void;
+}) {
   return (
     <div className="ct-card" style={{ marginTop: 20 }}>
       <p className="label" style={{ marginBottom: 8 }}>
@@ -798,6 +807,9 @@ function DropBlurbCard({ dropNotes, onChanged }: { dropNotes: Note[]; onChanged:
       <BlurbFeed
         notes={dropNotes}
         placeholder={siteCopy.dropBlurbPlaceholder}
+        renderBelowCompose={(draft) => (
+          <SpotifyBlurbCounter dropNum={dropNum} dropNotes={dropNotes} draft={draft} />
+        )}
         onCreate={async (text) => {
           const res = await fetch("/api/overview/drop-note", {
             method: "POST",
@@ -824,6 +836,45 @@ function DropBlurbCard({ dropNotes, onChanged }: { dropNotes: Note[]; onChanged:
         onChanged={onChanged}
       />
     </div>
+  );
+}
+
+/** Live character counter under the drop blurb's compose box
+ * (2026-10-24 round — founder's own ask, after learning Spotify caps a
+ * playlist description at 300 characters: "have a character counter
+ * in the blurb writing and something saying 300 after is red and
+ * saying will spotify description limit reached, or however
+ * characters are left after the other auto inputs"). Counts the whole
+ * combined blurb this drop would actually ship with — every existing
+ * "About this drop" post plus whatever's still being typed, exactly
+ * what spotifyDescription.ts's buildSpotifyDescription will send —
+ * against the budget left over once the fixed "Drop N | project music
+ * club" suffix is accounted for. Silent once there's nothing typed or
+ * posted yet, so it doesn't show up as a stray "0 characters left" on
+ * every empty drop. */
+function SpotifyBlurbCounter({
+  dropNum,
+  dropNotes,
+  draft,
+}: {
+  dropNum: number;
+  dropNotes: Note[];
+  draft: string;
+}) {
+  const existing = combineDropNotes(dropNotes);
+  const draftTrimmed = draft.trim();
+  const combined = draftTrimmed ? (existing ? `${existing} · ${draftTrimmed}` : draftTrimmed) : existing;
+  if (!combined) return null;
+
+  const remaining = spotifyBlurbBudget(dropNum) - combined.length;
+  return (
+    <p className={remaining < 0 ? "notice error" : "notice"} style={{ marginTop: 6, fontSize: 11.5 }}>
+      {remaining < 0
+        ? `Spotify's description limit reached — this will be trimmed by ${Math.abs(remaining)} character${
+            Math.abs(remaining) === 1 ? "" : "s"
+          }.`
+        : `${remaining} character${remaining === 1 ? "" : "s"} left for Spotify's description.`}
+    </p>
   );
 }
 
@@ -903,6 +954,7 @@ function BlurbFeed({
   onUpdate,
   onDelete,
   onChanged,
+  renderBelowCompose,
 }: {
   notes: Note[];
   placeholder: string;
@@ -910,6 +962,11 @@ function BlurbFeed({
   onUpdate: (id: number, text: string) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
   onChanged: () => void;
+  /** Optional extra UI rendered right under the compose box, given the
+   * live draft text (2026-10-24 — added for the drop blurb's Spotify
+   * character counter; left unused by every per-song BlurbFeed, which
+   * doesn't feed the Spotify description). */
+  renderBelowCompose?: (draft: string) => React.ReactNode;
 }) {
   const [draft, setDraft] = useState("");
   const [posting, setPosting] = useState(false);
@@ -934,6 +991,7 @@ function BlurbFeed({
   return (
     <div>
       <AutoGrowTextarea value={draft} onChange={setDraft} placeholder={placeholder} disabled={posting} />
+      {renderBelowCompose?.(draft)}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
         <button
           type="button"
@@ -1704,11 +1762,13 @@ function PileRow({
  * moved here and repeated once per pick.
  */
 function ThoughtsSection({
+  dropNum,
   dropNotes,
   picks,
   songNotes,
   onChanged,
 }: {
+  dropNum: number;
   dropNotes: Note[];
   picks: Pick[];
   songNotes: Record<number, Note[]>;
@@ -1716,7 +1776,7 @@ function ThoughtsSection({
 }) {
   return (
     <>
-      <DropBlurbCard dropNotes={dropNotes} onChanged={onChanged} />
+      <DropBlurbCard dropNum={dropNum} dropNotes={dropNotes} onChanged={onChanged} />
 
       <p className="label" style={{ marginTop: 20, marginBottom: 10 }}>
         Song thoughts

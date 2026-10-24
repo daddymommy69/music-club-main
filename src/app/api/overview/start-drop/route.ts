@@ -69,7 +69,7 @@ export async function POST(request: Request) {
     .values({
       clubId: club.id,
       num: (last?.num ?? 0) + 1,
-      title: title?.trim() || null,
+      title: title?.trim().toLowerCase() || null,
       startedBy: curator.name || "A curator",
       scheduledShipAt,
     })
