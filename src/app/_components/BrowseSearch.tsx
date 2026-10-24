@@ -77,7 +77,21 @@ function storeSource(source: SearchSource) {
  * unrelated to (and unaffected by) this tab switch, since the This
  * Site tab never touches Spotify at all and can never be "unavailable."
  */
-export default function BrowseSearch({ isLoggedIn, dropOpen }: { isLoggedIn: boolean; dropOpen: boolean }) {
+export default function BrowseSearch({
+  isLoggedIn,
+  isCurator,
+  dropOpen,
+}: {
+  isLoggedIn: boolean;
+  /** 2026-10-23 "curator tools revamp" bug fix (see claude/next-build.md)
+   * — a curator's own submission here used to always land as their
+   * personal listener pick, with no curator-specific branching anywhere.
+   * Now threaded down to SpotifyResultRow so it can route through
+   * /api/room/picks/spotify instead, same as adding a pick from the
+   * Curator tools search box. */
+  isCurator: boolean;
+  dropOpen: boolean;
+}) {
   const [source, setSource] = useState<SearchSource>("spotify");
   const [query, setQuery] = useState("");
   const [spotifyResults, setSpotifyResults] = useState<SpotifyResult[] | null>(null);
@@ -164,7 +178,14 @@ export default function BrowseSearch({ isLoggedIn, dropOpen }: { isLoggedIn: boo
           className={`search-toggle-btn${source === "spotify" ? " active" : ""}`}
           onClick={() => switchSource("spotify")}
         >
-          Spotify
+          {/* Label only (2026-10-23 — founder's own ask: didn't want this
+              to read as a Spotify-only site, especially since manual
+              submission already accepts Apple Music links too). The
+              underlying `source="spotify"` value, API param, and
+              localStorage key are all unchanged on purpose — this really
+              is still just Spotify's own search API under the hood, only
+              the button's wording changed. */}
+          Everywhere
         </button>
         <button
           type="button"
@@ -205,7 +226,7 @@ export default function BrowseSearch({ isLoggedIn, dropOpen }: { isLoggedIn: boo
       {!loading && trimmedQuery && source === "spotify" && !spotifyUnavailable && spotifyResults && spotifyResults.length > 0 && (
         <div className="roster-list">
           {spotifyResults.map((r) => (
-            <SpotifyResultRow key={r.id} result={r} dropOpen={dropOpen} isLoggedIn={isLoggedIn} />
+            <SpotifyResultRow key={r.id} result={r} dropOpen={dropOpen} isLoggedIn={isLoggedIn} isCurator={isCurator} />
           ))}
         </div>
       )}
@@ -261,34 +282,56 @@ function SpotifyResultRow({
   result,
   dropOpen,
   isLoggedIn,
+  isCurator,
 }: {
   result: SpotifyResult;
   dropOpen: boolean;
   isLoggedIn: boolean;
+  isCurator: boolean;
 }) {
   const [mode, setMode] = useState<"idle" | "email" | "busy" | "done" | "error">("idle");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Curator-only — a second curator might genuinely want to co-sign a
+  // pick someone else already added, same "warn, don't block" duplicate
+  // behavior CuratorToolsPanel's own search-and-add already uses.
+  const [duplicate, setDuplicate] = useState<{ title: string | null; artist: string | null } | null>(null);
 
-  async function submitLoggedIn() {
+  async function submitLoggedIn(force = false) {
     setMode("busy");
     setError(null);
     try {
-      const res = await fetch("/api/account/listener-pick", {
+      const res = await fetch(isCurator ? "/api/room/picks/spotify" : "/api/account/listener-pick", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          link: result.externalUrl,
-          title: result.title,
-          artist: result.artist,
-          artworkUrl: result.artworkUrl,
-        }),
+        body: JSON.stringify(
+          isCurator
+            ? {
+                spotifyId: result.id,
+                title: result.title,
+                artist: result.artist,
+                artworkUrl: result.artworkUrl,
+                externalUrl: result.externalUrl,
+                force,
+              }
+            : {
+                link: result.externalUrl,
+                title: result.title,
+                artist: result.artist,
+                artworkUrl: result.artworkUrl,
+              }
+        ),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error ?? "Couldn't submit that. Try again.");
         setMode("error");
+        return;
+      }
+      if (isCurator && data.duplicate) {
+        setDuplicate(data.existing ?? {});
+        setMode("idle");
         return;
       }
       setMode("done");
@@ -375,6 +418,30 @@ function SpotifyResultRow({
           <span style={{ fontSize: 11, flexShrink: 0, color: "var(--accent)" }}>✓ Submitted</span>
         )}
       </div>
+
+      {duplicate && (
+        <div className="duplicate-notice gz-up">
+          <p style={{ fontSize: 12, lineHeight: 1.6 }}>
+            {duplicate.title && duplicate.artist
+              ? `"${duplicate.title}" by ${duplicate.artist} is already in for this drop.`
+              : "This is already in for this drop."}{" "}
+            Still want to add it?
+          </p>
+          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+            <button
+              type="button"
+              className="btn"
+              style={{ width: "auto", minHeight: 32, height: 32, padding: "0 12px", fontSize: 11.5 }}
+              onClick={() => submitLoggedIn(true)}
+            >
+              Add it anyway
+            </button>
+            <button type="button" className="link-btn" onClick={() => setDuplicate(null)}>
+              Never mind
+            </button>
+          </div>
+        </div>
+      )}
 
       {mode === "email" && (
         <form onSubmit={submitAnon} className="form" style={{ gap: 10 }}>

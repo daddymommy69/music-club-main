@@ -44,7 +44,7 @@ export default async function BrowsePage() {
           Spotify{openDrop ? " and submit it as your pick for this cycle." : "."}
         </p>
 
-        <BrowseSearch isLoggedIn={!!viewer} dropOpen={!!openDrop} />
+        <BrowseSearch isLoggedIn={!!viewer} isCurator={!!viewer?.isCurator} dropOpen={!!openDrop} />
 
         <div className="label" style={{ margin: "32px 0 12px" }}>
           Artists

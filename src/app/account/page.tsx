@@ -1,160 +1,18 @@
 import SiteHeader from "@/app/_components/SiteHeader";
 import AccountAuth from "@/app/_components/AccountAuth";
 import AccountBoard from "@/app/_components/AccountBoard";
-import { type CuratorToolsPanelProps } from "@/app/_components/CuratorToolsPanel";
 import { getDefaultClub } from "@/lib/club";
 import { getSessionMember } from "@/lib/memberSession";
-import { getOpenDrop, getRoomData } from "@/lib/room";
-import { getOverviewData } from "@/lib/overview";
-import { getDropNotes, getSongNotesForDrop, type NoteRow } from "@/lib/notes";
-import { getTargetDropForTop10, getTop10Summary } from "@/lib/top10Data";
+import { getOpenDrop } from "@/lib/room";
 import { getListenerPick } from "@/lib/listenerPicks";
 import { getMemberSubmissionHistory } from "@/lib/memberProfile";
 import { getMemberLikedSongs } from "@/lib/songLikes";
 import { getLeaderboard } from "@/lib/leaderboard";
-import { getPublishedDrops, getDropsMissingPlaylist } from "@/lib/archive";
+import { getPublishedDrops } from "@/lib/archive";
 import { getMemberFavorites } from "@/lib/favorites";
 import { getMemberDropRatings } from "@/lib/ratings";
-import type { Club, Drop } from "@/db/schema";
 
 const LIKED_SONGS_LIMIT = 20;
-
-/**
- * Everything the embedded curator workspace (CuratorToolsPanel) needs,
- * serialized to plain JSON-friendly props — same shape /room's and
- * /overview's page.tsx used to build for RoomBoard/OverviewBoard before
- * those pages were folded into /account (2026-10 account consolidation
- * — see claude/next-build.md).
- */
-async function getCuratorToolsProps(
-  club: Club,
-  openDrop: Drop | null,
-  viewerId: number,
-  publishedDrops: { num: number; title: string | null }[]
-): Promise<CuratorToolsPanelProps> {
-  const [overview, room, top10Drop, dropsMissingPlaylist, dropNoteRows, songNoteMap] = await Promise.all([
-    getOverviewData(club),
-    openDrop ? getRoomData(club, openDrop) : Promise.resolve(null),
-    getTargetDropForTop10(club.id),
-    getDropsMissingPlaylist(club.id),
-    openDrop ? getDropNotes(openDrop.id) : Promise.resolve([] as NoteRow[]),
-    openDrop ? getSongNotesForDrop(openDrop.id) : Promise.resolve({} as Record<number, NoteRow[]>),
-  ]);
-  const top10Summary = top10Drop ? await getTop10Summary(top10Drop) : null;
-  const top10Visible =
-    top10Summary && top10Summary.phase !== "not-shipped" && top10Summary.window ? top10Summary : null;
-
-  // Flat, drop-ordered "this cycle's picks" list (2026-10-08 curator
-  // tools redesign, see claude/next-build.md) — replaces the old
-  // per-curator Columns/Stream breakdown, which nobody on the team had
-  // actually used. room.curators is still the source (one query, same
-  // as before), just flattened and re-sorted by when each pick was
-  // actually added rather than grouped by who added it.
-  const picks = room
-    ? room.curators
-        .flatMap((c) => c.picks.map((p) => ({ ...p, curatorName: c.curator.name ?? "" })))
-        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-        .map((p) => ({
-          id: p.id,
-          title: p.title,
-          artist: p.artist,
-          artworkUrl: p.artworkUrl,
-          sourceUrl: p.sourceUrl,
-          curatorCredit: p.curatorName,
-        }))
-    : [];
-
-  return {
-    dropNum: overview.dropNum,
-    isManual: overview.isManual,
-    daysUntilNext: overview.daysUntilNext,
-    hasOpenDrop: overview.hasOpenDrop,
-    subscriberCount: overview.subscriberCount,
-    pile: overview.pile.map((p) => ({
-      id: p.id,
-      title: p.title,
-      artist: p.artist,
-      artworkUrl: p.artworkUrl,
-      link: p.link,
-      submittedBy: p.submittedBy,
-      submittedAt: p.submittedAt.toISOString(),
-      pulledAt: p.pulledAt ? p.pulledAt.toISOString() : null,
-    })),
-    roster: overview.roster.map((c) => ({
-      id: c.id,
-      name: c.name,
-      picksThisCycle: c.picksThisCycle,
-      picksLifetime: c.picksLifetime,
-      joinedAt: c.joinedAt.toISOString(),
-    })),
-    picks,
-    shipCandidate: overview.shipCandidate
-      ? {
-          dropId: overview.shipCandidate.dropId,
-          dropNum: overview.shipCandidate.dropNum,
-          title: overview.shipCandidate.title,
-          pickCount: overview.shipCandidate.pickCount,
-          startedBy: overview.shipCandidate.startedBy,
-          startedAt: overview.shipCandidate.startedAt.toISOString(),
-          titleUpdatedBy: overview.shipCandidate.titleUpdatedBy,
-          titleUpdatedAt: overview.shipCandidate.titleUpdatedAt
-            ? overview.shipCandidate.titleUpdatedAt.toISOString()
-            : null,
-          scheduledShipAt: overview.shipCandidate.scheduledShipAt
-            ? overview.shipCandidate.scheduledShipAt.toISOString()
-            : null,
-        }
-      : null,
-    nextDropOpensAt: overview.nextDropOpensAt ? overview.nextDropOpensAt.toISOString() : null,
-    canceledDrop: overview.canceledDrop
-      ? {
-          num: overview.canceledDrop.num,
-          title: overview.canceledDrop.title,
-          canceledBy: overview.canceledDrop.canceledBy,
-          canceledAt: overview.canceledDrop.canceledAt.toISOString(),
-        }
-      : null,
-    top10: top10Visible
-      ? {
-          dropNum: top10Visible.dropNum,
-          phase: top10Visible.phase as "pending" | "open" | "closed",
-          opensAt: top10Visible.window!.opensAt.toISOString(),
-          closesAt: top10Visible.window!.closesAt.toISOString(),
-          tally: top10Visible.tally,
-          hitThreshold: top10Visible.hitThreshold,
-          spotifyUrl: top10Visible.spotifyUrl,
-          appleUrl: top10Visible.appleUrl,
-        }
-      : null,
-    dropsMissingPlaylist,
-    // "Mine" lets the feed show Edit/Delete only on the viewer's own
-    // posts, without the client ever needing to know its own member id
-    // for anything else (2026-10-16 — see CuratorToolsPanel.tsx's
-    // BlurbFeed). Dates serialize to ISO strings crossing the server/
-    // client boundary, same as every other date in this props object.
-    dropNotes: dropNoteRows.map((n) => ({
-      ...n,
-      createdAt: n.createdAt.toISOString(),
-      updatedAt: n.updatedAt.toISOString(),
-      mine: n.curatorId === viewerId,
-    })),
-    songNotes: Object.fromEntries(
-      Object.entries(songNoteMap).map(([songId, notes]) => [
-        songId,
-        notes.map((n) => ({
-          ...n,
-          createdAt: n.createdAt.toISOString(),
-          updatedAt: n.updatedAt.toISOString(),
-          mine: n.curatorId === viewerId,
-        })),
-      ])
-    ),
-    // Powers DropCoversDisclosure's download list (2026-10-18). The
-    // fuller publishedDrops the caller already fetched for AccountBoard
-    // carries more than this panel needs — just num/title here.
-    publishedDrops: publishedDrops.map((d) => ({ num: d.num, title: d.title })),
-  };
-}
 
 export const dynamic = "force-dynamic";
 
@@ -168,12 +26,13 @@ const PREVIEW_MEMBER = { id: 0, name: null, bio: null, slug: null, isCurator: fa
 /**
  * /account (2026-10 "next build" — see claude/next-build.md): the
  * unified page that works for everyone — signup/login gate when
- * there's no session, personal dashboard once there is one. As of the
- * account-consolidation round, this is ALSO the only place the curator
- * workspace lives — /room and /overview are gone; their functionality
- * is embedded here via CuratorToolsPanel, gated server-side on
- * member.isCurator below. Still explicitly NOT a replacement for
- * /you/:token — that stateless magic-link page stays exactly as-is.
+ * there's no session, personal dashboard once there is one. The
+ * embedded curator workspace that used to live here as a sub-tab moved
+ * out to its own /curator page (2026-10-23 "curator tools revamp" —
+ * see claude/next-build.md), so this page is back to being purely the
+ * plain-member view for everyone, curators included. Still explicitly
+ * NOT a replacement for /you/:token — that stateless magic-link page
+ * stays exactly as-is.
  */
 export default async function AccountPage() {
   const club = await getDefaultClub();
@@ -228,7 +87,6 @@ export default async function AccountPage() {
               }))}
               favoriteDropIds={[]}
               myRatings={{}}
-              curatorTools={null}
             />
           </div>
         </main>
@@ -239,22 +97,14 @@ export default async function AccountPage() {
   const openDrop = await getOpenDrop(club);
   const publishedDrops = await getPublishedDrops(club.id);
 
-  const [listenerPick, submissionHistory, likedSongs, leaderboard, favorites, myRatings, curatorTools] =
-    await Promise.all([
-      openDrop ? getListenerPick(openDrop.id, member.id) : Promise.resolve(null),
-      getMemberSubmissionHistory(member.id),
-      getMemberLikedSongs(member.id, LIKED_SONGS_LIMIT),
-      getLeaderboard(club.id),
-      getMemberFavorites(member.id),
-      getMemberDropRatings(member.id, publishedDrops.map((d) => d.id)),
-      // Only approved curators get the embedded workspace — this is the
-      // real server-side gate (AccountBoard's own `member.isCurator`
-      // check is just what decides whether to render it, not whether
-      // the data exists at all).
-      member.isCurator
-        ? getCuratorToolsProps(club, openDrop, member.id, publishedDrops)
-        : Promise.resolve(null),
-    ]);
+  const [listenerPick, submissionHistory, likedSongs, leaderboard, favorites, myRatings] = await Promise.all([
+    openDrop ? getListenerPick(openDrop.id, member.id) : Promise.resolve(null),
+    getMemberSubmissionHistory(member.id),
+    getMemberLikedSongs(member.id, LIKED_SONGS_LIMIT),
+    getLeaderboard(club.id),
+    getMemberFavorites(member.id),
+    getMemberDropRatings(member.id, publishedDrops.map((d) => d.id)),
+  ]);
 
   return (
     <>
@@ -310,7 +160,6 @@ export default async function AccountPage() {
           }))}
           favoriteDropIds={favorites.map((f) => f.dropId)}
           myRatings={Object.fromEntries(myRatings)}
-          curatorTools={curatorTools}
         />
       </main>
     </>

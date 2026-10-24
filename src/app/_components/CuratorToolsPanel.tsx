@@ -197,6 +197,23 @@ function joinedLabel(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+type CtTab = "overview" | "pick" | "thoughts" | "more";
+
+/**
+ * Four sub-tabs (2026-10-23 "curator tools revamp" — founder's own
+ * ask, after reporting the single scrolling page felt "jumbled" and
+ * hard for a brand-new guest curator to orient in): Overview (drop
+ * status, Start/Manage), Pick songs (search-add + the submission pile,
+ * merged into one "Add songs" card, plus the flat picks list), Thoughts
+ * (the drop write-up and every pick's own commentary, all in one
+ * place — moved out of being meshed under each pick, per his own
+ * "Variant B" pick after seeing both side by side), and More (the
+ * stuff checked rarely: Curators, Top 10, Drop covers, the
+ * missing-playlist builder). Plain client-side tab state, same pattern
+ * AccountBoard already used for its own account/curator switch before
+ * this became its own page — reusing .acc-tabs/.acc-tab's styling
+ * rather than inventing a second tab look.
+ */
 export default function CuratorToolsPanel({
   dropNum,
   isManual,
@@ -216,6 +233,7 @@ export default function CuratorToolsPanel({
   publishedDrops,
 }: CuratorToolsPanelProps) {
   const router = useRouter();
+  const [tab, setTab] = useState<CtTab>("overview");
 
   function refresh() {
     router.refresh();
@@ -223,8 +241,6 @@ export default function CuratorToolsPanel({
 
   return (
     <div className="gz-up">
-      <CuratorHelpDisclosure />
-
       {/* Only way to reach /settings anywhere in the app (2026-10-09 round
           2 — the founder's own report: there was no link to it at all,
           not a missing-access-level bug, just a missing link). Same
@@ -237,44 +253,82 @@ export default function CuratorToolsPanel({
         </Link>
       </div>
 
-      <div className="stat-row gz-up">
-        <Stat label="Drop" value={String(dropNum)} />
-        <Stat label="Remaining" value={timeLabel(isManual, daysUntilNext)} />
-        <Stat label="Subscribers" value={String(subscriberCount)} />
-        <Stat label="Submissions" value={String(pile.length)} />
+      <div className="acc-tabs">
+        <button
+          type="button"
+          className={`acc-tab${tab === "overview" ? " active" : ""}`}
+          onClick={() => setTab("overview")}
+        >
+          Overview
+        </button>
+        <button type="button" className={`acc-tab${tab === "pick" ? " active" : ""}`} onClick={() => setTab("pick")}>
+          Pick songs
+        </button>
+        <button
+          type="button"
+          className={`acc-tab${tab === "thoughts" ? " active" : ""}`}
+          onClick={() => setTab("thoughts")}
+        >
+          Thoughts
+        </button>
+        <button type="button" className={`acc-tab${tab === "more" ? " active" : ""}`} onClick={() => setTab("more")}>
+          More
+        </button>
       </div>
 
-      {!hasOpenDrop && canceledDrop && <CanceledDropBanner canceledDrop={canceledDrop} onChanged={refresh} />}
-
-      {!hasOpenDrop && (
-        <StartDropCard dropNum={dropNum} nextDropOpensAt={nextDropOpensAt} onChanged={refresh} />
-      )}
-
-      {/* Manage drop N moved to the top of the open-drop view (2026-10-16
-          — founder's own ask: "bring the drop manager to the top instead
-          of the bottom," "above the add a pick area"). Rename now lives
-          inside it too — see ManageDropCard's own comment. */}
-      {shipCandidate && <ManageDropCard shipCandidate={shipCandidate} onChanged={refresh} />}
-
-      {hasOpenDrop && (
+      {tab === "overview" && (
         <>
-          <AddPick onAdded={refresh} />
-          <DropBlurbCard dropNotes={dropNotes} onChanged={refresh} />
-          <PicksCard picks={picks} songNotes={songNotes} onRemoved={refresh} onChanged={refresh} />
+          <CuratorHelpDisclosure />
+
+          <div className="stat-row gz-up">
+            <Stat label="Drop" value={String(dropNum)} />
+            <Stat label="Remaining" value={timeLabel(isManual, daysUntilNext)} />
+            <Stat label="Subscribers" value={String(subscriberCount)} />
+            <Stat label="Submissions" value={String(pile.length)} />
+          </div>
+
+          {!hasOpenDrop && canceledDrop && <CanceledDropBanner canceledDrop={canceledDrop} onChanged={refresh} />}
+
+          {!hasOpenDrop && (
+            <StartDropCard dropNum={dropNum} nextDropOpensAt={nextDropOpensAt} onChanged={refresh} />
+          )}
+
+          {/* Manage drop N moved to the top of the open-drop view (2026-10-16
+              — founder's own ask: "bring the drop manager to the top instead
+              of the bottom," "above the add a pick area"). Rename now lives
+              inside it too — see ManageDropCard's own comment. */}
+          {shipCandidate && <ManageDropCard shipCandidate={shipCandidate} onChanged={refresh} />}
         </>
       )}
 
-      <PileCard pile={pile} hasOpenDrop={hasOpenDrop} onAdded={refresh} />
-
-      {dropsMissingPlaylist.length > 0 && (
-        <MissingPlaylistCard drops={dropsMissingPlaylist} onBuilt={refresh} />
+      {tab === "pick" && (
+        <>
+          {/* Search-and-add and the submission pile, merged under one
+              "Add songs" card (2026-10-23 revamp) — always rendered now,
+              never conditional on hasOpenDrop: it just goes inert (search
+              disabled, Quick-add disabled) with its own message instead of
+              disappearing outright, per the founder's explicit "should be
+              open at all times... if a drop's closed, cant add songs or
+              something." */}
+          <AddSongsCard hasOpenDrop={hasOpenDrop} pile={pile} onAdded={refresh} />
+          <PicksCard picks={picks} songNotes={songNotes} onRemoved={refresh} onViewNotes={() => setTab("thoughts")} />
+        </>
       )}
 
-      <CuratorsDisclosure roster={roster} />
+      {tab === "thoughts" && (
+        <ThoughtsSection dropNotes={dropNotes} picks={picks} songNotes={songNotes} onChanged={refresh} />
+      )}
 
-      {top10 && <Top10Disclosure top10={top10} />}
-
-      {publishedDrops.length > 0 && <DropCoversDisclosure drops={publishedDrops} />}
+      {tab === "more" && (
+        <>
+          {dropsMissingPlaylist.length > 0 && (
+            <MissingPlaylistCard drops={dropsMissingPlaylist} onBuilt={refresh} />
+          )}
+          <CuratorsDisclosure roster={roster} />
+          {top10 && <Top10Disclosure top10={top10} />}
+          {publishedDrops.length > 0 && <DropCoversDisclosure drops={publishedDrops} />}
+        </>
+      )}
     </div>
   );
 }
@@ -1163,7 +1217,37 @@ type SearchResult = {
  * this change, since an earlier round had deliberately made that paste
  * path always-visible for curators who mostly paste Apple Music links;
  * this round's explicit answer was still "yes, remove it." */
-function AddPick({ onAdded }: { onAdded: () => void }) {
+/**
+ * Search-and-add and the submission pile, merged under one "Add songs"
+ * card (2026-10-23 revamp — founder's own ask, after liking the idea of
+ * merging the two but wanting duplicate-check kept and the submissions
+ * row to look identical to a search result, "Add" included rather than
+ * "Quick-add"). Always rendered, never conditional on hasOpenDrop — it
+ * goes inert with its own explanatory line instead of disappearing when
+ * nothing's open, per his explicit "should be open at all times."
+ */
+function AddSongsCard({
+  hasOpenDrop,
+  pile,
+  onAdded,
+}: {
+  hasOpenDrop: boolean;
+  pile: PileItem[];
+  onAdded: () => void;
+}) {
+  return (
+    <div className="ct-card" style={{ marginTop: 20 }}>
+      <p className="label" style={{ marginBottom: 10 }}>
+        Add songs
+      </p>
+      <AddPick hasOpenDrop={hasOpenDrop} onAdded={onAdded} />
+      <div style={{ height: 1, background: "var(--ln)", margin: "18px 0" }} />
+      <PileCard pile={pile} hasOpenDrop={hasOpenDrop} onAdded={onAdded} />
+    </div>
+  );
+}
+
+function AddPick({ hasOpenDrop, onAdded }: { hasOpenDrop: boolean; onAdded: () => void }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1215,9 +1299,9 @@ function AddPick({ onAdded }: { onAdded: () => void }) {
   }
 
   return (
-    <div className="ct-card" style={{ marginTop: 20 }}>
+    <div>
       <p className="label" style={{ marginBottom: 10 }}>
-        Add a pick
+        Search and add
       </p>
       <input
         type="text"
@@ -1225,27 +1309,34 @@ function AddPick({ onAdded }: { onAdded: () => void }) {
         placeholder={siteCopy.addPickSearchPlaceholder}
         value={query}
         onChange={(e) => handleQueryChange(e.target.value)}
+        disabled={!hasOpenDrop}
       />
 
-      {loading && (
+      {!hasOpenDrop && (
+        <p className="mut" style={{ fontSize: 11.5, marginTop: 10 }}>
+          No drop in progress right now — start one from Overview to add songs.
+        </p>
+      )}
+
+      {hasOpenDrop && loading && (
         <p className="mut" style={{ fontSize: 11.5, marginTop: 10 }}>
           Searching…
         </p>
       )}
 
-      {!loading && trimmed && spotifyUnavailable && (
+      {hasOpenDrop && !loading && trimmed && spotifyUnavailable && (
         <p className="mut" style={{ fontSize: 11.5, marginTop: 10 }}>
           Spotify search isn&rsquo;t available right now — try again in a bit.
         </p>
       )}
 
-      {!loading && trimmed && !spotifyUnavailable && results && results.length === 0 && (
+      {hasOpenDrop && !loading && trimmed && !spotifyUnavailable && results && results.length === 0 && (
         <p className="mut" style={{ fontSize: 11.5, marginTop: 10 }}>
           No matches on Spotify for that.
         </p>
       )}
 
-      {!loading && trimmed && !spotifyUnavailable && results && results.length > 0 && (
+      {hasOpenDrop && !loading && trimmed && !spotifyUnavailable && results && results.length > 0 && (
         <div className="roster-list" style={{ marginTop: 10 }}>
           {results.map((r) => (
             <SearchResultRow key={r.id} result={r} onAdded={handleAdded} />
@@ -1373,12 +1464,12 @@ function PicksCard({
   picks,
   songNotes,
   onRemoved,
-  onChanged,
+  onViewNotes,
 }: {
   picks: Pick[];
   songNotes: Record<number, Note[]>;
   onRemoved: () => void;
-  onChanged: () => void;
+  onViewNotes: () => void;
 }) {
   return (
     <div className="ct-card" style={{ marginTop: 20 }}>
@@ -1392,7 +1483,13 @@ function PicksCard({
       ) : (
         <div className="pile-list">
           {picks.map((p) => (
-            <PickRow key={p.id} pick={p} notes={songNotes[p.id] ?? []} onRemoved={onRemoved} onChanged={onChanged} />
+            <PickRow
+              key={p.id}
+              pick={p}
+              hasNote={(songNotes[p.id] ?? []).length > 0}
+              onRemoved={onRemoved}
+              onViewNotes={onViewNotes}
+            />
           ))}
         </div>
       )}
@@ -1400,16 +1497,23 @@ function PicksCard({
   );
 }
 
+/** Just the song + Remove now (2026-10-23 revamp) — the inline blurb
+ * composer that used to live under every row moved out to its own
+ * Thoughts tab (founder's "Variant B" pick, see CuratorToolsPanel's
+ * own comment). A small "has a note →" link is the only trace left
+ * here, and only shows when a blurb actually exists; tapping it jumps
+ * straight to Thoughts instead of making the viewer hunt for the tab
+ * themselves. */
 function PickRow({
   pick,
-  notes,
+  hasNote,
   onRemoved,
-  onChanged,
+  onViewNotes,
 }: {
   pick: Pick;
-  notes: Note[];
+  hasNote: boolean;
   onRemoved: () => void;
-  onChanged: () => void;
+  onViewNotes: () => void;
 }) {
   const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1433,63 +1537,43 @@ function PickRow({
   }
 
   return (
-    <div className="pile-row-wrap">
-      <div className="pile-row">
-        <div className="pile-info" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {pick.artworkUrl ? (
-            <FallbackImg
-              src={pick.artworkUrl}
-              className="track-row-art"
-              fallbackClassName="track-row-art track-row-art-empty"
-            />
-          ) : (
-            <div className="track-row-art track-row-art-empty" aria-hidden="true" />
-          )}
-          <div style={{ minWidth: 0 }}>
-            <div className="track-title">{pick.title}</div>
-            <div className="track-artist">{pick.artist}</div>
-            {pick.curatorCredit && <div className="pile-meta">picked by {pick.curatorCredit}</div>}
-          </div>
-        </div>
-        <div className="pile-action">
-          <button type="button" className="link-btn" onClick={remove} disabled={removing}>
-            {removing ? "Removing…" : "Remove"}
-          </button>
-          {error && (
-            <p className="notice error" style={{ marginTop: 6, maxWidth: 160 }}>
-              {error}
-            </p>
+    <div className="pile-row">
+      <div className="pile-info" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        {pick.artworkUrl ? (
+          <FallbackImg
+            src={pick.artworkUrl}
+            className="track-row-art"
+            fallbackClassName="track-row-art track-row-art-empty"
+          />
+        ) : (
+          <div className="track-row-art track-row-art-empty" aria-hidden="true" />
+        )}
+        <div style={{ minWidth: 0 }}>
+          <div className="track-title">{pick.title}</div>
+          <div className="track-artist">{pick.artist}</div>
+          {pick.curatorCredit && <div className="pile-meta">picked by {pick.curatorCredit}</div>}
+          {hasNote && (
+            <button
+              type="button"
+              className="link-btn"
+              style={{ fontSize: 10.5, marginTop: 2, padding: 0 }}
+              onClick={onViewNotes}
+            >
+              has a note →
+            </button>
           )}
         </div>
       </div>
-      <BlurbFeed
-        notes={notes}
-        placeholder={siteCopy.songBlurbPlaceholder}
-        onCreate={async (text) => {
-          const res = await fetch("/api/overview/song-note", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ songId: pick.id, text }),
-          });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data.error ?? "Couldn't post that. Try again.");
-        }}
-        onUpdate={async (id, text) => {
-          const res = await fetch(`/api/overview/song-note/${id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text }),
-          });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data.error ?? "Couldn't save that. Try again.");
-        }}
-        onDelete={async (id) => {
-          const res = await fetch(`/api/overview/song-note/${id}`, { method: "DELETE" });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data.error ?? "Couldn't delete that. Try again.");
-        }}
-        onChanged={onChanged}
-      />
+      <div className="pile-action">
+        <button type="button" className="link-btn" onClick={remove} disabled={removing}>
+          {removing ? "Removing…" : "Remove"}
+        </button>
+        {error && (
+          <p className="notice error" style={{ marginTop: 6, maxWidth: 160 }}>
+            {error}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -1504,9 +1588,9 @@ function PileCard({
   onAdded: () => void;
 }) {
   return (
-    <div className="ct-card" style={{ marginTop: 20 }}>
+    <div>
       <p className="label" style={{ marginBottom: 6 }}>
-        Submission pile ({pile.length})
+        From submissions ({pile.length})
       </p>
       {/* Always-visible, not an InfoTip (2026-10-13 "site clarity" round,
           see claude/next-build.md) — this is the one spot curators
@@ -1598,7 +1682,7 @@ function PileRow({
             disabled={adding || !hasOpenDrop}
             title={!hasOpenDrop ? "No drop in progress right now" : undefined}
           >
-            {adding ? "Adding…" : "Quick-add"}
+            {adding ? "Adding…" : "Add"}
           </button>
         )}
         {error && (
@@ -1607,6 +1691,113 @@ function PileRow({
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The drop write-up plus every pick's own commentary, grouped together
+ * (2026-10-23 revamp — founder's own "Variant B" pick after comparing it
+ * side by side with the old meshed-under-each-pick layout). Reuses
+ * DropBlurbCard unchanged for the "about this drop" half; the per-song
+ * half is the same BlurbFeed wiring PickRow used to carry inline, just
+ * moved here and repeated once per pick.
+ */
+function ThoughtsSection({
+  dropNotes,
+  picks,
+  songNotes,
+  onChanged,
+}: {
+  dropNotes: Note[];
+  picks: Pick[];
+  songNotes: Record<number, Note[]>;
+  onChanged: () => void;
+}) {
+  return (
+    <>
+      <DropBlurbCard dropNotes={dropNotes} onChanged={onChanged} />
+
+      <p className="label" style={{ marginTop: 20, marginBottom: 10 }}>
+        Song thoughts
+      </p>
+      {picks.length === 0 ? (
+        <div className="empty-state" style={{ padding: "12px 0" }}>
+          No picks yet this cycle — add some from Pick songs first.
+        </div>
+      ) : (
+        <div className="ct-card">
+          {picks.map((p, i) => (
+            <SongThoughtRow
+              key={p.id}
+              pick={p}
+              notes={songNotes[p.id] ?? []}
+              onChanged={onChanged}
+              last={i === picks.length - 1}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function SongThoughtRow({
+  pick,
+  notes,
+  onChanged,
+  last,
+}: {
+  pick: Pick;
+  notes: Note[];
+  onChanged: () => void;
+  last: boolean;
+}) {
+  return (
+    <div style={last ? undefined : { borderBottom: "1px solid var(--ln)", paddingBottom: 18, marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+        {pick.artworkUrl ? (
+          <FallbackImg
+            src={pick.artworkUrl}
+            className="track-row-art"
+            fallbackClassName="track-row-art track-row-art-empty"
+          />
+        ) : (
+          <div className="track-row-art track-row-art-empty" aria-hidden="true" />
+        )}
+        <div style={{ minWidth: 0 }}>
+          <div className="track-title">{pick.title}</div>
+          <div className="track-artist">{pick.artist}</div>
+        </div>
+      </div>
+      <BlurbFeed
+        notes={notes}
+        placeholder={siteCopy.songBlurbPlaceholder}
+        onCreate={async (text) => {
+          const res = await fetch("/api/overview/song-note", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ songId: pick.id, text }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error ?? "Couldn't post that. Try again.");
+        }}
+        onUpdate={async (id, text) => {
+          const res = await fetch(`/api/overview/song-note/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error ?? "Couldn't save that. Try again.");
+        }}
+        onDelete={async (id) => {
+          const res = await fetch(`/api/overview/song-note/${id}`, { method: "DELETE" });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error ?? "Couldn't delete that. Try again.");
+        }}
+        onChanged={onChanged}
+      />
     </div>
   );
 }

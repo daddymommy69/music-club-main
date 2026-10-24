@@ -10,7 +10,6 @@ import ListenerPickForm from "./ListenerPickForm";
 import RateDropControl from "./RateDropControl";
 import DropTile from "./DropTile";
 import FallbackImg from "./FallbackImg";
-import CuratorToolsPanel, { type CuratorToolsPanelProps } from "./CuratorToolsPanel";
 import PlayableArt from "./PlayableArt";
 import { PlayQueue } from "./NowPlayingProvider";
 import InfoTip from "./InfoTip";
@@ -70,7 +69,6 @@ type AccountBoardProps = {
   publishedDrops: PublishedDrop[];
   favoriteDropIds: number[];
   myRatings: Record<number, number>;
-  curatorTools: CuratorToolsPanelProps | null;
 };
 
 export default function AccountBoard({
@@ -83,16 +81,8 @@ export default function AccountBoard({
   publishedDrops,
   favoriteDropIds,
   myRatings,
-  curatorTools,
 }: AccountBoardProps) {
   const router = useRouter();
-  // "Curator tools" became its own tab, 2026-10-08 (see
-  // claude/next-build.md) — previously a collapsible section at the
-  // bottom of this same page. curatorTools is only ever non-null for
-  // an approved curator (gated server-side in account/page.tsx), so a
-  // regular member never sees a tab bar at all — just today's single
-  // page, unchanged.
-  const [tab, setTab] = useState<"account" | "curator">("account");
 
   async function logout() {
     await fetch("/api/members/logout", { method: "POST" });
@@ -101,65 +91,40 @@ export default function AccountBoard({
 
   return (
     <div className="gz-up">
-      {curatorTools && (
-        <div className="acc-tabs">
-          <button
-            type="button"
-            className={`acc-tab${tab === "account" ? " active" : ""}`}
-            onClick={() => setTab("account")}
-          >
-            Your account
-          </button>
-          <button
-            type="button"
-            className={`acc-tab${tab === "curator" ? " active" : ""}`}
-            onClick={() => setTab("curator")}
-          >
-            Curator tools
-          </button>
-        </div>
-      )}
+      <ProfileCard member={member} />
+      <SpotifyConnectControl connected={member.spotifyConnected} />
 
-      {tab === "curator" && curatorTools ? (
-        <CuratorToolsPanel {...curatorTools} />
-      ) : (
-        <>
-          <ProfileCard member={member} />
-          <SpotifyConnectControl connected={member.spotifyConnected} />
+      <Section
+        label="This cycle's pick"
+        info="submit one song for whichever drop is currently open — first submission locks in, no changes after."
+      >
+        {openDrop ? (
+          <ListenerPickForm openDrop={openDrop} initialPick={listenerPick} />
+        ) : (
+          <p className="mut" style={{ fontSize: 12.5 }}>
+            {siteCopy.noOpenDropText}
+          </p>
+        )}
+      </Section>
 
-          <Section
-            label="This cycle's pick"
-            info="submit one song for whichever drop is currently open — first submission locks in, no changes after."
-          >
-            {openDrop ? (
-              <ListenerPickForm openDrop={openDrop} initialPick={listenerPick} />
-            ) : (
-              <p className="mut" style={{ fontSize: 12.5 }}>
-                {siteCopy.noOpenDropText}
-              </p>
-            )}
-          </Section>
+      <Section label="Your picks, all time">
+        <SubmissionHistory rows={submissionHistory} />
+      </Section>
 
-          <Section label="Your picks, all time">
-            <SubmissionHistory rows={submissionHistory} />
-          </Section>
+      <Section label="Liked songs">
+        <LikedSongsGrid songs={likedSongs} />
+      </Section>
 
-          <Section label="Liked songs">
-            <LikedSongsGrid songs={likedSongs} />
-          </Section>
+      <Section label="Leaderboard" info="ranks everyone by how many picks have made it into a shipped drop.">
+        <Leaderboard rows={leaderboard} />
+      </Section>
 
-          <Section label="Leaderboard" info="ranks everyone by how many picks have made it into a shipped drop.">
-            <Leaderboard rows={leaderboard} />
-          </Section>
-
-          <Section
-            label="Your tops"
-            info="pick up to 5 of your own shipped drops to feature here — just for you, for now."
-          >
-            <TopsGrid drops={publishedDrops} initialFavoriteIds={favoriteDropIds} myRatings={myRatings} />
-          </Section>
-        </>
-      )}
+      <Section
+        label="Your tops"
+        info="pick up to 5 of your own shipped drops to feature here — just for you, for now."
+      >
+        <TopsGrid drops={publishedDrops} initialFavoriteIds={favoriteDropIds} myRatings={myRatings} />
+      </Section>
 
       <button type="button" className="link-btn" onClick={logout} style={{ marginTop: 10 }}>
         Log out
