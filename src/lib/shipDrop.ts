@@ -1,8 +1,9 @@
 import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { drops, songs, type Club, type Drop } from "@/db/schema";
+import { clubs, drops, songs, type Club, type Drop } from "@/db/schema";
 import { sendDropToSubscribers } from "./release";
 import { buildSpotifyPlaylistForDrop } from "./spotifyBuild";
+import { computeAutoOpenDate } from "./cycle";
 
 export type ShipResult = {
   ok: true;
@@ -74,6 +75,23 @@ export async function shipDrop(
     .returning();
 
   const result = await sendDropToSubscribers(updated, opts.shippedBy);
+
+  // Auto-schedule the next drop's open date (2026-10-24 "automate the
+  // cycle" round — see claude/next-build.md: a drop that was supposed
+  // to auto-ship didn't, and the founder's actual ask was for the
+  // whole cycle to run hands-off once it's set up). Only once the ship
+  // actually went through — `skipped` means a lost race or a missing
+  // playlist link bailed this out before anything really shipped, and
+  // Manual stays the one off-switch for all of this automation.
+  // schedule-open's own route already guarantees nextDropOpensAt can
+  // only ever be set while nothing's open, so this can never clobber a
+  // curator's own choice — there wasn't one to make yet.
+  if (!("skipped" in result) && club.cycle !== "manual") {
+    await getDb()
+      .update(clubs)
+      .set({ nextDropOpensAt: computeAutoOpenDate() })
+      .where(eq(clubs.id, club.id));
+  }
 
   return {
     ok: true,

@@ -38,3 +38,32 @@ export type CycleValue = (typeof CYCLE_OPTIONS)[number]["value"];
 export function isCycleValue(value: string): value is CycleValue {
   return CYCLE_OPTIONS.some((o) => o.value === value);
 }
+
+/**
+ * "Automate the cycle" round (2026-10-24 — founder's own ask, after
+ * the drop that was supposed to auto-ship didn't: a real cycle length
+ * only ever drove the display countdown, never actually scheduled
+ * anything). Starting a drop now auto-fills its ship date this many
+ * days out, same length Settings already shows for the countdown —
+ * null (no auto-fill at all) whenever the club is in Manual mode or
+ * has no cycle length configured. Any curator can still edit the
+ * result afterward via Schedule Ship; this only decides what a fresh
+ * drop starts with.
+ */
+export function computeAutoShipDate(club: { cycle: string; cycleCustomDays: number | null }): Date | null {
+  const days = getCycleDays(club);
+  if (!days) return null;
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+}
+
+/** Gap between a drop actually shipping and the next one auto-opening
+ * (2026-10-24 "automate the cycle" round) — the founder's own flat "2
+ * days" answer, deliberately NOT tied to cycle length (a 91-day
+ * quarterly cycle shouldn't mean a 91-day gap before the next drop can
+ * even open). Any curator can still override the result by hand via
+ * Schedule Open once nothing's open. */
+export const AUTO_OPEN_GAP_DAYS = 2;
+
+export function computeAutoOpenDate(): Date {
+  return new Date(Date.now() + AUTO_OPEN_GAP_DAYS * 24 * 60 * 60 * 1000);
+}

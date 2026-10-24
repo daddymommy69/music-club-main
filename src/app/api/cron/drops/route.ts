@@ -6,6 +6,7 @@ import { checkBearerAuth } from "@/lib/adminAuth";
 import { getDefaultClub } from "@/lib/club";
 import { getOpenDrop } from "@/lib/room";
 import { shipDrop } from "@/lib/shipDrop";
+import { computeAutoShipDate } from "@/lib/cycle";
 
 /**
  * Runs on Vercel's daily Cron schedule (see vercel.json). Replaces the
@@ -63,12 +64,17 @@ export async function GET(request: Request) {
         .orderBy(desc(drops.num))
         .limit(1);
 
+      // Same auto-fill a manual Start Drop click gets (2026-10-24
+      // "automate the cycle" round, see claude/next-build.md) — an
+      // auto-opened drop needs its own ship date scheduled too, or the
+      // hands-off chain stops dead the moment this step runs.
       const [created] = await db
         .insert(drops)
         .values({
           clubId: club.id,
           num: (last?.num ?? 0) + 1,
           startedBy: "Auto-open",
+          scheduledShipAt: computeAutoShipDate(club),
         })
         .returning();
 

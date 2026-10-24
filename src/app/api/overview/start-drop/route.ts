@@ -4,6 +4,7 @@ import { getDb } from "@/db/client";
 import { drops } from "@/db/schema";
 import { getSessionMember } from "@/lib/memberSession";
 import { getDefaultClub } from "@/lib/club";
+import { computeAutoShipDate } from "@/lib/cycle";
 
 /**
  * Curator-session-gated "start the next drop" (2026-10-06 QA sweep —
@@ -55,6 +56,14 @@ export async function POST(request: Request) {
     );
   }
 
+  // Auto-fill this drop's ship date from the club's cycle length
+  // (2026-10-24 "automate the cycle" round — see claude/next-build.md)
+  // — null in Manual mode, same as before. Any curator can still
+  // change it afterward via Schedule Ship; this just sets what a fresh
+  // drop starts with instead of leaving it unscheduled until someone
+  // remembers to set it by hand.
+  const scheduledShipAt = computeAutoShipDate(club);
+
   const [created] = await db
     .insert(drops)
     .values({
@@ -62,6 +71,7 @@ export async function POST(request: Request) {
       num: (last?.num ?? 0) + 1,
       title: title?.trim() || null,
       startedBy: curator.name || "A curator",
+      scheduledShipAt,
     })
     .returning();
 
