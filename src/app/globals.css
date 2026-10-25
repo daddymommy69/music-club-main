@@ -729,12 +729,24 @@ input {
 /* Wraps each quadrant so a clickable-to-artist one (the hero tile only
    — see DropTile.tsx) stays the exact same size as a plain one; the
    `a` inside needs the same block/100% treatment since a link is
-   inline by default. */
+   inline by default. `overflow: hidden` (2026-10-25 round — found by
+   actually inspecting the live site pixel-by-pixel after a drop with
+   very dark cover art still looked like it had no white matting: CSS
+   Grid never auto-clips a cell's content to its track, so when a
+   quadrant's cover-fit image rounds even a sub-pixel larger than its
+   81.9px-ish fractional track — unavoidable with a percentage-based
+   gap/inset — nothing stopped that sliver from painting straight over
+   the white gap next to it. Only shows up with dark artwork because a
+   bright image's own bleed is invisible against the white it's
+   bleeding onto; a dark one reads as "the padding's missing." This
+   clips each quadrant to its own slot, gap included, same as a normal
+   image mosaic should. */
 .drop-tile-quad-slot,
 .drop-tile-quad-slot a {
   display: block;
   width: 100%;
   height: 100%;
+  overflow: hidden;
 }
 
 /* Literal white (not --fill, which is theme-aware and stays a dark
