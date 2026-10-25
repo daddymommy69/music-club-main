@@ -724,6 +724,14 @@ input {
   height: 100%;
   object-fit: cover;
   display: block;
+  /* Subtle, not the outer tile's full 10px (founder's own ask, "not
+     too rounded" — then, after a first 6px preview read as rounder
+     than wanted, matched to a reference screenshot he sent: pixel-
+     measured its own corner curve at ~5px on a ~344px tile, a soft,
+     barely-there rounding). Each quadrant's own art gets a soft
+     corner inside its white matting rather than reading as a
+     hard-edged photo. */
+  border-radius: 4px;
 }
 
 /* Wraps each quadrant so a clickable-to-artist one (the hero tile only
