@@ -17,24 +17,38 @@ export const MAX_ARTWORK_TRIM = 0.32;
 
 /**
  * The matting level every drop's artwork should read as having —
- * grounded in real measurement, not a guess: fetching the founder's
- * own Drop 1 artwork files and running the border-detection algorithm
- * on them (2026-10-25) returned ~0.31-0.32 for every one of them
- * (several landing right at MAX_ARTWORK_TRIM above), while Drop 2's
- * full-bleed files returned ~0-0.06. So 0.3 — just under Drop 1's own
- * measured floor — is "Drop 1's actual look," matching the founder's
- * "i want drop 1 to be the standard."
+ * grounded in real measurement of how Drop 1's art actually RENDERS,
+ * not the raw file.
  *
- * IMPORTANT — this is a *floor* for every image's own border, not an
+ * First pass at this (2026-10-25, same day) used 0.3, measured by
+ * running the border-detection algorithm directly on Drop 1's raw
+ * source files, which came back ~0.31-0.32. That overshot badly — the
+ * founder's report: Drop 2 came out "too small." Root cause: Drop 1's
+ * files are landscape (1200x630), not square, and detectArtworkTrim()
+ * measures the whole file before the site ever gets to it. On screen,
+ * DropTile's <img> is object-fit:cover inside a square box, which (for
+ * a landscape source) zooms in significantly and crops the left/right
+ * edges — eating into most of that measured border before a pixel of
+ * it ever reaches the page. So 0.31-0.32 was real, but it was never
+ * the number to target: it's what the FILE looks like, not what Drop 1
+ * actually LOOKS LIKE on musicclub.fyi.
+ *
+ * Corrected measurement: replicated the exact object-fit:cover crop
+ * (same source dimensions, same square target box) in a canvas against
+ * Drop 1's real files and re-ran the border scan on THAT — i.e. what a
+ * visitor's browser actually paints. Three of four images came back a
+ * consistent ~0.156 top/bottom/left; call it 0.15. (At 0.15, Drop 1's
+ * own raw per-file trim, still ~0.31+, stays comfortably above this
+ * target, so Drop 1 stays completely untouched either way — only the
+ * Drop-2-side shrink amount changes.)
+ *
+ * This is a *floor* for every image's own rendered border, not an
  * amount to crop off every image. See trimScale() below: an image
  * that already meets or exceeds this (Drop 1's own files) is never
  * touched; only an image with *less* border than this (Drop 2's
- * files) gets shrunk to simulate having it. An earlier same-day round
- * applied each image's own detected trim as an unconditional zoom-in
- * amount instead — which stripped Drop 1's real matting down toward
- * Drop 2's tighter look rather than bringing Drop 2 up to match Drop 1.
+ * files) gets shrunk to simulate having it.
  */
-export const TARGET_ARTWORK_TRIM = 0.3;
+export const TARGET_ARTWORK_TRIM = 0.15;
 
 /**
  * How much to shrink an image (via CSS scale() or an equivalent
