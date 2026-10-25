@@ -48,6 +48,42 @@ const BG = "#2b2b2b"; // approximates the site's dark tile background
  * a cache lookup — a detect only happens on an actual cache miss, same
  * as everywhere else artworkTrim.ts is used).
  */
+/**
+ * Shrinks an image toward its center by `scale` (< 1) and pads the
+ * freed-up edges with white, so the visible artwork ends up occupying
+ * exactly `scale` of the frame — the server-side equivalent of
+ * DropTile.tsx's CSS `scale()` transform. sharp's extract() can only
+ * crop (zoom in); achieving the opposite (zoom out, reveal more
+ * border) means resizing the image down and compositing it onto a
+ * full-size white canvas, matching the site's own tile/slot background
+ * (globals.css's .drop-tile / .drop-tile-quad-empty).
+ *
+ * Exported standalone (and returning a fully materialized buffer,
+ * rather than a lazy sharp() pipeline) so it's unit-testable without a
+ * network fetch, and so callers never hit the bug this fixed: chaining
+ * a further .resize() directly onto the composite() pipeline throws
+ * "Image to composite must have same dimensions or smaller" (confirmed
+ * against a real Drop 2 image, 2026-10-25) — sharp validates the
+ * composite input against the pipeline's FINAL output size, not this
+ * canvas's own width/height, so a same-chain resize down to a small
+ * target size makes an otherwise-valid composite look oversized.
+ * Materializing this step to a buffer and starting a fresh sharp()
+ * for whatever comes next sidesteps that entirely.
+ */
+export async function shrinkAndPad(bytes: Buffer, scale: number): Promise<Buffer> {
+  const { width, height } = await sharp(bytes).metadata();
+  if (!width || !height || scale >= 1) return bytes;
+
+  const shrunkW = Math.max(1, Math.round(width * scale));
+  const shrunkH = Math.max(1, Math.round(height * scale));
+  const shrunk = await sharp(bytes).resize(shrunkW, shrunkH, { fit: "fill" }).toBuffer();
+
+  return sharp({ create: { width, height, channels: 3, background: "#ffffff" } })
+    .composite([{ input: shrunk, left: Math.round((width - shrunkW) / 2), top: Math.round((height - shrunkH) / 2) }])
+    .png()
+    .toBuffer();
+}
+
 async function fetchQuadBuffer(url: string | null): Promise<Buffer | null> {
   if (!url) return null;
   try {
@@ -61,26 +97,10 @@ async function fetchQuadBuffer(url: string | null): Promise<Buffer | null> {
       await cacheArtworkTrim(url, trim);
     }
 
-    let image = sharp(bytes);
     const scale = trimScale(trim);
-    if (scale < 1) {
-      const { width, height } = await image.metadata();
-      if (width && height) {
-        const shrunkW = Math.max(1, Math.round(width * scale));
-        const shrunkH = Math.max(1, Math.round(height * scale));
-        // sharp's extract() can only crop (zoom in) — achieving the
-        // opposite (zoom out, reveal more border) means resizing the
-        // image down and compositing it onto a full-size white canvas,
-        // matching the site's own tile/slot background (globals.css's
-        // .drop-tile / .drop-tile-quad-empty).
-        const shrunk = await sharp(bytes).resize(shrunkW, shrunkH, { fit: "fill" }).toBuffer();
-        image = sharp({ create: { width, height, channels: 3, background: "#ffffff" } }).composite([
-          { input: shrunk, left: Math.round((width - shrunkW) / 2), top: Math.round((height - shrunkH) / 2) },
-        ]);
-      }
-    }
+    const padded = scale < 1 ? await shrinkAndPad(bytes, scale) : bytes;
 
-    return await image.resize(HALF, HALF, { fit: "cover" }).jpeg().toBuffer();
+    return await sharp(padded).resize(HALF, HALF, { fit: "cover" }).jpeg().toBuffer();
   } catch {
     return null;
   }
