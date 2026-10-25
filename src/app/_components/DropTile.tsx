@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { artistHref } from "@/lib/artistLink";
+import { trimScale } from "@/lib/artworkTrimMath";
 
 /**
  * The square number+artwork tile (design decision, 2026-10): a 2x2
@@ -24,13 +25,14 @@ export default function DropTile({
   artworkUrls: string[];
   /** One entry per artworkUrls, same order (src/lib/artworkTrim.ts) —
    * how much of that image is a solid-color border baked into the file
-   * itself, 0-to-~0.32. Each quadrant zooms in by this amount so every
-   * drop's artwork fills a consistent amount of its frame no matter
-   * what the source photo looked like (2026-10-25 round — see
-   * claude/next-build.md: the founder noticed one drop's collage read
-   * as way more generously matted than another's, and it turned out to
-   * be entirely down to some source files already having their own
-   * padding baked in). Optional/omitted entries default to 0 (no zoom)
+   * itself, 0-to-~0.32. A quadrant whose own border falls short of the
+   * site-wide standard (src/lib/artworkTrim.ts's TARGET_ARTWORK_TRIM)
+   * shrinks in to gain matching matting; one that already meets or
+   * beats it is left untouched (2026-10-25 round, corrected same day —
+   * see claude/next-build.md: the founder noticed one drop's collage
+   * read as way more generously matted than another's, and it turned
+   * out to be entirely down to some source files already having their
+   * own padding baked in). Optional/omitted entries default to 0 (no zoom)
    * rather than this being a required prop everywhere DropTile is used. */
   artworkTrims?: number[];
   /** Each quadrant's own artist, same order as artworkUrls (2026-10-07
@@ -55,10 +57,19 @@ export default function DropTile({
       <div className="drop-tile-grid">
         {quads.map((url, i) => {
           const trim = artworkTrims?.[i] ?? 0;
-          // scale() zooms in from center, which crops the same fraction
-          // off every edge — exactly undoing a border that's (close
-          // enough to) symmetric on all 4 sides.
-          const quadStyle = trim > 0 ? { transform: `scale(${1 / (1 - 2 * trim)})` } : undefined;
+          // scale() shrinks from center, revealing more of the slot's
+          // own background around the art — this only ever brings an
+          // under-bordered image (e.g. a full-bleed photo) up to match
+          // the standard set by images that already have generous
+          // baked-in matting; it never zooms into (crops) an image
+          // that already meets or beats that standard. See
+          // src/lib/artworkTrim.ts's trimScale()/TARGET_ARTWORK_TRIM
+          // for why — a 2026-10-25 round got this backwards and
+          // zoomed into every detected border unconditionally, which
+          // stripped away the real matting on the already-generously-
+          // bordered drop instead of adding matting to the other one.
+          const scale = trimScale(trim);
+          const quadStyle = scale < 1 ? { transform: `scale(${scale})` } : undefined;
           const art = url ? (
             // External Apple/Spotify CDN art — not worth configuring
             // next/image's remotePatterns for.

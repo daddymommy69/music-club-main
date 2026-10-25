@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import sharp from "sharp";
 import { detectArtworkTrim, MAX_ARTWORK_TRIM } from "./artworkTrim";
+import { trimScale, TARGET_ARTWORK_TRIM } from "./artworkTrimMath";
 
 /** Builds a synthetic square image: a solid white border `borderPx`
  * wide on every edge, with varied (never-uniform) color inside it, so
@@ -44,5 +45,28 @@ describe("detectArtworkTrim", () => {
     const buf = await makeBorderedImage(96, 96); // entirely the "border" color
     const trim = await detectArtworkTrim(buf);
     expect(trim).toBe(MAX_ARTWORK_TRIM);
+  });
+});
+
+describe("trimScale", () => {
+  it("never scales above 1 — an image that already meets the target is left alone", () => {
+    expect(trimScale(TARGET_ARTWORK_TRIM)).toBe(1);
+    expect(trimScale(MAX_ARTWORK_TRIM)).toBeLessThanOrEqual(1); // more border than target — still untouched, never cropped into
+  });
+
+  it("shrinks a full-bleed image down toward the target instead of zooming into it", () => {
+    const scale = trimScale(0);
+    expect(scale).toBeLessThan(1);
+    expect(scale).toBeCloseTo(1 - 2 * TARGET_ARTWORK_TRIM, 5);
+  });
+
+  it("is never the old backwards zoom-in formula (1 / (1 - 2*trim))", () => {
+    // The bug this replaces: scaling UP by the image's own detected
+    // trim, which crops into any image that already has a border
+    // instead of only padding out images that lack one.
+    const detected = 0.31; // close to Drop 1's own real measured trim
+    const buggyZoomIn = 1 / (1 - 2 * detected);
+    expect(trimScale(detected)).not.toBeCloseTo(buggyZoomIn, 2);
+    expect(trimScale(detected)).toBeLessThanOrEqual(1);
   });
 });

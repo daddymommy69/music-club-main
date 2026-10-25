@@ -3,6 +3,14 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { artworkTrimCache } from "@/db/schema";
 import { isUniqueViolation } from "./normalize";
+import { MAX_ARTWORK_TRIM, TARGET_ARTWORK_TRIM, trimScale } from "./artworkTrimMath";
+
+// Re-exported so existing imports from this file (dropCover.ts,
+// artworkTrim.test.ts) keep working — the actual constants/math now
+// live in artworkTrimMath.ts (see that file's own comment for why:
+// DropTile.tsx, a client component, needs trimScale() without pulling
+// this file's server-only @/db/client import into the browser bundle).
+export { MAX_ARTWORK_TRIM, TARGET_ARTWORK_TRIM, trimScale };
 
 /**
  * Detects how much of a piece of artwork is a solid-color border baked
@@ -26,10 +34,6 @@ import { isUniqueViolation } from "./normalize";
 const SAMPLE = 48; // downscale target — plenty for detecting a uniform border, fast to scan
 const COLOR_TOLERANCE = 14; // per-channel (0-255) slack for "close enough to the border color"
 const ROW_MATCH_THRESHOLD = 0.92; // fraction of a row/column that must match to count as "still border"
-// Cap how far in we'll ever zoom — guards against a false-positive
-// detection (e.g. a genuinely solid-color album cover) eating the
-// whole image.
-export const MAX_ARTWORK_TRIM = 0.32;
 
 type RGB = readonly [number, number, number];
 

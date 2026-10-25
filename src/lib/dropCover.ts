@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { DROP_COVER_DIGITS, DIGIT_TILE_WIDTH, DIGIT_TILE_HEIGHT } from "./dropCoverDigits";
-import { detectArtworkTrim, getCachedArtworkTrim, cacheArtworkTrim } from "./artworkTrim";
+import { detectArtworkTrim, getCachedArtworkTrim, cacheArtworkTrim, trimScale } from "./artworkTrim";
 
 /**
  * Builds the Spotify playlist cover for a drop: the same 2x2 artwork
@@ -33,12 +33,17 @@ const HALF = Math.floor((SIZE - GAP) / 2);
 const BG = "#2b2b2b"; // approximates the site's dark tile background
 
 /**
- * Same artwork-trim treatment DropTile gets on the site (2026-10-25
- * round — see claude/next-build.md and src/lib/artworkTrim.ts): crops
- * away whatever solid-color border is baked into the source file
- * before the cover-fit resize below, so the Spotify cover matches what
- * the site itself now shows rather than reintroducing the exact
- * inconsistency this round fixed. Reuses the same URL-keyed cache
+ * Same artwork-trim treatment DropTile gets on the site
+ * (src/lib/artworkTrim.ts, corrected 2026-10-25): an image whose own
+ * baked-in border falls short of the site-wide standard
+ * (TARGET_ARTWORK_TRIM) gets shrunk and padded out to match it, so the
+ * Spotify cover matches what the site itself shows. An image that
+ * already meets or beats the standard (e.g. Drop 1's own generously-
+ * matted files) is left completely alone — this never crops into an
+ * image, only ever adds padding to one that's missing it. (An earlier
+ * same-day version of this function did the opposite — cropped away
+ * whatever border it detected on every image — which is wrong: see
+ * trimScale()'s own comment for why.) Reuses the same URL-keyed cache
  * (already fetched the bytes for the resize anyway, so this only adds
  * a cache lookup — a detect only happens on an actual cache miss, same
  * as everywhere else artworkTrim.ts is used).
@@ -57,16 +62,21 @@ async function fetchQuadBuffer(url: string | null): Promise<Buffer | null> {
     }
 
     let image = sharp(bytes);
-    if (trim > 0) {
+    const scale = trimScale(trim);
+    if (scale < 1) {
       const { width, height } = await image.metadata();
       if (width && height) {
-        const cropX = Math.round(width * trim);
-        const cropY = Math.round(height * trim);
-        const cropW = width - 2 * cropX;
-        const cropH = height - 2 * cropY;
-        if (cropW > 0 && cropH > 0) {
-          image = image.extract({ left: cropX, top: cropY, width: cropW, height: cropH });
-        }
+        const shrunkW = Math.max(1, Math.round(width * scale));
+        const shrunkH = Math.max(1, Math.round(height * scale));
+        // sharp's extract() can only crop (zoom in) — achieving the
+        // opposite (zoom out, reveal more border) means resizing the
+        // image down and compositing it onto a full-size white canvas,
+        // matching the site's own tile/slot background (globals.css's
+        // .drop-tile / .drop-tile-quad-empty).
+        const shrunk = await sharp(bytes).resize(shrunkW, shrunkH, { fit: "fill" }).toBuffer();
+        image = sharp({ create: { width, height, channels: 3, background: "#ffffff" } }).composite([
+          { input: shrunk, left: Math.round((width - shrunkW) / 2), top: Math.round((height - shrunkH) / 2) },
+        ]);
       }
     }
 
