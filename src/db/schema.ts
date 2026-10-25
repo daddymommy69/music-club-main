@@ -7,6 +7,7 @@ import {
   boolean,
   timestamp,
   integer,
+  real,
   unique,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
@@ -654,6 +655,31 @@ export const songRatings = pgTable(
  * first — fixable later by deleting the row to force a re-fetch, not
  * by any UI yet.
  */
+/**
+ * Best-effort cache of "this exact artwork URL -> how much of it is a
+ * solid-color border baked into the file itself, not real artwork"
+ * (2026-10-25 round — see claude/next-build.md: the founder noticed one
+ * drop's cover-art collage read as way more generously matted than
+ * another's, and it turned out that was never a CSS difference — some
+ * source image files just already had their own padding baked in,
+ * others were full-bleed). Keyed by URL, not songId, same reasoning as
+ * artistSpotifyCache above: the same exact image (e.g. two songs
+ * sharing one single's artwork) only ever needs detecting once, and an
+ * artwork URL never changes meaning once set. trimPct is a 0-to-~0.32
+ * fraction of the image's own width/height that's border on every
+ * edge — src/lib/artworkTrim.ts is the only place that reads/writes
+ * this table. No TTL, no override UI yet, same as artistSpotifyCache
+ * (fixable later by deleting the row to force a re-detect).
+ */
+export const artworkTrimCache = pgTable("artwork_trim_cache", {
+  id: serial("id").primaryKey(),
+  url: text("url").notNull().unique(),
+  trimPct: real("trim_pct").notNull(),
+  computedAt: timestamp("computed_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const artistSpotifyCache = pgTable("artist_spotify_cache", {
   id: serial("id").primaryKey(),
   // Trimmed + lowercased (src/lib/normalize.ts's normalizeArtistName) —
@@ -764,6 +790,8 @@ export type SongRating = typeof songRatings.$inferSelect;
 export type NewSongRating = typeof songRatings.$inferInsert;
 export type ArtistSpotifyCache = typeof artistSpotifyCache.$inferSelect;
 export type NewArtistSpotifyCache = typeof artistSpotifyCache.$inferInsert;
+export type ArtworkTrimCacheRow = typeof artworkTrimCache.$inferSelect;
+export type NewArtworkTrimCacheRow = typeof artworkTrimCache.$inferInsert;
 
 /** Public-safe song shape — never includes submittedBy. */
 export type PublicSong = Omit<Song, "submittedBy">;

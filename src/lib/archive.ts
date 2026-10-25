@@ -8,6 +8,7 @@ import { getLikeCounts } from "./songLikes";
 import { getDropRatingSummary } from "./ratings";
 import { getSongRatingSummaries, type SongRatingSummary } from "./songRatings";
 import { getDropLikeCounts } from "./dropLikes";
+import { getArtworkTrims } from "./artworkTrim";
 
 // Aliased so a Listener Pick's submittedByMemberId -> members join
 // (for its public listenerCredit name) can't collide with the
@@ -35,6 +36,12 @@ export type ArchiveDropSummary = {
    * quadrant collage — skips songs with no artwork rather than leaving
    * a gap, so a drop with 2 songs that both have art still fills in. */
   artworkUrls: string[];
+  /** One entry per artworkUrls, same order — how much of that image is
+   * a border baked into the file itself (src/lib/artworkTrim.ts), so
+   * DropTile can zoom each quadrant in by the same amount regardless of
+   * what the original photo looked like. 0 means "no detectable
+   * border" (or detection hasn't resolved it yet). */
+  artworkTrims: number[];
   /** True once this drop's Top 10 window has closed with at least one
    * vote — drives the small badge on its archive card. A closed window
    * with zero votes shows no badge (nothing to see). */
@@ -96,17 +103,26 @@ export async function getPublishedDrops(clubId: number): Promise<ArchiveDropSumm
   }
   const dropIdsWithVotes = new Set(top10Rows.map((row) => row.dropId));
 
-  return publishedDrops.map((d) => ({
-    id: d.id,
-    num: d.num,
-    title: d.title,
-    // isNotNull filtered this above, so it's safe to assert non-null.
-    publishedAt: d.publishedAt as Date,
-    songCount: countByDropId.get(d.id) ?? 0,
-    artworkUrls: artworkByDropId.get(d.id) ?? [],
-    hasTop10: dropIdsWithVotes.has(d.id) && getTop10Phase({ publishedAt: d.publishedAt }) === "closed",
-    listenerPickCount: listenerPickCountByDropId.get(d.id) ?? 0,
-  }));
+  // One batched lookup across every drop's artwork rather than one per
+  // drop — getArtworkTrims already dedupes identical URLs itself.
+  const allArtworkUrls = [...artworkByDropId.values()].flat();
+  const trimsByUrl = await getArtworkTrims(allArtworkUrls);
+
+  return publishedDrops.map((d) => {
+    const artworkUrls = artworkByDropId.get(d.id) ?? [];
+    return {
+      id: d.id,
+      num: d.num,
+      title: d.title,
+      // isNotNull filtered this above, so it's safe to assert non-null.
+      publishedAt: d.publishedAt as Date,
+      songCount: countByDropId.get(d.id) ?? 0,
+      artworkUrls,
+      artworkTrims: artworkUrls.map((u) => trimsByUrl.get(u) ?? 0),
+      hasTop10: dropIdsWithVotes.has(d.id) && getTop10Phase({ publishedAt: d.publishedAt }) === "closed",
+      listenerPickCount: listenerPickCountByDropId.get(d.id) ?? 0,
+    };
+  });
 }
 
 export type PublicSongRow = {
@@ -126,6 +142,11 @@ export type PublicSongRow = {
    * via src/lib/spotifyId.ts; null means "no play available," same
    * never-throw-just-degrade spirit as everywhere else this is used. */
   spotifyUri: string | null;
+  /** How much of artworkUrl is a border baked into the file itself
+   * (src/lib/artworkTrim.ts) — the hero DropTile on this drop's own
+   * page zooms each quadrant in by this amount. 0 for no artwork or no
+   * detectable border. */
+  artworkTrim: number;
   /** 'curator' (unchanged default) or 'listener' — which public section
    * (Curator Picks / Listener Picks) this song shows under. */
   pickType: "curator" | "listener";
@@ -255,30 +276,32 @@ export async function getPublicDrop(
     .where(eq(songs.dropId, drop.id))
     .orderBy(asc(songs.position));
 
-  const [likeCounts, ratingSummary, dropLikeCounts, songRatingSummaries, songNoteRows] = await Promise.all([
-    getLikeCounts(songRows.map((s) => s.id)),
-    getDropRatingSummary(drop.id),
-    getDropLikeCounts([drop.id]),
-    getSongRatingSummaries(songRows.map((s) => s.id)),
-    // Per-song blurbs (2026-10-16) — guarded the same way as the helpers
-    // above implicitly are: a drop with no songs has nothing to query.
-    songRows.length > 0
-      ? db
-          .select({ songId: songNotes.songId, curatorName: members.name, text: songNotes.text })
-          .from(songNotes)
-          .innerJoin(members, eq(songNotes.curatorId, members.id))
-          .where(
-            inArray(
-              songNotes.songId,
-              songRows.map((s) => s.id)
+  const [likeCounts, ratingSummary, dropLikeCounts, songRatingSummaries, artworkTrimsByUrl, songNoteRows] =
+    await Promise.all([
+      getLikeCounts(songRows.map((s) => s.id)),
+      getDropRatingSummary(drop.id),
+      getDropLikeCounts([drop.id]),
+      getSongRatingSummaries(songRows.map((s) => s.id)),
+      getArtworkTrims(songRows.map((s) => s.artworkUrl)),
+      // Per-song blurbs (2026-10-16) — guarded the same way as the helpers
+      // above implicitly are: a drop with no songs has nothing to query.
+      songRows.length > 0
+        ? db
+            .select({ songId: songNotes.songId, curatorName: members.name, text: songNotes.text })
+            .from(songNotes)
+            .innerJoin(members, eq(songNotes.curatorId, members.id))
+            .where(
+              inArray(
+                songNotes.songId,
+                songRows.map((s) => s.id)
+              )
             )
-          )
-          // Oldest first (2026-10-16 "feed of posts" redesign — a
-          // curator can post more than one of these now, and reads
-          // naturally as a little journal in the order it was written).
-          .orderBy(asc(songNotes.createdAt))
-      : Promise.resolve([]),
-  ]);
+            // Oldest first (2026-10-16 "feed of posts" redesign — a
+            // curator can post more than one of these now, and reads
+            // naturally as a little journal in the order it was written).
+            .orderBy(asc(songNotes.createdAt))
+        : Promise.resolve([]),
+    ]);
 
   const songNotesBySongId = new Map<number, PublicCuratorNote[]>();
   for (const row of songNoteRows) {
@@ -294,6 +317,7 @@ export async function getPublicDrop(
     curatorCredit: s.curatorCredit,
     sourceUrl: s.sourceUrl,
     artworkUrl: s.artworkUrl,
+    artworkTrim: s.artworkUrl ? artworkTrimsByUrl.get(s.artworkUrl) ?? 0 : 0,
     spotifyUri: s.spotifyUri,
     pickType: s.pickType,
     listenerCredit: s.pickType === "listener" ? s.listenerName ?? null : null,

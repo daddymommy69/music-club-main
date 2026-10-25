@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { DROP_COVER_DIGITS, DIGIT_TILE_WIDTH, DIGIT_TILE_HEIGHT } from "./dropCoverDigits";
+import { detectArtworkTrim, getCachedArtworkTrim, cacheArtworkTrim } from "./artworkTrim";
 
 /**
  * Builds the Spotify playlist cover for a drop: the same 2x2 artwork
@@ -31,13 +32,45 @@ const GAP = 0;
 const HALF = Math.floor((SIZE - GAP) / 2);
 const BG = "#2b2b2b"; // approximates the site's dark tile background
 
+/**
+ * Same artwork-trim treatment DropTile gets on the site (2026-10-25
+ * round — see claude/next-build.md and src/lib/artworkTrim.ts): crops
+ * away whatever solid-color border is baked into the source file
+ * before the cover-fit resize below, so the Spotify cover matches what
+ * the site itself now shows rather than reintroducing the exact
+ * inconsistency this round fixed. Reuses the same URL-keyed cache
+ * (already fetched the bytes for the resize anyway, so this only adds
+ * a cache lookup — a detect only happens on an actual cache miss, same
+ * as everywhere else artworkTrim.ts is used).
+ */
 async function fetchQuadBuffer(url: string | null): Promise<Buffer | null> {
   if (!url) return null;
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
     const bytes = Buffer.from(await res.arrayBuffer());
-    return await sharp(bytes).resize(HALF, HALF, { fit: "cover" }).jpeg().toBuffer();
+
+    let trim = await getCachedArtworkTrim(url);
+    if (trim === null) {
+      trim = await detectArtworkTrim(bytes);
+      await cacheArtworkTrim(url, trim);
+    }
+
+    let image = sharp(bytes);
+    if (trim > 0) {
+      const { width, height } = await image.metadata();
+      if (width && height) {
+        const cropX = Math.round(width * trim);
+        const cropY = Math.round(height * trim);
+        const cropW = width - 2 * cropX;
+        const cropH = height - 2 * cropY;
+        if (cropW > 0 && cropH > 0) {
+          image = image.extract({ left: cropX, top: cropY, width: cropW, height: cropH });
+        }
+      }
+    }
+
+    return await image.resize(HALF, HALF, { fit: "cover" }).jpeg().toBuffer();
   } catch {
     return null;
   }

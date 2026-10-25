@@ -177,7 +177,7 @@ export async function ReleasesPageContent() {
             {dropList.map((drop) => (
               <div key={drop.num} className="drop-card-wrap">
                 <Link href={`/drop/${drop.num}`} className="drop-card">
-                  <DropTile num={drop.num} artworkUrls={drop.artworkUrls} />
+                  <DropTile num={drop.num} artworkUrls={drop.artworkUrls} artworkTrims={drop.artworkTrims} />
                   <div className="info">
                     <div className="title">
                       {drop.title ?? `Drop ${drop.num}`}

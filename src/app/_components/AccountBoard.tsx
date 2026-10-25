@@ -49,7 +49,14 @@ type SubmissionRow = {
 };
 
 type LeaderboardRow = { memberId: number; name: string; isCurator: boolean; pickCount: number };
-type PublishedDrop = { id: number; num: number; title: string | null; publishedAt: string; artworkUrls: string[] };
+type PublishedDrop = {
+  id: number;
+  num: number;
+  title: string | null;
+  publishedAt: string;
+  artworkUrls: string[];
+  artworkTrims: number[];
+};
 
 type LikedSong = {
   songId: number;
@@ -554,7 +561,12 @@ function TopsGrid({
           return (
             <div key={drop.id} className="drop-card-wrap">
               <Link href={`/drop/${drop.num}`} className="drop-card">
-                <DropTile num={drop.num} artworkUrls={drop.artworkUrls} framed={false} />
+                <DropTile
+                  num={drop.num}
+                  artworkUrls={drop.artworkUrls}
+                  artworkTrims={drop.artworkTrims}
+                  framed={false}
+                />
               </Link>
               <div className="tops-tile-title">{drop.title ?? `Drop ${drop.num}`}</div>
               <RateDropControl dropId={drop.id} initialRating={myRatings[drop.id] ?? null} />

@@ -58,6 +58,7 @@ export default function DropDetail({
   // claude/next-build.md).
   const heroSongs = drop.songs.filter((s) => s.artworkUrl).slice(0, 4);
   const artworkUrls = heroSongs.map((s) => s.artworkUrl as string);
+  const artworkTrims = heroSongs.map((s) => s.artworkTrim);
   const quadrantArtists = heroSongs.map((s) => s.artist);
 
   const likedSet = new Set(likedSongIds ?? []);
@@ -91,6 +92,7 @@ export default function DropDetail({
         <DropTile
           num={drop.num}
           artworkUrls={artworkUrls}
+          artworkTrims={artworkTrims}
           quadrantArtists={quadrantArtists}
           hero
           framed={false}

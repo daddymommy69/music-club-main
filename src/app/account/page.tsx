@@ -84,6 +84,7 @@ export default async function AccountPage() {
                 title: d.title,
                 publishedAt: d.publishedAt.toISOString(),
                 artworkUrls: d.artworkUrls,
+                artworkTrims: d.artworkTrims,
               }))}
               favoriteDropIds={[]}
               myRatings={{}}
@@ -157,6 +158,7 @@ export default async function AccountPage() {
             title: d.title,
             publishedAt: d.publishedAt.toISOString(),
             artworkUrls: d.artworkUrls,
+            artworkTrims: d.artworkTrims,
           }))}
           favoriteDropIds={favorites.map((f) => f.dropId)}
           myRatings={Object.fromEntries(myRatings)}
