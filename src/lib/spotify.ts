@@ -191,7 +191,7 @@ export async function getSpotifyTrackById(accessToken: string, trackId: string):
   }
 }
 
-export type SpotifyArtistMatch = { id: string; photoUrl: string | null };
+export type SpotifyArtistMatch = { id: string; name: string; photoUrl: string | null };
 
 /** Best-effort artist-name search, taking the top result — same "no
  * fuzzy scoring beyond Spotify's own relevance" judgment call as
@@ -200,7 +200,14 @@ export type SpotifyArtistMatch = { id: string; photoUrl: string | null };
  * claude/next-build.md): since songs.artist is free text with no real
  * entity behind it, this is matched purely by name, and a name shared
  * by two different real-world artists will just get whichever one
- * Spotify ranks first — an accepted limitation, not a bug. */
+ * Spotify ranks first — an accepted limitation, not a bug.
+ *
+ * Also backs /artist/[name]'s not-featured-yet fallback (2026-10-26
+ * round — see claude/next-build.md): that page's getArtistFallbackData
+ * calls this when a click didn't carry a Spotify artist id (see
+ * getSpotifyArtistById below for the exact-id path it prefers), and
+ * uses `name` here — Spotify's own canonical casing — as the page's
+ * display name, since there's no DB row to take real casing from. */
 export async function searchSpotifyArtist(accessToken: string, name: string): Promise<SpotifyArtistMatch | null> {
   try {
     const params = new URLSearchParams({ q: `artist:${name}`, type: "artist", limit: "1" });
@@ -210,11 +217,34 @@ export async function searchSpotifyArtist(accessToken: string, name: string): Pr
     });
     if (!res.ok) return null;
     const data = (await res.json()) as {
-      artists?: { items?: { id: string; images?: { url: string }[] }[] };
+      artists?: { items?: { id: string; name?: string; images?: { url: string }[] }[] };
     };
     const artist = data.artists?.items?.[0];
     if (!artist) return null;
-    return { id: artist.id, photoUrl: artist.images?.[0]?.url ?? null };
+    return { id: artist.id, name: artist.name ?? name, photoUrl: artist.images?.[0]?.url ?? null };
+  } catch {
+    return null;
+  }
+}
+
+/** Direct id lookup — GET /artists/{id} — the exact-match counterpart to
+ * searchSpotifyArtist above, same relationship getSpotifyTrackById has
+ * to searchSpotifyTrack. Used by /artist/[name]'s not-featured-yet
+ * fallback when the click that got someone there already carried a
+ * Spotify artist id (Browse's live Spotify search results do, via
+ * searchSpotifyTracks' artistSpotifyId below) — an exact id lookup
+ * avoids the name-search's one real failure mode, two different artists
+ * who happen to share a name. */
+export async function getSpotifyArtistById(accessToken: string, artistId: string): Promise<SpotifyArtistMatch | null> {
+  try {
+    const res = await fetch(`${API_BASE}/artists/${artistId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { id?: string; name?: string; images?: { url: string }[] };
+    if (!data.id || !data.name) return null;
+    return { id: data.id, name: data.name, photoUrl: data.images?.[0]?.url ?? null };
   } catch {
     return null;
   }
@@ -229,6 +259,14 @@ export type SpotifyTrackSearchResult = {
    * submitted as a Listener Pick's link (same field every manually-
    * pasted link already fills), not the internal spotify: URI. */
   externalUrl: string | null;
+  /** This track's primary artist's own Spotify id (2026-10-26 round —
+   * see claude/next-build.md) — threaded through to Browse's artist
+   * link (artistHrefForSpotifyResult in artistLink.ts) so a click on an
+   * artist who hasn't been featured here yet can resolve an exact
+   * Spotify artist match (getSpotifyArtistById) instead of a name
+   * search. Null only if Spotify's own response omits it, which
+   * shouldn't happen in practice. */
+  artistSpotifyId: string | null;
 };
 
 /** Free-text track search for Browse's search bar (2026-10-07 round —
@@ -253,7 +291,7 @@ export async function searchSpotifyTracks(
         items?: {
           id: string;
           name: string;
-          artists?: { name: string }[];
+          artists?: { name: string; id?: string }[];
           album?: { images?: { url: string }[] };
           external_urls?: { spotify?: string };
         }[];
@@ -266,6 +304,7 @@ export async function searchSpotifyTracks(
       artist: t.artists?.[0]?.name ?? "",
       artworkUrl: t.album?.images?.[0]?.url ?? null,
       externalUrl: t.external_urls?.spotify ?? null,
+      artistSpotifyId: t.artists?.[0]?.id ?? null,
     }));
   } catch {
     return [];
@@ -273,6 +312,18 @@ export async function searchSpotifyTracks(
 }
 
 export type CreatedPlaylist = { id: string; url: string };
+
+/** Pulls the playlist id back out of the open.spotify.com URL this
+ * module hands back everywhere (createSpotifyPlaylist's own `url`,
+ * stored verbatim as drops.spotifyUrl) — the only form a re-upload-only
+ * caller (the cover-refresh admin route, 2026-10-26) has on hand, since
+ * it isn't creating a fresh playlist and has no `id` to start from.
+ * Tolerant of a trailing query string (Spotify sometimes appends
+ * ?si=... when a link is shared/copied). */
+export function playlistIdFromUrl(url: string): string | null {
+  const match = url.match(/\/playlist\/([a-zA-Z0-9]+)/);
+  return match ? match[1] : null;
+}
 
 export async function createSpotifyPlaylist(
   accessToken: string,

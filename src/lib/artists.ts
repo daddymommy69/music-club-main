@@ -2,7 +2,7 @@ import { and, eq, isNotNull } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { songs, drops, artistSpotifyCache, type Club } from "@/db/schema";
 import { normalizeArtistName, isUniqueViolation } from "./normalize";
-import { getSpotifyAccessToken, searchSpotifyArtist } from "./spotify";
+import { getSpotifyAccessToken, searchSpotifyArtist, getSpotifyArtistById } from "./spotify";
 import { getLikeCounts } from "./songLikes";
 import { getSongRatingSummaries, type SongRatingSummary } from "./songRatings";
 
@@ -128,6 +128,58 @@ export async function getArtistPageData(
         ? { songId: mostLikedSong.songId, title: mostLikedSong.title, likeCount: mostLikedSong.likeCount }
         : null,
     songs: songsOut,
+  };
+}
+
+export type ArtistFallbackData = {
+  displayName: string;
+  normalizedName: string;
+  photoUrl: string | null;
+};
+
+/**
+ * /artist/[name]'s not-featured-yet fallback (2026-10-26 round — see
+ * claude/next-build.md: founder's report that clicking an artist from
+ * Browse's live Spotify search 404'd for anyone never actually
+ * featured in a drop here). Resolves straight from Spotify's own
+ * artist lookup rather than this app's DB — there's no local row for
+ * an artist nobody's featured yet, so unlike getArtistPageData above
+ * this never touches songs/drops at all.
+ *
+ * Deliberately NOT cached in artistSpotifyCache the way
+ * getOrFetchArtistPhoto below is: that table backs real, already-
+ * featured artists, who need their photo forever after; this path is
+ * for artists who may never be featured at all, so caching it would
+ * just be rows that likely never get read twice. A fresh best-effort
+ * lookup every time is cheap enough at this app's traffic.
+ *
+ * Exact id lookup when the click carried one (Browse's live search
+ * results do — see artistHrefForSpotifyResult in artistLink.ts), a
+ * plain name search otherwise (e.g. someone hits this URL directly).
+ * Returns null — never a throw — whenever Spotify itself can't resolve
+ * anything: no club Spotify connection, or the lookup/search coming up
+ * empty. The page's own caller treats null as "really doesn't exist,
+ * 404 like before" (founder's own call, 2026-10-26: "old 404 for now
+ * i guess" for that one edge case).
+ */
+export async function getArtistFallbackData(
+  club: Club,
+  normalizedName: string,
+  displayNameHint: string,
+  spotifyArtistId?: string | null
+): Promise<ArtistFallbackData | null> {
+  const accessToken = await getSpotifyAccessToken(club);
+  if (!accessToken) return null;
+
+  const match = spotifyArtistId
+    ? await getSpotifyArtistById(accessToken, spotifyArtistId)
+    : await searchSpotifyArtist(accessToken, displayNameHint);
+  if (!match) return null;
+
+  return {
+    displayName: match.name || displayNameHint,
+    normalizedName,
+    photoUrl: match.photoUrl,
   };
 }
 

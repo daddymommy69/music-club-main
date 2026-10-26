@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { artistHref } from "@/lib/artistLink";
+import { artistHref, artistHrefForSpotifyResult } from "@/lib/artistLink";
 import PlayableArt from "./PlayableArt";
 
 type SearchResultSite = {
@@ -18,6 +18,11 @@ type SpotifyResult = {
   artist: string;
   artworkUrl: string | null;
   externalUrl: string | null;
+  /** This result's artist's own Spotify id (2026-10-26 round — see
+   * claude/next-build.md) — carried through to artistHrefForSpotifyResult
+   * so /artist/[name] can resolve an exact match if this artist hasn't
+   * been featured here yet, instead of a name search. */
+  artistSpotifyId: string | null;
   site: SearchResultSite;
 };
 
@@ -388,7 +393,7 @@ function SpotifyResultRow({
         />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="track-title">{result.title}</div>
-          <Link href={artistHref(result.artist)} className="track-artist">
+          <Link href={artistHrefForSpotifyResult(result.artist, result.artistSpotifyId)} className="track-artist">
             {result.artist}
           </Link>
           {result.site && (
