@@ -327,7 +327,19 @@ function Tracklist({
                   </Link>
                 </div>
                 <div className="track-credit">
-                  {song.curatorCredit && <RoleName name={song.curatorCredit} isCurator />}
+                  {/* Clickable to that curator's profile (2026-10-26 round
+                      — see claude/next-build.md: founder's own ask, same
+                      treatment the "curators:" line above already has —
+                      plain text when they don't have a slug yet rather
+                      than a dead link, same fallback used there too. */}
+                  {song.curatorCredit &&
+                    (song.curatorSlug ? (
+                      <Link href={userHref(song.curatorSlug)}>
+                        <RoleName name={song.curatorCredit} isCurator />
+                      </Link>
+                    ) : (
+                      <RoleName name={song.curatorCredit} isCurator />
+                    ))}
                 </div>
               </div>
               {/* Like + star rating, stacked and the same size, right

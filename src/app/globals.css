@@ -728,10 +728,10 @@ input {
      too rounded" — then, after a first 6px preview read as rounder
      than wanted, matched to a reference screenshot he sent: pixel-
      measured its own corner curve at ~5px on a ~344px tile, a soft,
-     barely-there rounding). Each quadrant's own art gets a soft
-     corner inside its white matting rather than reading as a
-     hard-edged photo. */
-  border-radius: 4px;
+     barely-there rounding; dialed down further still to 2px per his
+     own follow-up). Each quadrant's own art gets a soft corner inside
+     its white matting rather than reading as a hard-edged photo. */
+  border-radius: 2px;
 }
 
 /* Wraps each quadrant so a clickable-to-artist one (the hero tile only
@@ -766,6 +766,26 @@ input {
   overflow: hidden;
   padding: 10%;
   box-sizing: border-box;
+  /* #f8f8f8, not the tile's own pure #fff (2026-10-26 round — founder's
+     own catch, comparing Drop 1 against Drop 2 with the new rounded
+     corners: Drop 1's own source files all have a matte baked in at
+     exactly rgb(248,248,248), pixel-confirmed on every one of them, not
+     pure white. That 7-point gap against this slot's old pure-white
+     backdrop read as a faint grey halo specifically around Drop 1's
+     art once the rounded corners gave the eye a crisp edge to notice
+     it at.
+     Scoped to THIS element — not .drop-tile itself — on purpose, after
+     a first pass that changed the whole tile's background and got it
+     backwards per the founder's own correction ("the grey is removed
+     from drop 1 now instead of being added to drop 2"): dimming the
+     entire card just made Drop 1 blend into an overall-dimmer tile
+     rather than visibly bringing Drop 2's own matting up to match it.
+     Scoping it to each quadrant's own slot — which is also exactly
+     what shows through behind a shrunk, under-matted image — means
+     Drop 2's art-adjacent padding visibly picks up Drop 1's matte tone
+     while the outer card edge and the gaps *between* quadrants
+     (.drop-tile's own background, still pure white) are untouched. */
+  background: #f8f8f8;
 }
 
 .drop-tile-quad-slot a {
@@ -774,14 +794,18 @@ input {
   height: 100%;
 }
 
-/* Literal white (not --fill, which is theme-aware and stays a dark
+/* Literal off-white (not --fill, which is theme-aware and stays a dark
    near-black tint in dark mode) — 2026-10-09 round 2: the founder's own
-   call, specifically wants a true white backdrop here regardless of the
-   site's own light/dark theme, since most drops don't have all 4
-   quadrants' worth of real artwork yet and this is what the number
-   overlay below now relies on for contrast. */
+   call, specifically wants a true white-ish backdrop here regardless
+   of the site's own light/dark theme, since most drops don't have all
+   4 quadrants' worth of real artwork yet and this is what the number
+   overlay below now relies on for contrast. #f8f8f8, matching
+   .drop-tile-quad-slot's own background above (2026-10-26 round) —
+   same reason: a missing quadrant's placeholder should read as the
+   exact same backdrop as a real quadrant's own matting, not a
+   slightly brighter patch next to it. */
 .drop-tile-quad-empty {
-  background: #fff;
+  background: #f8f8f8;
 }
 
 .drop-tile-num {
@@ -2191,6 +2215,18 @@ input {
   pointer-events: none;
 }
 
+/* padding + a --bg-matched backdrop (2026-10-26 QA round — see
+   claude/next-build.md: founder's own report that on a phone-width
+   screen, a long curator note or tracklist could scroll a line of real
+   text right up under this corner, and it read as sitting on top of
+   that text). Being fixed to the viewport, this signature passes over
+   whatever's scrolling underneath at any given moment, not just
+   whatever's at the very bottom of the page — padding on the page
+   itself (.page above) only ever protects the last bit of content, not
+   every line that scrolls through this corner along the way. A small
+   solid chip keeps it legible either way without changing where it
+   sits or touching .page's own bottom padding (that's reserved for
+   the floating player bar, unrelated to this). */
 .site-footer a {
   pointer-events: auto;
   font-family: "IceCityArchitect", var(--font-display), sans-serif;
@@ -2198,6 +2234,9 @@ input {
   letter-spacing: 0.02em;
   color: var(--mut);
   text-decoration: none;
+  background: var(--bg);
+  padding: 3px 7px;
+  border-radius: 5px;
 }
 
 .site-footer a:hover {

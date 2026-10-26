@@ -1,6 +1,6 @@
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { songs, drops, artistSpotifyCache, type Club } from "@/db/schema";
+import { songs, drops, members, artistSpotifyCache, type Club } from "@/db/schema";
 import { normalizeArtistName, isUniqueViolation } from "./normalize";
 import { getSpotifyAccessToken, searchSpotifyArtist, getSpotifyArtistById } from "./spotify";
 import { getLikeCounts } from "./songLikes";
@@ -32,6 +32,13 @@ export type ArtistSongEntry = {
    * page, stays unattributed here). Null for a Listener Pick, or for a
    * Curator Pick nobody claimed credit for. */
   curatorCredit: string | null;
+  /** The curator behind curatorCredit's own public-profile slug, or null
+   * when they don't have one yet, or there's no curatorCredit to link in
+   * the first place (2026-10-26 round — see claude/next-build.md:
+   * founder's own ask, "i like the link to be clickable" — same
+   * render-as-plain-text fallback DropDetail's contributor list and
+   * per-song credit already use). */
+  curatorSlug: string | null;
   /** PRIVATE — true only when the viewer themselves curated or
    * submitted this song (as curator via curatorId, or as a listener via
    * submittedByMemberId) — never shown to anyone else. Always false
@@ -83,10 +90,19 @@ export async function getArtistPageData(
   if (matches.length === 0) return null;
 
   const songIds = matches.map((m) => m.id);
-  const [likeCounts, ratingSummaries] = await Promise.all([
+  // Distinct curatorIds across every matched song — just enough to
+  // resolve curatorSlug below without a per-song query. Same list a
+  // Curator Pick's curatorId could ever be (a Listener Pick's is always
+  // null), so no separate pickType filter needed here.
+  const curatorIds = [...new Set(matches.map((m) => m.curatorId).filter((id): id is number => id != null))];
+  const [likeCounts, ratingSummaries, curatorRows] = await Promise.all([
     getLikeCounts(songIds),
     getSongRatingSummaries(songIds),
+    curatorIds.length > 0
+      ? db.select({ id: members.id, slug: members.slug }).from(members).where(inArray(members.id, curatorIds))
+      : Promise.resolve([]),
   ]);
+  const slugByCuratorId = new Map(curatorRows.map((r) => [r.id, r.slug]));
 
   const songsOut: ArtistSongEntry[] = matches
     .map((m) => ({
@@ -100,6 +116,7 @@ export async function getArtistPageData(
       likeCount: likeCounts.get(m.id) ?? 0,
       rating: ratingSummaries.get(m.id) ?? { average: null, count: 0 },
       curatorCredit: m.pickType === "curator" ? m.curatorCredit : null,
+      curatorSlug: m.pickType === "curator" && m.curatorId ? slugByCuratorId.get(m.curatorId) ?? null : null,
       isOwnPick:
         viewerMemberId != null && (m.curatorId === viewerMemberId || m.submittedByMemberId === viewerMemberId),
     }))

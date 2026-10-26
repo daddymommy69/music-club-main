@@ -130,6 +130,13 @@ export type PublicSongRow = {
   title: string;
   artist: string;
   curatorCredit: string | null;
+  /** The curator behind curatorCredit's own public-profile slug, or null
+   * when they don't have one yet (see members.slug's nullability note in
+   * db/schema.ts) — same "render as plain text, never a dead link"
+   * fallback DropDetail's contributors list already uses. Meaningless
+   * for a Listener Pick (curatorCredit is null there too; see
+   * listenerCredit below instead). */
+  curatorSlug: string | null;
   /** The Spotify/Apple Music link a curator pasted in — public, so it's
    * safe to expose (unlike submittedBy, see the anonymity rule above).
    * Used to build each track's embedded player. */
@@ -259,6 +266,7 @@ export async function getPublicDrop(
       title: songs.title,
       artist: songs.artist,
       curatorCredit: songs.curatorCredit,
+      curatorId: songs.curatorId,
       sourceUrl: songs.sourceUrl,
       artworkUrl: songs.artworkUrl,
       spotifyUri: songs.spotifyUri,
@@ -276,7 +284,7 @@ export async function getPublicDrop(
     .where(eq(songs.dropId, drop.id))
     .orderBy(asc(songs.position));
 
-  const [likeCounts, ratingSummary, dropLikeCounts, songRatingSummaries, artworkTrimsByUrl, songNoteRows] =
+  const [likeCounts, ratingSummary, dropLikeCounts, songRatingSummaries, artworkTrimsByUrl, songNoteRows, contributorRows] =
     await Promise.all([
       getLikeCounts(songRows.map((s) => s.id)),
       getDropRatingSummary(drop.id),
@@ -301,6 +309,26 @@ export async function getPublicDrop(
             // naturally as a little journal in the order it was written).
             .orderBy(asc(songNotes.createdAt))
         : Promise.resolve([]),
+      // Contributing curators (2026-10-19) — moved up here (was further
+      // down this function) and now doubles as the source for each
+      // song's own curatorSlug below (2026-10-26 round — see
+      // claude/next-build.md: founder's own ask, "i like the link to be
+      // clickable," for the per-song "picked by X" credit, same as the
+      // curators: line above it already does). One row per curator who
+      // has at least one Curator Pick on this drop — every curatorId a
+      // song row could have, so no second query needed.
+      db
+        .select({
+          id: members.id,
+          name: members.name,
+          slug: members.slug,
+          firstAddedAt: sql<Date>`min(${songs.createdAt})`,
+        })
+        .from(songs)
+        .innerJoin(members, eq(songs.curatorId, members.id))
+        .where(and(eq(songs.dropId, drop.id), eq(songs.pickType, "curator")))
+        .groupBy(members.id, members.name, members.slug)
+        .orderBy(asc(sql`min(${songs.createdAt})`)),
     ]);
 
   const songNotesBySongId = new Map<number, PublicCuratorNote[]>();
@@ -310,11 +338,14 @@ export async function getPublicDrop(
     songNotesBySongId.set(row.songId, list);
   }
 
+  const slugByCuratorId = new Map(contributorRows.map((row) => [row.id, row.slug]));
+
   const publicSongs: PublicSongRow[] = songRows.map((s) => ({
     id: s.id,
     title: s.title,
     artist: s.artist,
     curatorCredit: s.curatorCredit,
+    curatorSlug: s.curatorId ? slugByCuratorId.get(s.curatorId) ?? null : null,
     sourceUrl: s.sourceUrl,
     artworkUrl: s.artworkUrl,
     artworkTrim: s.artworkUrl ? artworkTrimsByUrl.get(s.artworkUrl) ?? 0 : 0,
@@ -348,18 +379,8 @@ export async function getPublicDrop(
   // submission a curator pulled in with no owner attached) — the inner
   // join on members naturally excludes those rows, same as it would if
   // this were filtered with isNotNull(songs.curatorId) explicitly.
-  const contributorRows = await db
-    .select({
-      name: members.name,
-      slug: members.slug,
-      firstAddedAt: sql<Date>`min(${songs.createdAt})`,
-    })
-    .from(songs)
-    .innerJoin(members, eq(songs.curatorId, members.id))
-    .where(and(eq(songs.dropId, drop.id), eq(songs.pickType, "curator")))
-    .groupBy(members.id, members.name, members.slug)
-    .orderBy(asc(sql`min(${songs.createdAt})`));
-
+  // (Query itself now lives up in the Promise.all above, 2026-10-26 —
+  // also where each song's own curatorSlug comes from.)
   const contributors: PublicContributor[] = contributorRows.map((row) => ({
     name: row.name?.trim() || "a curator",
     slug: row.slug,

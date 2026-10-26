@@ -9,6 +9,7 @@ import { getDefaultClub } from "@/lib/club";
 import { getSessionMember } from "@/lib/memberSession";
 import { getArtistPageData, getArtistFallbackData, type ArtistPageData } from "@/lib/artists";
 import { normalizeArtistName } from "@/lib/normalize";
+import { userHref } from "@/lib/userHref";
 
 export const dynamic = "force-dynamic";
 
@@ -142,14 +143,31 @@ function ArtistPageBody({ artist, notFeatured }: { artist: ArtistPageData; notFe
                     <span className="roster-name">
                       <Link href={`/drop/${song.dropNum}`}>{song.title}</Link>
                     </span>
-                    <span className="roster-meta">
+                    {/* flexShrink:0 + nowrap (2026-10-26 round — see
+                        claude/next-build.md and the identical fix/comment on
+                        src/app/u/[slug]/page.tsx, this page's styling twin):
+                        without these, a long song title next to this span
+                        made the row's flexbox shrink BOTH items to fit,
+                        breaking this stats line across two lines too. */}
+                    <span className="roster-meta" style={{ flexShrink: 0, whiteSpace: "nowrap" }}>
                       drop {song.dropNum} · ♥ {song.likeCount}
                       {song.rating.count > 0 && ` · ★ ${song.rating.average?.toFixed(1)}`}
                     </span>
                   </div>
+                  {/* Clickable to that curator's profile when they have
+                      one (2026-10-26 round — see claude/next-build.md:
+                      founder's own ask, same treatment DropDetail's
+                      per-song credit now has too). */}
                   {song.curatorCredit && (
                     <div className="mut" style={{ fontSize: 10.5 }}>
-                      picked by <RoleName name={song.curatorCredit} isCurator />
+                      picked by{" "}
+                      {song.curatorSlug ? (
+                        <Link href={userHref(song.curatorSlug)}>
+                          <RoleName name={song.curatorCredit} isCurator />
+                        </Link>
+                      ) : (
+                        <RoleName name={song.curatorCredit} isCurator />
+                      )}
                     </div>
                   )}
                   {song.isOwnPick && (

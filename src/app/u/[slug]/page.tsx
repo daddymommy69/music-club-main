@@ -29,6 +29,15 @@ export default async function UserProfilePage({ params }: { params: Promise<{ sl
     <>
       <SiteHeader />
       <main className="col page gz-up">
+        {/* 2026-10-26 round — see claude/next-build.md: founder's own ask,
+            same back link the artist pages got in round 29, for the same
+            reason — this page is styled to match them on purpose. */}
+        <div style={{ marginBottom: 18 }}>
+          <Link href="/browse" className="mut" style={{ fontSize: 11 }}>
+            ← Back to Browse
+          </Link>
+        </div>
+
         <h1 style={{ fontSize: 19, letterSpacing: "-0.02em", marginBottom: 6 }}>
           <RoleName name={profile.name} isCurator={profile.isCurator} />
         </h1>
@@ -76,7 +85,17 @@ export default async function UserProfilePage({ params }: { params: Promise<{ sl
                           <span className="roster-name">
                             <Link href={`/drop/${song.dropNum}`}>{song.title}</Link>
                           </span>
-                          <span className="roster-meta">
+                          {/* flexShrink:0 + nowrap (2026-10-26 round — see
+                              claude/next-build.md: founder's report that this
+                              stats line broke onto two lines whenever the
+                              title next to it was long enough to wrap) — this
+                              span is a flex item with no width of its own set,
+                              so without these a long title made the row's own
+                              flexbox shrink BOTH items to fit, wrapping this
+                              one's text internally too. The title is free to
+                              wrap to as many lines as it needs; this just
+                              never joins it. */}
+                          <span className="roster-meta" style={{ flexShrink: 0, whiteSpace: "nowrap" }}>
                             drop {song.dropNum} · ♥ {song.likeCount}
                             {song.rating.count > 0 && ` · ★ ${song.rating.average?.toFixed(1)}`}
                           </span>
