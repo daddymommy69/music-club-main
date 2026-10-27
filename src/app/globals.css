@@ -52,6 +52,15 @@
    * already have a meaning for their own color (green = saved/liked). */
   --accent-blue: oklch(0.58 0.16 245);
   --acc-blue-soft: oklch(0.58 0.16 245 / 0.12);
+  /* Curator tools' "help" button + the More tab's 3 toggle cards
+   * (2026-10-27 round — founder's own ask, after finding the old quiet
+   * collapsible help note too easy to miss: "maybe a green button... or
+   * yellow"). Hue 95 (yellow/mustard) sits clear of every other token
+   * here (160 accent, 75 curator, 25 err, 245 blue) — scoped to these
+   * two spots for now, not a second sitewide accent, same reasoning
+   * --accent-blue above already documents for Share. */
+  --accent-yellow: oklch(0.56 0.14 95);
+  --acc-yellow-soft: oklch(0.56 0.14 95 / 0.14);
 
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --font-display: "Martian Mono", var(--font-mono);
@@ -78,6 +87,9 @@
     /* Same lift the other tokens get going into dark mode. */
     --accent-blue: oklch(0.72 0.15 245);
     --acc-blue-soft: oklch(0.72 0.15 245 / 0.15);
+    /* Same lift the other tokens get going into dark mode. */
+    --accent-yellow: oklch(0.8 0.15 95);
+    --acc-yellow-soft: oklch(0.8 0.15 95 / 0.18);
     color-scheme: dark;
   }
 }
@@ -1332,6 +1344,100 @@ input {
   color: inherit;
 }
 
+/* Curator tools' "help" button (2026-10-27 round — founder's own ask,
+ * replacing the old quiet collapsible "help" note he kept missing: "a
+ * green button... or yellow... and when clicking it pops up"). Moved to
+ * the bottom of Overview this same round — see CuratorToolsPanel's own
+ * comment on where it renders now. Opens CtHelpModal below, a real
+ * centered/dimmed overlay rather than an inline expand — the founder's
+ * own pick, closer to the "pop" he was after. */
+.ct-help-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  border-radius: 999px;
+  padding: 9px 18px;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  font-weight: 500;
+  background: var(--acc-yellow-soft);
+  color: var(--accent-yellow);
+}
+
+.ct-help-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 20px;
+}
+
+.ct-help-modal {
+  width: 100%;
+  max-width: 380px;
+  border-radius: 14px;
+  padding: 22px;
+  background: var(--bg);
+  border: 1px solid var(--ln);
+}
+
+.ct-help-modal-close {
+  margin-top: 16px;
+  width: 100%;
+  height: 38px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--acc-yellow-soft);
+  color: var(--accent-yellow);
+}
+
+/* The More tab's 3 toggle cards (2026-10-27 round — founder's own ask,
+ * replacing the plain text + chevron .ct-disclosure trigger for just
+ * these three: Curators, Subscriber Top 10, Drop covers — picked "C"
+ * after comparing options, "let's try it out"). A small grid of filled
+ * cards up top; whichever one is active renders its content below the
+ * whole row, same content each already had, just not nested inside its
+ * own small card anymore. Same --accent-yellow as the help button above
+ * — not a semantic color pairing, just the one the founder picked for
+ * both in the same round. */
+.more-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.more-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  border-radius: 10px;
+  padding: 14px 8px;
+  font-size: 10.5px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  border: 1px solid transparent;
+  background: var(--acc-yellow-soft);
+  color: var(--accent-yellow);
+}
+
+.more-card.active {
+  border-color: var(--accent-yellow);
+}
+
 /* Account page tabs (2026-10-08 — curator tools became its own tab
  * instead of a collapsible section at the bottom of /account; see
  * claude/next-build.md). Only ever rendered for a curator — a regular
@@ -1341,6 +1447,7 @@ input {
  * control, just one level down. */
 .acc-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   border-bottom: 1px solid var(--ln);
   padding-bottom: 14px;
@@ -1408,9 +1515,17 @@ input {
 
 /* ---------- curator overview ---------- */
 
+/* Always a true 4-across row, same size, down to 480px (2026-10-27 round
+ * — founder's report that Submissions kept falling to its own line
+ * below the other 3, even on desktop: the old auto-fit/minmax grid
+ * wrapped as soon as the panel was narrower than ~4x110px+gaps, which
+ * happened more often than it looked like it should. Below 480px this
+ * switches to a real 2x2 instead (see that breakpoint below) rather
+ * than wrapping unevenly again — founder's own call: "if its forced to
+ * wrap, then it should be 2x2... since its 4 areas." */
 .stat-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 18px;
   padding: 18px 0;
   margin-bottom: 30px;
@@ -2070,6 +2185,15 @@ input {
 
   .now-playing-info {
     max-width: 140px;
+  }
+
+  /* 2026-10-27 round — founder's own call: "if its forced to wrap, then
+     it should be 2x2... since its 4 areas" — a real intentional 2x2
+     instead of letting the 4-across .stat-row above squeeze itself (or
+     fall back to an uneven 3-then-1 wrap) at phone widths. */
+  .stat-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px 10px;
   }
 }
 

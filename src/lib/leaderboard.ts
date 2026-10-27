@@ -23,6 +23,13 @@ export type LeaderboardRow = {
   name: string;
   isCurator: boolean;
   pickCount: number;
+  /** This member's public-profile slug (2026-10-27 round — founder's
+   * own ask: "leaderboard names should be clickable to see the
+   * accounts"), or null on the vanishingly unlikely chance a member row
+   * somehow has none — every real signup gets one automatically (see
+   * src/lib/members.ts), same assumption AccountBoard's own render
+   * already makes for the viewer's own profile link. */
+  slug: string | null;
 };
 
 export async function getLeaderboard(clubId: number): Promise<LeaderboardRow[]> {
@@ -50,7 +57,7 @@ export async function getLeaderboard(clubId: number): Promise<LeaderboardRow[]> 
   if (countByMemberId.size === 0) return [];
 
   const memberRows = await db
-    .select({ id: members.id, name: members.name, isCurator: members.isCurator })
+    .select({ id: members.id, name: members.name, isCurator: members.isCurator, slug: members.slug })
     .from(members)
     .where(inArray(members.id, [...countByMemberId.keys()]));
 
@@ -60,6 +67,7 @@ export async function getLeaderboard(clubId: number): Promise<LeaderboardRow[]> 
       name: m.name ?? "",
       isCurator: m.isCurator,
       pickCount: countByMemberId.get(m.id) ?? 0,
+      slug: m.slug ?? null,
     }))
     .sort((a, b) => b.pickCount - a.pickCount);
 }

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { artistHref } from "@/lib/artistLink";
+import { userHref } from "@/lib/userHref";
 import { siteCopy } from "@/lib/copy";
 import RoleName from "./RoleName";
 import ListenerPickForm from "./ListenerPickForm";
@@ -48,7 +49,15 @@ type SubmissionRow = {
   publishedAt: string | null;
 };
 
-type LeaderboardRow = { memberId: number; name: string; isCurator: boolean; pickCount: number };
+type LeaderboardRow = {
+  memberId: number;
+  name: string;
+  isCurator: boolean;
+  pickCount: number;
+  /** Clickable through to /u/[slug] (2026-10-27 round — founder's own
+   * ask); null only in the vanishingly unlikely case a member has none. */
+  slug: string | null;
+};
 type PublishedDrop = {
   id: number;
   num: number;
@@ -473,6 +482,18 @@ function LikedSongsGrid({ songs }: { songs: LikedSong[] }) {
   );
 }
 
+/**
+ * Names clickable through to each member's profile (2026-10-27 round —
+ * founder's own ask: "leaderboard names should be clickable to see the
+ * accounts"), same for a curator or a regular member (his own "yes
+ * apply to everything" confirming it shouldn't just be one or the
+ * other). Falls back to plain text in the vanishingly unlikely case a
+ * row has no slug — same plain-text fallback DropDetail's and the
+ * artist page's own curator-credit links already use. Getting back
+ * from a profile reuses that page's existing "← Back to Browse" link
+ * (founder's own call — "keep it," no need for a leaderboard-specific
+ * one) rather than adding a second one.
+ */
 function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
   if (rows.length === 0) {
     return <p className="mut" style={{ fontSize: 12.5 }}>{siteCopy.noShippedPicksText}</p>;
@@ -482,7 +503,14 @@ function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
       {rows.map((row, i) => (
         <div className="roster-row" key={row.memberId}>
           <span className="roster-name">
-            {i + 1}. <RoleName name={row.name || "Member"} isCurator={row.isCurator} />
+            {i + 1}.{" "}
+            {row.slug ? (
+              <Link href={userHref(row.slug)}>
+                <RoleName name={row.name || "Member"} isCurator={row.isCurator} />
+              </Link>
+            ) : (
+              <RoleName name={row.name || "Member"} isCurator={row.isCurator} />
+            )}
           </span>
           <span className="roster-meta">
             {row.pickCount} pick{row.pickCount === 1 ? "" : "s"}

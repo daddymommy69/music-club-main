@@ -242,18 +242,6 @@ export default function CuratorToolsPanel({
 
   return (
     <div className="gz-up">
-      {/* Only way to reach /settings anywhere in the app (2026-10-09 round
-          2 — the founder's own report: there was no link to it at all,
-          not a missing-access-level bug, just a missing link). Same
-          curator gating as /settings itself — any curator can see the
-          club-wide name/cycle settings there; the curator-grant panel
-          inside it is further gated to admins only, same as before. */}
-      <div style={{ textAlign: "right", marginBottom: 10 }}>
-        <Link href="/settings" className="mut" style={{ fontSize: 11.5 }}>
-          Settings →
-        </Link>
-      </div>
-
       <div className="acc-tabs">
         <button
           type="button"
@@ -275,12 +263,21 @@ export default function CuratorToolsPanel({
         <button type="button" className={`acc-tab${tab === "more" ? " active" : ""}`} onClick={() => setTab("more")}>
           More
         </button>
+        {/* Only way to reach /settings anywhere in the app (2026-10-09
+            round 2 — the founder's own report: there was no link to it
+            at all). Lived off on its own above this row before; moved
+            into the row itself (2026-10-27 — founder's own ask: "on the
+            same level as the other curator subtabs") — same .acc-tab
+            look as the four real tabs, even though this one's a real
+            navigation rather than a local tab switch. Same curator
+            gating as /settings itself. */}
+        <Link href="/settings" className="acc-tab">
+          Settings
+        </Link>
       </div>
 
       {tab === "overview" && (
         <>
-          <CuratorHelpDisclosure />
-
           <div className="stat-row gz-up">
             <Stat label="Drop" value={String(dropNum)} />
             <Stat label="Remaining" value={timeLabel(isManual, daysUntilNext)} />
@@ -299,6 +296,13 @@ export default function CuratorToolsPanel({
               of the bottom," "above the add a pick area"). Rename now lives
               inside it too — see ManageDropCard's own comment. */}
           {shipCandidate && <ManageDropCard shipCandidate={shipCandidate} onChanged={refresh} />}
+
+          {/* Moved to the bottom of Overview, and redesigned as a real
+              button + modal (2026-10-27 round — founder's report that the
+              old quiet collapsible note at the top was easy to miss
+              entirely: "the help button doesnt feel right"). See
+              CtHelpButton's own comment below. */}
+          <CtHelpButton />
         </>
       )}
 
@@ -325,9 +329,7 @@ export default function CuratorToolsPanel({
           {dropsMissingPlaylist.length > 0 && (
             <MissingPlaylistCard drops={dropsMissingPlaylist} onBuilt={refresh} />
           )}
-          <CuratorsDisclosure roster={roster} />
-          {top10 && <Top10Disclosure top10={top10} />}
-          {publishedDrops.length > 0 && <DropCoversDisclosure drops={publishedDrops} />}
+          <MoreSection roster={roster} top10={top10} publishedDrops={publishedDrops} />
         </>
       )}
     </div>
@@ -336,47 +338,65 @@ export default function CuratorToolsPanel({
 
 /**
  * 2026-10-13 — founder's own ask (see claude/next-build.md's "site
- * clarity" round), pinned at the top of the panel ("top of curator
- * tools board") rather than as a formal titled section — just "help,"
- * collapsed by default, same spirit as Curators/Top 10 below. Written
- * in the same casual voice as the About page copy. Covers the two
- * things that actually aren't obvious from using the tools: the
- * Spotify auto-build's silent dependency on Settings' connection (the
- * founder's own mix-up this round — it does NOT build "no matter
- * what"), and that scheduling exists at all. Deliberately skips the
- * pick-vs-submission mechanic — Submission pile already has its own
- * always-visible line for that, and the founder's own call was that
- * the two are "essentially the same thing" to explain twice.
+ * clarity" round) — covers the two things that actually aren't obvious
+ * from using the tools: the Spotify auto-build's silent dependency on
+ * Settings' connection (the founder's own mix-up that round — it does
+ * NOT build "no matter what"), and that scheduling exists at all.
+ * Deliberately skips the pick-vs-submission mechanic — Submission pile
+ * already has its own always-visible line for that, and the founder's
+ * own call was that the two are "essentially the same thing" to explain
+ * twice.
+ *
+ * Redesigned 2026-10-27 (founder's report that the old version — a
+ * quiet collapsible note pinned at the very top — was easy to miss
+ * entirely, and "doesnt feel right" visually) from a plain disclosure
+ * into a real button that opens a centered, dimmed modal — his own
+ * pick after comparing a small popover against this, closer to the
+ * "pops up" he was after. Moved down to the bottom of the Overview tab
+ * the same round, after Start/Manage drop — his own call once he saw
+ * both positions mocked up. New --accent-yellow token (see globals.css)
+ * rather than the site's existing --accent — his own pick, to make this
+ * read as its own distinct thing rather than blending into every other
+ * teal control on the page.
  */
-function CuratorHelpDisclosure() {
+function CtHelpButton() {
   const [open, setOpen] = useState(false);
   const paragraphs = splitParagraphs(siteCopy.curatorHelpText);
   return (
-    <div className="ct-card" style={{ marginBottom: 20 }}>
-      <button type="button" className="ct-disclosure" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <span className="label" style={{ marginBottom: 0 }}>
+    <>
+      <div style={{ marginTop: 20, textAlign: "center" }}>
+        <button type="button" className="ct-help-btn" onClick={() => setOpen(true)}>
           help
-        </span>
-        <span className="mut" style={{ fontSize: 11 }}>
-          {open ? "▲" : "▼"}
-        </span>
-      </button>
+        </button>
+      </div>
       {open && (
-        <p className="mut" style={{ fontSize: 12, lineHeight: 1.6, marginTop: 12 }}>
-          {paragraphs.map((para, i) => (
-            <span key={i}>
-              {para}
-              {i < paragraphs.length - 1 && (
-                <>
-                  <br />
-                  <br />
-                </>
-              )}
-            </span>
-          ))}
-        </p>
+        <div
+          className="ct-help-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setOpen(false);
+          }}
+        >
+          <div className="ct-help-modal gz-up">
+            <p className="mut" style={{ fontSize: 12, lineHeight: 1.6 }}>
+              {paragraphs.map((para, i) => (
+                <span key={i}>
+                  {para}
+                  {i < paragraphs.length - 1 && (
+                    <>
+                      <br />
+                      <br />
+                    </>
+                  )}
+                </span>
+              ))}
+            </p>
+            <button type="button" className="ct-help-modal-close" onClick={() => setOpen(false)}>
+              Got it
+            </button>
+          </div>
+        </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -451,8 +471,12 @@ function StartDropCard({
         </p>
       )}
 
-      <hr className="hairline" style={{ margin: "16px 0" }} />
-      <ScheduleOpenField nextDropOpensAt={nextDropOpensAt} onChanged={onChanged} />
+      {/* Spacing alone now, no divider line (2026-10-27 round — founder
+          wasn't sure he liked the hairlines between sections in these
+          cards: "maybe the small lines... should go as well"). */}
+      <div style={{ marginTop: 18 }}>
+        <ScheduleOpenField nextDropOpensAt={nextDropOpensAt} onChanged={onChanged} />
+      </div>
     </div>
   );
 }
@@ -647,13 +671,17 @@ function ManageDropCard({ shipCandidate, onChanged }: { shipCandidate: ShipCandi
         onChanged={onChanged}
       />
 
-      <hr className="hairline" style={{ margin: "16px 0" }} />
+      {/* Spacing alone now, no divider lines between these three
+          sections (2026-10-27 round — founder wasn't sure he liked the
+          hairlines here: "maybe the small lines... should go as
+          well"). */}
+      <div style={{ marginTop: 18 }}>
+        <ScheduleShipField scheduledShipAt={scheduledShipAt} onChanged={onChanged} />
+      </div>
 
-      <ScheduleShipField scheduledShipAt={scheduledShipAt} onChanged={onChanged} />
-
-      <hr className="hairline" style={{ margin: "16px 0" }} />
-
-      <ShipDropCard dropNum={dropNum} pickCount={pickCount} onChanged={onChanged} />
+      <div style={{ marginTop: 18 }}>
+        <ShipDropCard dropNum={dropNum} pickCount={pickCount} onChanged={onChanged} />
+      </div>
     </div>
   );
 }
@@ -1966,95 +1994,123 @@ function BuildPlaylistRow({ drop, onBuilt }: { drop: MissingPlaylistDrop; onBuil
   );
 }
 
-function CuratorsDisclosure({ roster }: { roster: RosterCurator[] }) {
-  const [open, setOpen] = useState(false);
+type MoreKey = "curators" | "top10" | "covers";
+
+/**
+ * Curators / Subscriber Top 10 / Drop covers, as a small grid of
+ * buttons rather than three stacked plain-text disclosures (2026-10-27
+ * round — founder's report he didn't like how those three looked:
+ * "make the buttons... match the other buttons and be another color."
+ * Picked "C" — the card-grid option — after comparing it against the
+ * others, "let's try it out"). One at a time, accordion-style: clicking
+ * an already-open card closes it, clicking a different one switches to
+ * it — same single-section-open spirit the rest of this tab already
+ * has (Overview/Pick songs/Thoughts/More themselves are mutually
+ * exclusive tabs). Content underneath each is unchanged from before,
+ * just no longer nested inside its own small card — only the card you
+ * see here when nothing's open did the ▼/▲ disclosure job before.
+ * Only renders a card for a section that actually has something to
+ * show, same as the old conditional rendering this replaces.
+ */
+function MoreSection({
+  roster,
+  top10,
+  publishedDrops,
+}: {
+  roster: RosterCurator[];
+  top10: Top10CardProps | null;
+  publishedDrops: PublishedDropSummary[];
+}) {
+  const [open, setOpen] = useState<MoreKey | null>(null);
+
+  function toggle(key: MoreKey) {
+    setOpen((cur) => (cur === key ? null : key));
+  }
+
   return (
-    <div className="ct-card" style={{ marginTop: 20 }}>
-      <button type="button" className="ct-disclosure" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <span className="label" style={{ marginBottom: 0 }}>
-          Curators ({roster.length})
-        </span>
-        <span className="mut" style={{ fontSize: 11 }}>
-          {open ? "▲" : "▼"}
-        </span>
-      </button>
-      {open && (
-        <div className="roster-list" style={{ marginTop: 12 }}>
-          {roster.map((c) => (
-            <div key={c.id} className="roster-row">
-              <span className="roster-name">{c.name}</span>
-              <span className="roster-meta">
-                {c.picksThisCycle} this cycle · {c.picksLifetime} lifetime · joined{" "}
-                {joinedLabel(c.joinedAt)}
-              </span>
-            </div>
-          ))}
+    <div style={{ marginTop: 20 }}>
+      <div className="more-card-grid">
+        <button
+          type="button"
+          className={`more-card${open === "curators" ? " active" : ""}`}
+          onClick={() => toggle("curators")}
+        >
+          Curators
+          <br />({roster.length})
+        </button>
+        {top10 && (
+          <button
+            type="button"
+            className={`more-card${open === "top10" ? " active" : ""}`}
+            onClick={() => toggle("top10")}
+          >
+            Subscriber
+            <br />
+            Top 10
+          </button>
+        )}
+        {publishedDrops.length > 0 && (
+          <button
+            type="button"
+            className={`more-card${open === "covers" ? " active" : ""}`}
+            onClick={() => toggle("covers")}
+          >
+            Drop covers
+            <br />({publishedDrops.length})
+          </button>
+        )}
+      </div>
+
+      {open === "curators" && (
+        <div className="ct-card gz-up">
+          <div className="roster-list">
+            {roster.map((c) => (
+              <div key={c.id} className="roster-row">
+                <span className="roster-name">{c.name}</span>
+                <span className="roster-meta">
+                  {c.picksThisCycle} this cycle · {c.picksLifetime} lifetime · joined{" "}
+                  {joinedLabel(c.joinedAt)}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
-    </div>
-  );
-}
 
-function Top10Disclosure({ top10 }: { top10: Top10CardProps }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="ct-card" style={{ marginTop: 20 }}>
-      <button type="button" className="ct-disclosure" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <span className="label" style={{ marginBottom: 0 }}>
-          Subscriber Top 10
-        </span>
-        <span className="mut" style={{ fontSize: 11 }}>
-          {open ? "▲" : "▼"}
-        </span>
-      </button>
-      {open && (
-        <div style={{ marginTop: 12 }}>
+      {open === "top10" && top10 && (
+        <div className="ct-card gz-up">
           <Top10Card {...top10} />
         </div>
       )}
-    </div>
-  );
-}
 
-/**
- * One download link per shipped drop (2026-10-18 — founder's own ask:
- * "a place in curator where i can automatically download the covers
- * created from the drops," for making social posts). Reuses the exact
- * same cover /api/drops/[num]/cover already builds for the release
- * email and the auto-built Spotify playlist — no new image anywhere,
- * just a convenient link to the one that already exists. That route is
- * public/unauthenticated by design (so email clients can load the
- * <img>), but the link to it only ever shows up here, inside curator
- * tools — so in practice only a curator ever sees it, matching the
- * founder's own "only curators can download. since this is a tool for
- * me." The `download` attribute makes a same-origin click save the
- * file straight away instead of opening it in a new tab.
- */
-function DropCoversDisclosure({ drops }: { drops: PublishedDropSummary[] }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="ct-card" style={{ marginTop: 20 }}>
-      <button type="button" className="ct-disclosure" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <span className="label" style={{ marginBottom: 0 }}>
-          Drop covers ({drops.length})
-        </span>
-        <span className="mut" style={{ fontSize: 11 }}>
-          {open ? "▲" : "▼"}
-        </span>
-      </button>
-      {open && (
-        <div className="roster-list" style={{ marginTop: 12 }}>
-          {drops.map((d) => (
-            <div key={d.num} className="roster-row">
-              <span className="roster-name">
-                Drop {d.num}
-                {d.title ? ` — ${d.title}` : ""}
-              </span>
-              <a href={`/api/drops/${d.num}/cover`} download={`drop-${d.num}-cover.jpg`} className="link-btn">
-                Download
-              </a>
-            </div>
-          ))}
+      {/* One download link per shipped drop (2026-10-18 — founder's own
+          ask: "a place in curator where i can automatically download the
+          covers created from the drops," for making social posts).
+          Reuses the exact same cover /api/drops/[num]/cover already
+          builds for the release email and the auto-built Spotify
+          playlist — no new image anywhere, just a convenient link to the
+          one that already exists. That route is public/unauthenticated
+          by design (so email clients can load the <img>), but the link
+          to it only ever shows up here, inside curator tools — so in
+          practice only a curator ever sees it, matching the founder's
+          own "only curators can download. since this is a tool for me."
+          The `download` attribute makes a same-origin click save the
+          file straight away instead of opening it in a new tab. */}
+      {open === "covers" && (
+        <div className="ct-card gz-up">
+          <div className="roster-list">
+            {publishedDrops.map((d) => (
+              <div key={d.num} className="roster-row">
+                <span className="roster-name">
+                  Drop {d.num}
+                  {d.title ? ` — ${d.title}` : ""}
+                </span>
+                <a href={`/api/drops/${d.num}/cover`} download={`drop-${d.num}-cover.jpg`} className="link-btn">
+                  Download
+                </a>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
