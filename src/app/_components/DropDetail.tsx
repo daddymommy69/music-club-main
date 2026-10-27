@@ -153,7 +153,7 @@ export default function DropDetail({
         )}
         {drop.appleUrl && (
           <a className="btn btn-apple" href={drop.appleUrl} target="_blank" rel="noreferrer">
-            Apple Music <ExternalArrowIcon />
+            Apple <ExternalArrowIcon />
           </a>
         )}
       </div>
@@ -240,7 +240,7 @@ export default function DropDetail({
               )}
               {drop.top10.appleUrl && (
                 <a className="btn btn-apple" href={drop.top10.appleUrl} target="_blank" rel="noreferrer">
-                  Apple Music <ExternalArrowIcon />
+                  Apple <ExternalArrowIcon />
                 </a>
               )}
             </div>
