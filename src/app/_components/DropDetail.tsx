@@ -13,6 +13,7 @@ import LikeButton from "./LikeButton";
 import SongRatingControl from "./SongRatingControl";
 import DropLikeButton from "./DropLikeButton";
 import DropSaveButton from "./DropSaveButton";
+import { ExternalArrowIcon } from "./icons/ArrowIcons";
 import RateDropControl from "./RateDropControl";
 import RoleName from "./RoleName";
 import InfoTip from "./InfoTip";
@@ -145,7 +146,7 @@ export default function DropDetail({
         <PlayDropButton songs={queueSongs} />
         {drop.spotifyUrl && (
           <a className="btn btn-outline open-spotify-btn" href={drop.spotifyUrl} target="_blank" rel="noreferrer">
-            Spotify ↗
+            Spotify <ExternalArrowIcon />
           </a>
         )}
       </div>
@@ -157,7 +158,7 @@ export default function DropDetail({
       {drop.appleUrl && (
         <div className="listen-row">
           <a className="btn btn-outline" href={drop.appleUrl} target="_blank" rel="noreferrer">
-            Apple Music ↗
+            Apple Music <ExternalArrowIcon />
           </a>
         </div>
       )}
@@ -239,12 +240,12 @@ export default function DropDetail({
             <div className="listen-row">
               {drop.top10.spotifyUrl && (
                 <a className="btn btn-outline" href={drop.top10.spotifyUrl} target="_blank" rel="noreferrer">
-                  Spotify ↗
+                  Spotify <ExternalArrowIcon />
                 </a>
               )}
               {drop.top10.appleUrl && (
                 <a className="btn btn-outline" href={drop.top10.appleUrl} target="_blank" rel="noreferrer">
-                  Apple Music ↗
+                  Apple Music <ExternalArrowIcon />
                 </a>
               )}
             </div>

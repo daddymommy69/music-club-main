@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { artistHref } from "@/lib/artistLink";
 import { userHref } from "@/lib/userHref";
+import { NavArrowIcon } from "./icons/ArrowIcons";
 import { siteCopy } from "@/lib/copy";
 import RoleName from "./RoleName";
 import ListenerPickForm from "./ListenerPickForm";
@@ -263,7 +264,7 @@ function ProfileCard({ member }: { member: Member }) {
               account/page.tsx); every real member always has one. */}
           {member.slug && (
             <Link href={`/u/${member.slug}`} className="about-link" style={{ fontSize: 12 }}>
-              musicclub.fyi/u/{member.slug} →
+              musicclub.fyi/u/{member.slug} <NavArrowIcon size={10} />
             </Link>
           )}
         </div>

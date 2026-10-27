@@ -4,6 +4,7 @@ import SiteHeader from "@/app/_components/SiteHeader";
 import SongEmbed from "@/app/_components/SongEmbed";
 import RoleName from "@/app/_components/RoleName";
 import BuildListenerPlaylistButton from "@/app/_components/BuildListenerPlaylistButton";
+import { ExternalArrowIcon } from "@/app/_components/icons/ArrowIcons";
 import { getDefaultClub } from "@/lib/club";
 import { getListenerPicksForDrop } from "@/lib/archive";
 import { getSessionMember } from "@/lib/memberSession";
@@ -64,7 +65,7 @@ export default async function ListenerPicksPage({
               target="_blank"
               rel="noreferrer"
             >
-              Open playlist on Spotify ↗
+              Open playlist on Spotify <ExternalArrowIcon />
             </a>
           ) : canBuild ? (
             <BuildListenerPlaylistButton dropId={picks.dropId} alreadyBuilt={false} />

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { formatDropMeta } from "@/lib/format";
+import { ExternalArrowIcon, NavArrowIcon } from "./icons/ArrowIcons";
 
 type YouSong = { title: string; artist: string; curatorCredit: string | null };
 type YouNote = { curatorName: string; text: string };
@@ -113,12 +114,12 @@ export default function YouPage({
           <div style={{ display: "flex", gap: 10, marginBottom: 28 }}>
             {drop.spotifyUrl && (
               <a className="btn btn-accent" href={drop.spotifyUrl} target="_blank" rel="noreferrer">
-                Spotify ↗
+                Spotify <ExternalArrowIcon />
               </a>
             )}
             {drop.appleUrl && (
               <a className="btn btn-outline" href={drop.appleUrl} target="_blank" rel="noreferrer">
-                Apple Music ↗
+                Apple Music <ExternalArrowIcon />
               </a>
             )}
           </div>
@@ -218,7 +219,7 @@ export default function YouPage({
         This page is yours — the link in your email always opens the newest drop.
       </p>
       <Link href="/releases" className="link-btn" style={{ display: "inline-block", marginTop: 10 }}>
-        Every drop so far →
+        Every drop so far <NavArrowIcon />
       </Link>
     </div>
   );

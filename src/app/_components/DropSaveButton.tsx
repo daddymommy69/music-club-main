@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { NavArrowIcon } from "./icons/ArrowIcons";
 
 /**
  * A drop's private save/bookmark toggle (2026-10 release-page redesign
@@ -60,7 +61,7 @@ export default function DropSaveButton({
       </button>
       {needsLogin && (
         <Link href="/account" className="mut" style={{ fontSize: 10 }}>
-          Log in to save →
+          Log in to save <NavArrowIcon size={10} />
         </Link>
       )}
     </span>

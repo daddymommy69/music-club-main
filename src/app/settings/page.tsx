@@ -6,6 +6,7 @@ import { isCycleValue } from "@/lib/cycle";
 import { listCurators, listPendingCurators } from "@/lib/members";
 import LogoutButton from "@/app/_components/LogoutButton";
 import SettingsBoard from "@/app/_components/SettingsBoard";
+import { NavArrowIcon } from "@/app/_components/icons/ArrowIcons";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,7 @@ export default async function SettingsPage({
       {curator.isAdmin && (
         <div style={{ marginTop: 20 }}>
           <Link href="/admin/copy" className="link-btn">
-            Edit site copy →
+            Edit site copy <NavArrowIcon />
           </Link>
         </div>
       )}

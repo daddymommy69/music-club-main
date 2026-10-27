@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ExternalArrowIcon } from "./icons/ArrowIcons";
 
 /**
  * Real share control for a drop page (2026-10-08 — founder's own
@@ -43,7 +44,13 @@ export default function ShareButton({ url, title }: { url: string; title?: strin
 
   return (
     <button type="button" className={`drop-action-btn share-action${copied ? " active" : ""}`} onClick={handleShare}>
-      {copied ? "Copied ✓" : "Share ↗"}
+      {copied ? (
+        "Copied ✓"
+      ) : (
+        <>
+          Share <ExternalArrowIcon />
+        </>
+      )}
     </button>
   );
 }

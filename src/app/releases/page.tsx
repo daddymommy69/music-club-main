@@ -4,6 +4,7 @@ import SiteHeader from "@/app/_components/SiteHeader";
 import SignupPopup from "@/app/_components/SignupPopup";
 import DropTile from "@/app/_components/DropTile";
 import InfoTip from "@/app/_components/InfoTip";
+import { NavArrowIcon } from "@/app/_components/icons/ArrowIcons";
 import { getDefaultClub } from "@/lib/club";
 import { getPublishedDrops, getPublicStats } from "@/lib/archive";
 import { getDropStatus } from "@/lib/dropStatus";
@@ -139,7 +140,7 @@ export async function ReleasesPageContent() {
           {siteCopy.homeIntro}
           <br />
           <Link href="/about" className="about-link" style={{ fontSize: 13 }}>
-            more about this →
+            more about this <NavArrowIcon />
           </Link>
         </p>
 
@@ -181,7 +182,11 @@ export async function ReleasesPageContent() {
                   <div className="info">
                     <div className="title">
                       {drop.title ?? `Drop ${drop.num}`}
-                      {drop.hasTop10 && <span className="top10-badge">Top 10 ↗</span>}
+                      {drop.hasTop10 && (
+                        <span className="top10-badge">
+                          Top 10 <NavArrowIcon size={11} />
+                        </span>
+                      )}
                     </div>
                     <div className="meta">{formatDropMeta(drop.publishedAt, drop.songCount)}</div>
                   </div>
@@ -197,7 +202,7 @@ export async function ReleasesPageContent() {
                     the dedicated listener-picks page this links to. */}
                 {drop.listenerPickCount > 0 && (
                   <Link href={`/drop/${drop.num}/listener-picks`} className="listener-pick-pill">
-                    ♫ Listener Pick ({drop.listenerPickCount}) →
+                    ♫ Listener Pick ({drop.listenerPickCount}) <NavArrowIcon size={11} />
                   </Link>
                 )}
               </div>

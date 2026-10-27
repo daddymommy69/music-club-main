@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { NavArrowIcon } from "./icons/ArrowIcons";
 
 /**
  * A song's own 1-5 rating (2026-10-07 "Browse" round — see
@@ -71,7 +72,7 @@ export default function SongRatingControl({
       ))}
       {needsLogin && (
         <Link href="/account" className="mut" style={{ fontSize: 10 }}>
-          Log in →
+          Log in <NavArrowIcon size={10} />
         </Link>
       )}
       {error && <span className="mut" style={{ fontSize: 10 }}>{error}</span>}

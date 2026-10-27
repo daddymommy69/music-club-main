@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { NavArrowIcon } from "./icons/ArrowIcons";
 
 /**
  * A logged-in member's own 1-5 rating for a drop (2026-10 "next build"
@@ -65,7 +66,7 @@ export default function RateDropControl({
       ))}
       {needsLogin && (
         <Link href="/account" className="mut" style={{ fontSize: 11, alignSelf: "center" }}>
-          Log in to rate →
+          Log in to rate <NavArrowIcon size={10} />
         </Link>
       )}
       {error && (

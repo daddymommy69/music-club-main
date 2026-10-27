@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { NavArrowIcon } from "./icons/ArrowIcons";
 
 /**
  * A song's public like toggle (2026-10 "next build" — see
@@ -64,7 +65,7 @@ export default function LikeButton({
       </button>
       {needsLogin && (
         <Link href="/account" className="mut" style={{ fontSize: 10 }}>
-          Log in to like →
+          Log in to like <NavArrowIcon size={10} />
         </Link>
       )}
     </span>

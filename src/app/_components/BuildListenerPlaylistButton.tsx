@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ExternalArrowIcon } from "./icons/ArrowIcons";
 
 /**
  * Curator-only "Build & open full playlist on Spotify" action (2026-10
@@ -42,7 +43,7 @@ export default function BuildListenerPlaylistButton({
   if (builtUrl) {
     return (
       <a href={builtUrl} target="_blank" rel="noreferrer" className="btn btn-outline">
-        Open playlist on Spotify ↗
+        Open playlist on Spotify <ExternalArrowIcon />
       </a>
     );
   }
@@ -50,11 +51,17 @@ export default function BuildListenerPlaylistButton({
   return (
     <div>
       <button type="button" className="btn btn-outline" onClick={build} disabled={busy}>
-        {busy
-          ? "Building…"
-          : alreadyBuilt
-            ? "Rebuild & open playlist on Spotify →"
-            : "Build & open full playlist on Spotify →"}
+        {busy ? (
+          "Building…"
+        ) : alreadyBuilt ? (
+          <>
+            Rebuild & open playlist on Spotify <ExternalArrowIcon />
+          </>
+        ) : (
+          <>
+            Build & open full playlist on Spotify <ExternalArrowIcon />
+          </>
+        )}
       </button>
       {error && (
         <p className="mut" style={{ fontSize: 11, marginTop: 8 }}>

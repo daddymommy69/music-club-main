@@ -10,6 +10,7 @@ import FallbackImg from "./FallbackImg";
 import ShipDropCard from "./ShipDropCard";
 import Top10Card, { type Top10CardProps } from "./Top10Card";
 import RoleName from "./RoleName";
+import { ExternalArrowIcon, NavArrowIcon } from "./icons/ArrowIcons";
 
 /**
  * The curator workspace (formerly the standalone /room + /overview
@@ -1645,7 +1646,7 @@ function PickRow({
               style={{ fontSize: 10.5, marginTop: 2, padding: 0 }}
               onClick={onViewNotes}
             >
-              has a note →
+              has a note <NavArrowIcon size={10.5} />
             </button>
           )}
         </div>
@@ -1978,7 +1979,7 @@ function BuildPlaylistRow({ drop, onBuilt }: { drop: MissingPlaylistDrop; onBuil
         <p className="mut" style={{ fontSize: 11.5, lineHeight: 1.6 }}>
           Done —{" "}
           <a href={result.spotifyUrl} target="_blank" rel="noreferrer">
-            open it on Spotify ↗
+            open it on Spotify <ExternalArrowIcon size={11.5} />
           </a>{" "}
           · matched {result.matchedCount} of {result.totalCount} songs.
           {result.unmatchedTitles.length > 0 && (

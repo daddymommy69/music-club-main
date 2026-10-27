@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { NavArrowIcon } from "./icons/ArrowIcons";
 
 /**
  * A drop's whole-drop public like toggle (2026-10 release-page redesign
@@ -62,7 +63,7 @@ export default function DropLikeButton({
       </button>
       {needsLogin && (
         <Link href="/account" className="mut" style={{ fontSize: 10 }}>
-          Log in to like →
+          Log in to like <NavArrowIcon size={10} />
         </Link>
       )}
     </span>

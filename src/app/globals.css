@@ -460,6 +460,17 @@ input {
   gap: 8px;
 }
 
+/* Custom site arrow icons (2026-10-27 — replaces plain "↗"/"→"
+   characters sitewide, see ArrowIcons.tsx). Most usages sit inside an
+   already-centered flex row (.btn and friends) where this does
+   nothing; this nudge is for the handful of plain inline-text spots
+   (badges, pills, link text) so the icon's baseline matches the
+   surrounding letters instead of sitting high. */
+.arrow-icon {
+  vertical-align: -2px;
+  flex-shrink: 0;
+}
+
 .link-btn {
   background: none;
   border: none;
