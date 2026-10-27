@@ -11,6 +11,7 @@ import ShipDropCard from "./ShipDropCard";
 import Top10Card, { type Top10CardProps } from "./Top10Card";
 import RoleName from "./RoleName";
 import { ExternalArrowIcon, NavArrowIcon } from "./icons/ArrowIcons";
+import DownloadIcon from "./icons/DownloadIcon";
 
 /**
  * The curator workspace (formerly the standalone /room + /overview
@@ -112,14 +113,17 @@ type MissingPlaylistDrop = {
   title: string | null;
 };
 
-/** Every shipped drop, for the cover-download list below (2026-10-18 —
- * founder's own ask: "a place in curator where i can automatically
- * download the covers created from the drops"). Same shape as
- * MissingPlaylistDrop (num + title) but a different list — this is
- * every published drop, not just the ones missing a Spotify playlist. */
+/** Every shipped drop, for "Drop options" below (2026-10-18 — founder's
+ * own ask: "a place in curator where i can automatically download the
+ * covers created from the drops"). Same shape as MissingPlaylistDrop
+ * (num + title) but a different list — this is every published drop,
+ * not just the ones missing a Spotify playlist. `appleUrl` (added
+ * 2026-10-27) drives the always-editable Apple Music link field this
+ * section grew — see DropOptionsRow below. */
 type PublishedDropSummary = {
   num: number;
   title: string | null;
+  appleUrl: string | null;
 };
 
 /** One post in a curator's blurb feed — about the drop, or about a
@@ -330,7 +334,7 @@ export default function CuratorToolsPanel({
           {dropsMissingPlaylist.length > 0 && (
             <MissingPlaylistCard drops={dropsMissingPlaylist} onBuilt={refresh} />
           )}
-          <MoreSection roster={roster} top10={top10} publishedDrops={publishedDrops} />
+          <MoreSection roster={roster} top10={top10} publishedDrops={publishedDrops} onChanged={refresh} />
         </>
       )}
     </div>
@@ -1995,7 +1999,7 @@ function BuildPlaylistRow({ drop, onBuilt }: { drop: MissingPlaylistDrop; onBuil
   );
 }
 
-type MoreKey = "curators" | "top10" | "covers";
+type MoreKey = "curators" | "top10" | "options";
 
 /**
  * Curators / Subscriber Top 10 / Drop covers, as a small grid of
@@ -2017,10 +2021,12 @@ function MoreSection({
   roster,
   top10,
   publishedDrops,
+  onChanged,
 }: {
   roster: RosterCurator[];
   top10: Top10CardProps | null;
   publishedDrops: PublishedDropSummary[];
+  onChanged: () => void;
 }) {
   const [open, setOpen] = useState<MoreKey | null>(null);
 
@@ -2053,10 +2059,10 @@ function MoreSection({
         {publishedDrops.length > 0 && (
           <button
             type="button"
-            className={`more-card${open === "covers" ? " active" : ""}`}
-            onClick={() => toggle("covers")}
+            className={`more-card${open === "options" ? " active" : ""}`}
+            onClick={() => toggle("options")}
           >
-            Drop covers
+            Drop options
             <br />({publishedDrops.length})
           </button>
         )}
@@ -2084,33 +2090,127 @@ function MoreSection({
         </div>
       )}
 
-      {/* One download link per shipped drop (2026-10-18 — founder's own
-          ask: "a place in curator where i can automatically download the
-          covers created from the drops," for making social posts).
-          Reuses the exact same cover /api/drops/[num]/cover already
-          builds for the release email and the auto-built Spotify
-          playlist — no new image anywhere, just a convenient link to the
-          one that already exists. That route is public/unauthenticated
-          by design (so email clients can load the <img>), but the link
-          to it only ever shows up here, inside curator tools — so in
-          practice only a curator ever sees it, matching the founder's
-          own "only curators can download. since this is a tool for me."
-          The `download` attribute makes a same-origin click save the
-          file straight away instead of opening it in a new tab. */}
-      {open === "covers" && (
+      {/* Per-shipped-drop actions: cover download (2026-10-18 — founder's
+          own ask: "a place in curator where i can automatically download
+          the covers created from the drops," for making social posts —
+          reuses the exact same /api/drops/[num]/cover the release email
+          and auto-built Spotify playlist already use, no new image
+          anywhere; that route is public/unauthenticated by design so
+          email clients can load the <img>, but the link to it only ever
+          shows up here) plus, as of 2026-10-27, an always-editable Apple
+          Music link — founder's own ask, folding the old ship-time-only
+          field into this same "Drop options" area: "a drop options
+          area, where i add the apple link, able to download covers,
+          etc." See DropOptionsRow below for the per-row logic. */}
+      {open === "options" && (
         <div className="ct-card gz-up">
           <div className="roster-list">
             {publishedDrops.map((d) => (
-              <div key={d.num} className="roster-row">
-                <span className="roster-name">
-                  Drop {d.num}
-                  {d.title ? ` — ${d.title}` : ""}
-                </span>
-                <a href={`/api/drops/${d.num}/cover`} download={`drop-${d.num}-cover.jpg`} className="link-btn">
-                  Download
-                </a>
-              </div>
+              <DropOptionsRow key={d.num} drop={d} onChanged={onChanged} />
             ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One shipped drop's row inside "Drop options" — the cover Download
+ * button (just a redesigned link, same href/download attribute as
+ * before: 2026-10-27 founder's own ask, "i dont like how its just
+ * underlined") plus the Apple Music link, shown as a compact status
+ * word rather than the full URL (founder's own pick, "option 2" from
+ * the mockup) with an Edit/+ Add pill that swaps to the same
+ * input+Save/Cancel pattern RenameDropField above already uses. An
+ * empty Save clears the link back to unset, same as leaving it blank
+ * at ship time.
+ */
+function DropOptionsRow({ drop, onChanged }: { drop: PublishedDropSummary; onChanged: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(drop.appleUrl ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/overview/apple-link", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dropNum: drop.num, appleUrl: value.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? "Couldn't save that. Try again.");
+        return;
+      }
+      setEditing(false);
+      onChanged();
+    } catch {
+      setError("Couldn't save that. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="roster-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+        <span className="roster-name">
+          Drop {drop.num}
+          {drop.title ? ` — ${drop.title}` : ""}
+        </span>
+        <a
+          href={`/api/drops/${drop.num}/cover`}
+          download={`drop-${drop.num}-cover.jpg`}
+          className="cover-download-btn"
+        >
+          <DownloadIcon /> Download
+        </a>
+      </div>
+
+      {!editing ? (
+        <div className="apple-link-status">
+          <span className={`apple-link-status-text${drop.appleUrl ? " set" : ""}`}>
+            {drop.appleUrl ? "Apple Music ✓" : "Apple Music — not set"}
+          </span>
+          <button
+            type="button"
+            className="apple-link-edit-btn"
+            onClick={() => {
+              setValue(drop.appleUrl ?? "");
+              setError(null);
+              setEditing(true);
+            }}
+          >
+            {drop.appleUrl ? "Edit" : "+ Add"}
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <input
+            type="text"
+            className="settings-input"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="https://music.apple.com/..."
+          />
+          {error && <p className="notice error">{error}</p>}
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              type="button"
+              className="btn"
+              style={{ width: "auto", minHeight: 32, height: 32, padding: "0 12px", fontSize: 11.5 }}
+              disabled={saving}
+              onClick={save}
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+            <button type="button" className="link-btn" disabled={saving} onClick={() => setEditing(false)}>
+              Cancel
+            </button>
           </div>
         </div>
       )}

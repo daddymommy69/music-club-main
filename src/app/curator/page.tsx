@@ -23,7 +23,7 @@ async function getCuratorToolsProps(
   club: Club,
   openDrop: Drop | null,
   viewerId: number,
-  publishedDrops: { num: number; title: string | null }[]
+  publishedDrops: { num: number; title: string | null; appleUrl: string | null }[]
 ): Promise<CuratorToolsPanelProps> {
   const [overview, room, top10Drop, dropsMissingPlaylist, dropNoteRows, songNoteMap] = await Promise.all([
     getOverviewData(club),
@@ -142,10 +142,11 @@ async function getCuratorToolsProps(
         })),
       ])
     ),
-    // Powers DropCoversDisclosure's download list (2026-10-18). The
-    // fuller publishedDrops the caller already fetched carries more
-    // than this panel needs — just num/title here.
-    publishedDrops: publishedDrops.map((d) => ({ num: d.num, title: d.title })),
+    // Powers the "Drop options" list (2026-10-18, extended 2026-10-27
+    // with appleUrl for the always-editable Apple Music link field).
+    // The fuller publishedDrops the caller already fetched carries more
+    // than this panel needs — just num/title/appleUrl here.
+    publishedDrops: publishedDrops.map((d) => ({ num: d.num, title: d.title, appleUrl: d.appleUrl })),
   };
 }
 

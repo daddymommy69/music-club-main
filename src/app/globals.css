@@ -1508,6 +1508,63 @@ input {
   border-color: var(--accent-yellow);
 }
 
+/* "Drop options" row controls (2026-10-27 round). Cover download
+ * redesigned from a plain underlined link into the same small
+ * soft-fill pill formula every other identity-colored action on the
+ * site uses (founder's own ask: "i dont like how its just
+ * underlined"); the Apple Music field shows just a status word plus
+ * an Edit/+ Add pill rather than the full URL (founder's own pick,
+ * "option 2" from the mockup) — the real link only appears while
+ * editing it, in the plain .settings-input/.btn/.link-btn trio
+ * RenameDropField above already uses. */
+.cover-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: none;
+  background: var(--acc-soft);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.apple-link-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.apple-link-status-text {
+  font-size: 11px;
+  color: var(--mut);
+}
+
+.apple-link-status-text.set {
+  color: var(--apple);
+  font-weight: 500;
+}
+
+.apple-link-edit-btn {
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: none;
+  background: var(--apple-soft);
+  color: var(--apple);
+  font-size: 10.5px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+}
+
 /* Account page tabs (2026-10-08 — curator tools became its own tab
  * instead of a collapsible section at the bottom of /account; see
  * claude/next-build.md). Only ever rendered for a curator — a regular

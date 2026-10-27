@@ -51,6 +51,12 @@ export type ArchiveDropSummary = {
    * release-page redesign — see claude/next-build.md). Zero means no
    * card is shown for this cycle at all. */
   listenerPickCount: number;
+  /** The drop's own Apple Music link, straight off drops.appleUrl
+   * (2026-10-27 round — added so the curator "Drop options" list can
+   * show whether each shipped drop already has one set, see
+   * MoreSection / CuratorToolsPanel.tsx). Not otherwise used by the
+   * public archive page this function also powers. */
+  appleUrl: string | null;
 };
 
 export async function getPublishedDrops(clubId: number): Promise<ArchiveDropSummary[]> {
@@ -62,6 +68,7 @@ export async function getPublishedDrops(clubId: number): Promise<ArchiveDropSumm
       num: drops.num,
       title: drops.title,
       publishedAt: drops.publishedAt,
+      appleUrl: drops.appleUrl,
     })
     .from(drops)
     .where(and(eq(drops.clubId, clubId), isNotNull(drops.publishedAt)))
@@ -121,6 +128,7 @@ export async function getPublishedDrops(clubId: number): Promise<ArchiveDropSumm
       artworkTrims: artworkUrls.map((u) => trimsByUrl.get(u) ?? 0),
       hasTop10: dropIdsWithVotes.has(d.id) && getTop10Phase({ publishedAt: d.publishedAt }) === "closed",
       listenerPickCount: listenerPickCountByDropId.get(d.id) ?? 0,
+      appleUrl: d.appleUrl,
     };
   });
 }
