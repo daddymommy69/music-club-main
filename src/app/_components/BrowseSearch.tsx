@@ -411,7 +411,14 @@ function SpotifyResultRow({
             style={{ width: "auto", minHeight: 32, height: 32, padding: "0 12px", fontSize: 11, flexShrink: 0 }}
             onClick={() => (isLoggedIn ? submitLoggedIn() : setMode("email"))}
           >
-            Submit as my pick
+            {/* "Add" (2026-10-27 round — founder's report that "Submit as
+                my pick" read as misleading for a curator, who's really
+                adding a confirmed pick outright, not submitting
+                something for someone else to decide on later). The
+                "✓ Submitted"/"Submitting…" states right below are
+                unchanged on purpose — his own call, "keep the submitted
+                option how it is now." */}
+            Add
           </button>
         )}
         {mode === "busy" && (
@@ -471,7 +478,7 @@ function SpotifyResultRow({
             className="btn btn-primary"
             style={{ width: "auto", minHeight: 36, height: 36, padding: "0 14px", fontSize: 12 }}
           >
-            Submit my pick
+            Add
           </button>
         </form>
       )}
@@ -581,7 +588,7 @@ function ManualSubmit({ dropOpen, isLoggedIn }: { dropOpen: boolean; isLoggedIn:
       )}
       {error && <p className="notice error">{error}</p>}
       <button type="submit" className="btn btn-primary" disabled={busy}>
-        {busy ? "Submitting…" : "Submit my pick"}
+        {busy ? "Submitting…" : "Add"}
       </button>
     </form>
   );
