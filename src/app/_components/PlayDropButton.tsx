@@ -17,8 +17,20 @@ import { spotifyTrackIdFromUri } from "@/lib/spotifyId";
  * this button again) just toggles the same player rather than starting a
  * second one — this button simply shows "Pause" instead of "Play" while
  * this exact queue is already the one playing.
+ *
+ * `compact` (2026-10-27 round): drops the label to just "▶ Play" —
+ * passed whenever this shares its row with both the Spotify and Apple
+ * Music buttons (three-across instead of two), per the drop-page
+ * listen-row visualizer's "Option A." Pause still just says "Pause"
+ * either way, so there's nothing to shorten there.
  */
-export default function PlayDropButton({ songs }: { songs: QueueSong[] }) {
+export default function PlayDropButton({
+  songs,
+  compact = false,
+}: {
+  songs: QueueSong[];
+  compact?: boolean;
+}) {
   const { current, mode, isPlaying, playFromQueue, toggle } = usePlayer();
 
   const resolved: PlayableTrack[] = [];
@@ -42,7 +54,7 @@ export default function PlayDropButton({ songs }: { songs: QueueSong[] }) {
 
   return (
     <button type="button" className="btn btn-primary play-drop-btn" onClick={handleClick}>
-      {isThisQueuePlaying && isPlaying ? "❙❙ Pause" : "▶ Play this drop"}
+      {isThisQueuePlaying && isPlaying ? "❙❙ Pause" : compact ? "▶ Play" : "▶ Play this drop"}
     </button>
   );
 }

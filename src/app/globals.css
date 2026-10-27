@@ -61,6 +61,22 @@
    * --accent-blue above already documents for Share. */
   --accent-yellow: oklch(0.56 0.14 95);
   --acc-yellow-soft: oklch(0.56 0.14 95 / 0.14);
+  /* Real brand colors for the Spotify/Apple Music buttons (2026-10-27
+   * round — founder's own ask: "change the color of the apple button
+   * to the apple music color, and the spotify button to the spotify
+   * color"). Actual brand hex, not the site's own oklch hue system —
+   * these two are meant to be instantly recognizable as those specific
+   * services, not just another site accent color. Same soft-tint
+   * formula as every other identity-colored button (Help, Share,
+   * curator names): text in the brand color, a faint brand-tinted
+   * fill, never a loud solid background. */
+  --spotify: #1ed760;
+  --spotify-soft: rgba(30, 215, 96, 0.14);
+  /* Apple has no official published hex for "Apple Music" — this is
+   * the closest common cross-referenced approximation (the real mark
+   * is a #ff4e6b -> #ff0436 gradient). */
+  --apple: #fa233b;
+  --apple-soft: rgba(250, 35, 59, 0.12);
 
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --font-display: "Martian Mono", var(--font-mono);
@@ -90,6 +106,10 @@
     /* Same lift the other tokens get going into dark mode. */
     --accent-yellow: oklch(0.8 0.15 95);
     --acc-yellow-soft: oklch(0.8 0.15 95 / 0.18);
+    /* Same lift the other soft-fill tokens get going into dark mode —
+     * the brand colors themselves (already vivid) stay as-is. */
+    --spotify-soft: rgba(30, 215, 96, 0.18);
+    --apple-soft: rgba(250, 35, 59, 0.18);
     color-scheme: dark;
   }
 }
@@ -318,6 +338,27 @@ input {
   border: none;
   background: var(--acc-soft);
   color: var(--accent);
+  font-weight: 500;
+}
+
+/* Spotify/Apple Music's own brand-colored soft fill, replacing the
+   neutral .btn-outline these used to share with every other link
+   (2026-10-27 round — see --spotify/--apple above). */
+.btn-spotify {
+  height: 40px;
+  width: 100%;
+  border: none;
+  background: var(--spotify-soft);
+  color: var(--spotify);
+  font-weight: 500;
+}
+
+.btn-apple {
+  height: 40px;
+  width: 100%;
+  border: none;
+  background: var(--apple-soft);
+  color: var(--apple);
   font-weight: 500;
 }
 
@@ -965,11 +1006,14 @@ input {
   margin: 12px 0 14px;
 }
 
-/* Play + "Spotify ↗" side by side, half-width each (2026-10-15 —
-   founder's own ask: Play alone read as too heavy as the page's one
-   full-width action). Both children just flex evenly — when only one
-   is present (no Spotify playlist yet), it naturally fills the row,
-   same as before. */
+/* Play + Spotify + Apple Music, all equal thirds (2026-10-27 round —
+   founder's own ask, now that Apple Music links actually get filled
+   in regularly: "Option A" from the listen-row visualizer, all three
+   in one row rather than Apple Music getting its own separate row
+   below). Was just Play + Spotify until this round — see git history
+   for that two-up version. Children just flex evenly; when only one
+   or two links exist, the remaining button(s) naturally stretch to
+   fill the row, same as before. */
 .drop-detail .listen-row-primary {
   display: flex;
   gap: 10px;
@@ -978,8 +1022,23 @@ input {
 
 .drop-detail .listen-row-primary .btn {
   width: auto;
+  min-width: 0;
   flex: 1;
   margin: 0;
+}
+
+/* Three-across is the tight spot on a phone ("Apple Music" + icon in a
+   third of the screen) — shrink the row's own font/padding rather than
+   letting text wrap to two lines or overflow. */
+@media (max-width: 480px) {
+  .drop-detail .listen-row-primary {
+    gap: 6px;
+  }
+  .drop-detail .listen-row-primary .btn {
+    padding: 0 6px;
+    font-size: 11px;
+    gap: 4px;
+  }
 }
 
 .drop-detail .listen-row {

@@ -133,35 +133,30 @@ export default function DropDetail({
         </div>
       )}
 
-      {/* Play + Spotify side by side, half-width each (2026-10-15 —
-          founder's own ask: Play alone felt too big/heavy as the one
-          full-width action, and a Spotify button belongs right next to
-          it rather than buried further down). Spotify-only here (no
-          Apple Music button — the founder's own call, "lets leave that
-          out") — Apple still gets its own link below when a drop has
-          one, see the conditional .listen-row further down. When a
-          drop has no Spotify playlist yet, Play just flexes to fill the
-          row on its own. */}
+      {/* Play + Spotify + Apple Music, all equal thirds (2026-10-27 round
+          — founder's own ask, now that Apple Music links actually get
+          filled in regularly instead of sitting empty: "Option A" from
+          the listen-row visualizer — all three in one row rather than
+          Apple Music getting its own separate row below, which is what
+          this used to do back when Apple links were basically never
+          set. Each missing link just means the rest flex to fill the
+          row, same as before — see .listen-row-primary's own CSS
+          comment. Play's label shortens to "▶ Play" via `compact`
+          whenever all three are in play, so three buttons actually fit
+          without wrapping on a phone. */}
       <div className="listen-row-primary">
-        <PlayDropButton songs={queueSongs} />
+        <PlayDropButton songs={queueSongs} compact={!!drop.appleUrl} />
         {drop.spotifyUrl && (
-          <a className="btn btn-outline open-spotify-btn" href={drop.spotifyUrl} target="_blank" rel="noreferrer">
+          <a className="btn btn-spotify open-spotify-btn" href={drop.spotifyUrl} target="_blank" rel="noreferrer">
             Spotify <ExternalArrowIcon />
           </a>
         )}
-      </div>
-
-      {/* Apple Music only now — Spotify moved into the primary row above,
-          so keeping it here too would just be a second "open Spotify"
-          button on the same page (founder's own call, 2026-10-15). Still
-          renders nothing for a drop with no Apple link, same as before. */}
-      {drop.appleUrl && (
-        <div className="listen-row">
-          <a className="btn btn-outline" href={drop.appleUrl} target="_blank" rel="noreferrer">
+        {drop.appleUrl && (
+          <a className="btn btn-apple" href={drop.appleUrl} target="_blank" rel="noreferrer">
             Apple Music <ExternalArrowIcon />
           </a>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Share/Save/Like unified into one row of same-size pills
           (2026-10-15 — founder's own ask) — Share used to sit alone on
@@ -239,12 +234,12 @@ export default function DropDetail({
           {(drop.top10.spotifyUrl || drop.top10.appleUrl) && (
             <div className="listen-row">
               {drop.top10.spotifyUrl && (
-                <a className="btn btn-outline" href={drop.top10.spotifyUrl} target="_blank" rel="noreferrer">
+                <a className="btn btn-spotify" href={drop.top10.spotifyUrl} target="_blank" rel="noreferrer">
                   Spotify <ExternalArrowIcon />
                 </a>
               )}
               {drop.top10.appleUrl && (
-                <a className="btn btn-outline" href={drop.top10.appleUrl} target="_blank" rel="noreferrer">
+                <a className="btn btn-apple" href={drop.top10.appleUrl} target="_blank" rel="noreferrer">
                   Apple Music <ExternalArrowIcon />
                 </a>
               )}
