@@ -3,10 +3,15 @@ import sharp from "sharp";
 import { detectArtworkTrim, MAX_ARTWORK_TRIM } from "./artworkTrim";
 import { trimScale, TARGET_ARTWORK_TRIM } from "./artworkTrimMath";
 
-/** Builds a synthetic square image: a solid white border `borderPx`
- * wide on every edge, with varied (never-uniform) color inside it, so
- * tests don't depend on fetching a real file. */
-async function makeBorderedImage(size: number, borderPx: number): Promise<Buffer> {
+/** Builds a synthetic square image: a solid border `borderPx` wide on
+ * every edge in `borderColor` (default white), with varied
+ * (never-uniform) color inside it, so tests don't depend on fetching a
+ * real file. */
+async function makeBorderedImage(
+  size: number,
+  borderPx: number,
+  borderColor: [number, number, number] = [255, 255, 255]
+): Promise<Buffer> {
   const channels = 3;
   const buf = Buffer.alloc(size * size * channels);
   for (let y = 0; y < size; y++) {
@@ -14,9 +19,9 @@ async function makeBorderedImage(size: number, borderPx: number): Promise<Buffer
       const idx = (y * size + x) * channels;
       const isBorder = x < borderPx || x >= size - borderPx || y < borderPx || y >= size - borderPx;
       if (isBorder) {
-        buf[idx] = 255;
-        buf[idx + 1] = 255;
-        buf[idx + 2] = 255;
+        buf[idx] = borderColor[0];
+        buf[idx + 1] = borderColor[1];
+        buf[idx + 2] = borderColor[2];
       } else {
         buf[idx] = (x * 7) % 256;
         buf[idx + 1] = (y * 13) % 256;
@@ -45,6 +50,31 @@ describe("detectArtworkTrim", () => {
     const buf = await makeBorderedImage(96, 96); // entirely the "border" color
     const trim = await detectArtworkTrim(buf);
     expect(trim).toBe(MAX_ARTWORK_TRIM);
+  });
+
+  it("treats a large near-black border as no border at all, not a deliberate matte", async () => {
+    // Regression test for a real bug (2026-11-01, founder's own
+    // report): a band photo with lots of black negative space around
+    // the group got read as "already has a generous border" and was
+    // left full-bleed, while its 3 sibling quadrants in the same
+    // drop's cover (ordinary album art, no black background) got
+    // shrunk and white-padded — so one quadrant rendered visibly
+    // bigger/more zoomed-in than the other three in the same grid.
+    // A black backdrop in a press photo isn't a deliberate matte the
+    // way a white/cream/colored border is, so this should come back as
+    // 0 (no border detected) instead of a large value, so the image
+    // still gets padded in line with its siblings.
+    const buf = await makeBorderedImage(96, 30, [4, 4, 2]); // near-black, not pure black — still should count
+    const trim = await detectArtworkTrim(buf);
+    expect(trim).toBe(0);
+  });
+
+  it("still detects a genuine non-black border normally", async () => {
+    // Sanity check that the near-black carve-out above doesn't disable
+    // border detection generally — only near-black reference colors.
+    const buf = await makeBorderedImage(96, 19, [240, 230, 210]); // cream/off-white matte
+    const trim = await detectArtworkTrim(buf);
+    expect(trim).toBeGreaterThan(0.12);
   });
 });
 

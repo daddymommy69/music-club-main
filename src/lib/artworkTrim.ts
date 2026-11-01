@@ -74,6 +74,21 @@ export async function detectArtworkTrim(buffer: Buffer): Promise<number> {
     Math.round(corners.reduce((sum, p) => sum + p[2], 0) / 4),
   ];
 
+  // A near-black reference color almost never means a deliberate matte
+  // the way a white/cream/colored border does — it's usually just dark
+  // photo background (a press photo shot against a black backdrop,
+  // empty headroom above a group, etc). Since color alone can't tell
+  // "this is the artwork's real border" from "this is just a dark
+  // photo," treat near-black as no border detected at all, so an image
+  // like that still gets shrunk/padded in line with every other
+  // quadrant in its drop instead of reading as already-matted and
+  // staying full-bleed next to padded siblings (2026-11-01 — founder's
+  // own report: a band-photo quadrant rendered full-bleed/zoomed next
+  // to its 3 padded neighbors in the same drop's cover grid, because
+  // its own large black negative space was mistaken for a border).
+  const NEAR_BLACK_MAX = 24;
+  if (ref[0] <= NEAR_BLACK_MAX && ref[1] <= NEAR_BLACK_MAX && ref[2] <= NEAR_BLACK_MAX) return 0;
+
   const rowIsBorder = (y: number): boolean => {
     let hits = 0;
     for (let x = 0; x < width; x++) if (closeTo(pixelAt(x, y), ref)) hits++;
