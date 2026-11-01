@@ -33,7 +33,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ num:
     return new NextResponse(null, { status: 404 });
   }
 
-  const artworkUrls = drop.songs.slice(0, 4).map((s) => s.artworkUrl);
+  // Whole drop, unsliced — buildDropCoverJpegBase64 picks the first 4
+  // WITH artwork itself now (2026-10-31 fix), same as DropDetail.tsx's
+  // hero tile already does, instead of this route separately taking a
+  // naive first-4-by-position that could land on a different, wrong set
+  // of quadrants whenever an early song had no artwork yet.
+  const artworkUrls = drop.songs.map((s) => s.artworkUrl);
   const coverBase64 = await buildDropCoverJpegBase64(artworkUrls, num);
   if (!coverBase64) {
     // Same "quietly skip" spirit as everywhere else this builder is

@@ -84,6 +84,35 @@ export async function shrinkAndPad(bytes: Buffer, scale: number): Promise<Buffer
     .toBuffer();
 }
 
+/**
+ * Picks up to 4 artwork URLs for the cover grid, skipping any song with
+ * no artwork rather than leaving it an empty quadrant — the exact same
+ * "skip songs with no artwork" rule DropDetail.tsx's hero tile and the
+ * archive grid (src/lib/archive.ts's getPublishedDrops) already use for
+ * their own 2x2 collages. Exported/pure (no network call) so both real
+ * callers of buildDropCoverJpegBase64 below — the curator-tools download
+ * and spotifyBuild.ts's ship-time auto-build cover — share exactly one
+ * implementation instead of each re-deriving "the first 4" themselves.
+ *
+ * Fixes a real bug (2026-10-31 — founder's own report, screenshots of a
+ * downloaded cover showing 4 different songs than the site's own archive
+ * tile for the same drop): this file used to take artworkUrls already
+ * sliced to 4 by each caller via a plain `.slice(0, 4)` on the raw,
+ * position-ordered song list — so a song with no artwork sitting among
+ * the first 4 by position just left a quadrant blank here, while
+ * DropDetail.tsx's hero tile (`.filter(artworkUrl).slice(0, 4)`) and the
+ * archive grid skip straight past it to the next song that actually has
+ * art. Two different selections off the same song list, silently
+ * diverging whenever a drop's early tracks were missing artwork. Now
+ * callers just pass every song's artworkUrl (in position order,
+ * unsliced) and this picks the same first-4-with-art set everywhere
+ * else on the site already does.
+ */
+export function pickCoverArtworkUrls(urls: (string | null)[]): (string | null)[] {
+  const picked = urls.filter((u): u is string => !!u).slice(0, 4);
+  return Array.from({ length: 4 }, (_, i) => picked[i] ?? null);
+}
+
 async function fetchQuadBuffer(url: string | null): Promise<Buffer | null> {
   if (!url) return null;
   try {
@@ -132,15 +161,23 @@ function numberComposites(num: number): { input: Buffer; left: number; top: numb
   }));
 }
 
+/**
+ * `artworkUrls` is every song's own artworkUrl, in position order,
+ * UNSLICED — pass the whole drop, not your own "first 4" (see
+ * pickCoverArtworkUrls above for why: that selection happens in here
+ * now, not at each call site).
+ */
 export async function buildDropCoverJpegBase64(
   artworkUrls: (string | null)[],
   num: number
 ): Promise<string | null> {
   try {
-    // Same always-4-quadrants shape as DropTile — a missing quadrant
-    // just stays the plain background fill rather than being skipped,
-    // so the grid never looks lopsided.
-    const quads = Array.from({ length: 4 }, (_, i) => artworkUrls[i] ?? null);
+    // Same always-4-quadrants shape as DropTile — a quadrant with no art
+    // anywhere in the drop stays the plain background fill rather than
+    // being skipped, so the grid never looks lopsided. Which 4 songs
+    // that art comes FROM is pickCoverArtworkUrls' job, above — this
+    // only pads out to exactly 4 slots, never selects.
+    const quads = pickCoverArtworkUrls(artworkUrls);
     const quadBuffers = await Promise.all(quads.map(fetchQuadBuffer));
 
     if (quadBuffers.every((b) => b === null)) return null; // nothing to show at all

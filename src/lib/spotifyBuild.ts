@@ -102,9 +102,12 @@ export async function buildSpotifyPlaylistForDrop(
   // Cover art is purely cosmetic — never let it block or fail the build.
   // Use the freshly-backfilled artwork too (not just whatever the song
   // already had), so the cover benefits from the same Spotify lookup.
-  const artworkUrls = songList
-    .slice(0, 4)
-    .map((s, i) => s.artworkUrl ?? matches[i]?.artworkUrl ?? null);
+  // Whole songList, unsliced — buildDropCoverJpegBase64 now picks the
+  // first 4 WITH artwork itself (2026-10-31 fix), same selection every
+  // other "4 cover artworks" spot on the site uses, instead of this
+  // naively taking the first 4 by position regardless of whether they
+  // had art yet.
+  const artworkUrls = songList.map((s, i) => s.artworkUrl ?? matches[i]?.artworkUrl ?? null);
   const cover = await buildDropCoverJpegBase64(artworkUrls, dropNum);
   if (cover) {
     await uploadPlaylistCover(accessToken, playlist.id, cover);
