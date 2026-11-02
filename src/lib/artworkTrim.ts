@@ -48,10 +48,28 @@ function closeTo(a: RGB, b: RGB): boolean {
  * fraction (0 to MAX_ARTWORK_TRIM) of each edge that's solid-color
  * border. Exported separately from the cache-or-fetch helpers below so
  * dropCover.ts — which already has the bytes in hand via its own
- * fetch — can detect without a second network round trip. */
+ * fetch — can detect without a second network round trip.
+ *
+ * Samples with `fit: "cover"` (center-crop to square, then scale) —
+ * NOT `fit: "fill"` (stretch to square, no crop) — because that's
+ * exactly what fetchQuadBuffer's own final resize does to turn this
+ * same source image into a cover quadrant (see dropCover.ts). A
+ * non-square source's full un-cropped file can have real border on
+ * only its wider dimension (e.g. a landscape photo's left/right bars),
+ * which `fit: "cover"` crops away entirely before anything reaches the
+ * page. Sampling with "fill" used to let that doomed-to-be-cropped
+ * border count toward the detected trim anyway — overstating it, so
+ * trimScale concluded the image already had enough border and skipped
+ * adding real padding, under-matting the actual rendered quadrant
+ * (2026-11-02 — founder's own report: 3 of drop 3's 4 quadrants
+ * measuring visibly short of the 15% target once the 4th, unrelated
+ * near-black bug was fixed and could no longer explain it). Sampling
+ * the same crop the render will actually use keeps detection honest
+ * about what border survives to be seen.
+ */
 export async function detectArtworkTrim(buffer: Buffer): Promise<number> {
   const { data, info } = await sharp(buffer)
-    .resize(SAMPLE, SAMPLE, { fit: "fill" })
+    .resize(SAMPLE, SAMPLE, { fit: "cover" })
     .removeAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
@@ -134,8 +152,14 @@ export async function detectArtworkTrim(buffer: Buffer): Promise<number> {
  * Any row older than this is treated as a miss and re-detected below,
  * which also re-caches it with a fresh computedAt — self-healing, no
  * manual DB access needed.
+ *
+ * Bumped again same day (2026-11-02T00:20Z): detectArtworkTrim's
+ * sampling fit also changed (fill → cover, see its own comment) — a
+ * second, independent reason a previously-cached value can be wrong,
+ * so this needs to invalidate rows cached between the first bump and
+ * now too, not just everything before today.
  */
-const ARTWORK_TRIM_CACHE_VALID_SINCE = new Date("2026-11-02T00:00:00Z");
+const ARTWORK_TRIM_CACHE_VALID_SINCE = new Date("2026-11-02T00:20:00Z");
 
 export async function getCachedArtworkTrim(url: string): Promise<number | null> {
   try {

@@ -76,6 +76,52 @@ describe("detectArtworkTrim", () => {
     const trim = await detectArtworkTrim(buf);
     expect(trim).toBeGreaterThan(0.12);
   });
+
+  it("ignores a landscape source's left/right bars once they'd be cropped away by the real render", async () => {
+    // Regression test for a real bug (2026-11-02, founder's own
+    // report): 3 of drop 3's 4 quadrants measured visibly short of the
+    // 15% padding target once the unrelated near-black bug could no
+    // longer explain it. Root cause: detectArtworkTrim used to sample
+    // with `fit: "fill"` (stretch to square, no crop), so a
+    // non-square source's border on only its WIDER dimension (e.g. a
+    // landscape cover's left/right bars) still read as real border —
+    // even though fetchQuadBuffer's own final resize (`fit: "cover"`)
+    // crops a landscape source from the sides to make it square,
+    // discarding exactly that border before it ever reaches the page.
+    // Detected border that can't survive to be seen made trimScale
+    // think the image already had enough matting and skip adding real
+    // padding, under-matting the actual rendered quadrant.
+    //
+    // A 192x96 source (2:1 landscape) with a 40px white bar on the
+    // left and right (full height), busy non-white content in the
+    // center 112px: `fit: "cover"` into a square crops 48 of the
+    // original 192px off each side (scaling to fit the 96px height),
+    // which removes the entire 40px bar — nothing white should remain
+    // in what detectArtworkTrim actually samples.
+    const width = 192;
+    const height = 96;
+    const channels = 3;
+    const barPx = 40;
+    const buf = Buffer.alloc(width * height * channels);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = (y * width + x) * channels;
+        const inBar = x < barPx || x >= width - barPx;
+        if (inBar) {
+          buf[idx] = 255;
+          buf[idx + 1] = 255;
+          buf[idx + 2] = 255;
+        } else {
+          buf[idx] = (x * 7) % 256;
+          buf[idx + 1] = (y * 13) % 256;
+          buf[idx + 2] = ((x + y) * 5) % 256;
+        }
+      }
+    }
+    const image = await sharp(buf, { raw: { width, height, channels } }).png().toBuffer();
+    const trim = await detectArtworkTrim(image);
+    expect(trim).toBeLessThan(0.05);
+  });
 });
 
 describe("trimScale", () => {
