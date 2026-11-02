@@ -181,7 +181,12 @@ export async function ReleasesPageContent() {
                   <DropTile num={drop.num} artworkUrls={drop.artworkUrls} artworkTrims={drop.artworkTrims} />
                   <div className="info">
                     <div className="title">
-                      {drop.title ?? `Drop ${drop.num}`}
+                      {/* 2026-11-02 — founder's own one-off ask: drop 3's
+                          name reads in orange everywhere it shows, since
+                          this drop is special. Hardcoded, not reusable. */}
+                      <span style={drop.num === 3 ? { color: "#ff7a1a" } : undefined}>
+                        {drop.title ?? `Drop ${drop.num}`}
+                      </span>
                       {drop.hasTop10 && (
                         <span className="top10-badge">
                           Top 10 <NavArrowIcon size={11} />

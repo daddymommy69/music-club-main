@@ -100,7 +100,13 @@ export default function DropDetail({
         />
         {closable && <CloseButton />}
       </div>
-      <div className="drop-title">{drop.title ?? `Drop ${drop.num}`}</div>
+      {/* 2026-11-02 — founder's own one-off ask: drop 3's name reads in
+          orange, everywhere it shows on the site, since this drop is
+          special. Hardcoded to drop.num === 3 on purpose, not a
+          reusable "special drop" mechanism. */}
+      <div className="drop-title" style={drop.num === 3 ? { color: "#ff7a1a" } : undefined}>
+        {drop.title ?? `Drop ${drop.num}`}
+      </div>
       <div className="mut" style={{ fontSize: 11 }}>
         {formatDropMonth(drop.publishedAt)} · {curatorSongs.length}{" "}
         {curatorSongs.length === 1 ? "song" : "songs"}

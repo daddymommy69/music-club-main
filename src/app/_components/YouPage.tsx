@@ -104,7 +104,18 @@ export default function YouPage({
               your new playlist is up
             </div>
           </div>
-          <div style={{ fontSize: 15, lineHeight: 1.4, letterSpacing: "-0.02em", margin: "10px 0 6px" }}>
+          {/* 2026-11-02 — founder's own one-off ask: drop 3's name reads
+              in orange everywhere it shows, since this drop is special.
+              Hardcoded to drop.num === 3, not a reusable mechanism. */}
+          <div
+            style={{
+              fontSize: 15,
+              lineHeight: 1.4,
+              letterSpacing: "-0.02em",
+              margin: "10px 0 6px",
+              ...(drop.num === 3 ? { color: "#ff7a1a" } : {}),
+            }}
+          >
             {drop.title ?? `Drop ${drop.num}`}
           </div>
           <p className="mut" style={{ fontSize: 11, marginBottom: 20 }}>
