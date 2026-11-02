@@ -24,8 +24,21 @@
  * retroactively affect already-shipped drops' covers (not needed for a
  * change that only affects drops shipped after it, since those get a
  * fresh URL's first-ever request regardless).
+ *
+ * 2026-11-02T00:20Z fix (artworkTrim.ts's fit:"fill"→"cover" sampling
+ * change) shipped without bumping this — an easy miss, since that fix
+ * lives entirely in artworkTrim.ts/dropCover.ts and this constant
+ * lives elsewhere, nothing wires them together. Confirmed by the
+ * founder's next re-download coming back byte-for-byte identical to
+ * the one before that fix even deployed: this file's own URL never
+ * changed, so Vercel's edge cache just kept serving its old response
+ * regardless of what the server could now compute. Bumping v here is
+ * what actually makes a server-side fix visible, not the server-side
+ * fix alone — every prior round in this file's history did this
+ * together with its own fix; this one didn't, and that's the whole
+ * bug.
  */
-export const DROP_COVER_CACHE_VERSION = 2;
+export const DROP_COVER_CACHE_VERSION = 3;
 
 export function dropCoverPath(dropNum: number): string {
   return `/api/drops/${dropNum}/cover?v=${DROP_COVER_CACHE_VERSION}`;
