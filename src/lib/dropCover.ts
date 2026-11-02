@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { DROP_COVER_DIGITS, DIGIT_TILE_WIDTH, DIGIT_TILE_HEIGHT } from "./dropCoverDigits";
-import { detectArtworkTrim, getCachedArtworkTrim, cacheArtworkTrim, trimScale } from "./artworkTrim";
+import { trimScale } from "./artworkTrimMath";
 
 /**
  * Builds the Spotify playlist cover for a drop: the same 2x2 artwork
@@ -32,22 +32,6 @@ const GAP = 0;
 const HALF = Math.floor((SIZE - GAP) / 2);
 const BG = "#2b2b2b"; // approximates the site's dark tile background
 
-/**
- * Same artwork-trim treatment DropTile gets on the site
- * (src/lib/artworkTrim.ts, corrected 2026-10-25): an image whose own
- * baked-in border falls short of the site-wide standard
- * (TARGET_ARTWORK_TRIM) gets shrunk and padded out to match it, so the
- * Spotify cover matches what the site itself shows. An image that
- * already meets or beats the standard (e.g. Drop 1's own generously-
- * matted files) is left completely alone — this never crops into an
- * image, only ever adds padding to one that's missing it. (An earlier
- * same-day version of this function did the opposite — cropped away
- * whatever border it detected on every image — which is wrong: see
- * trimScale()'s own comment for why.) Reuses the same URL-keyed cache
- * (already fetched the bytes for the resize anyway, so this only adds
- * a cache lookup — a detect only happens on an actual cache miss, same
- * as everywhere else artworkTrim.ts is used).
- */
 /**
  * Shrinks an image toward its center by `scale` (< 1) and pads the
  * freed-up edges with white, so the visible artwork ends up occupying
@@ -113,6 +97,18 @@ export function pickCoverArtworkUrls(urls: (string | null)[]): (string | null)[]
   return Array.from({ length: 4 }, (_, i) => picked[i] ?? null);
 }
 
+/**
+ * 2026-11-02 — founder's own call: this used to call out to
+ * detectArtworkTrim()/getCachedArtworkTrim() per URL to decide how much
+ * each individual image needed shrinking, varying it image to image.
+ * That kept producing new false positives (a band photo's black
+ * background, then an album cover's navy background, each separately
+ * read as a deliberate matte and left under-padded next to its
+ * properly-padded siblings) — see trimScale()'s own comment
+ * (artworkTrimMath.ts) for the full story. Every quadrant now gets the
+ * exact same fixed shrink unconditionally, no per-image detection, no
+ * DB round trip — guaranteed-consistent instead of "usually right."
+ */
 async function fetchQuadBuffer(url: string | null): Promise<Buffer | null> {
   if (!url) return null;
   try {
@@ -120,13 +116,7 @@ async function fetchQuadBuffer(url: string | null): Promise<Buffer | null> {
     if (!res.ok) return null;
     const bytes = Buffer.from(await res.arrayBuffer());
 
-    let trim = await getCachedArtworkTrim(url);
-    if (trim === null) {
-      trim = await detectArtworkTrim(bytes);
-      await cacheArtworkTrim(url, trim);
-    }
-
-    const scale = trimScale(trim);
+    const scale = trimScale(0); // argument ignored — see trimScale()'s own comment
     const padded = scale < 1 ? await shrinkAndPad(bytes, scale) : bytes;
 
     return await sharp(padded).resize(HALF, HALF, { fit: "cover" }).jpeg().toBuffer();

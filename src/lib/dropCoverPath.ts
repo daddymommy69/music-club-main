@@ -38,7 +38,7 @@
  * together with its own fix; this one didn't, and that's the whole
  * bug.
  */
-export const DROP_COVER_CACHE_VERSION = 3;
+export const DROP_COVER_CACHE_VERSION = 4;
 
 export function dropCoverPath(dropNum: number): string {
   return `/api/drops/${dropNum}/cover?v=${DROP_COVER_CACHE_VERSION}`;

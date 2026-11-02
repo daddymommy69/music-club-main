@@ -51,13 +51,34 @@ export const MAX_ARTWORK_TRIM = 0.32;
 export const TARGET_ARTWORK_TRIM = 0.15;
 
 /**
- * How much to shrink an image (via CSS scale() or an equivalent
- * resize-and-pad) so its own visible artwork occupies the same
- * proportion of its frame as one with exactly TARGET_ARTWORK_TRIM of
- * baked-in border would. Always <= 1 — this only ever adds margin to
- * an under-bordered image, never crops into one that already has
- * enough (or more) border than the target.
+ * Always returns the same fixed scale now, ignoring its argument —
+ * founder's own call, 2026-11-02, after this used to vary the scale
+ * per-image based on detectArtworkTrim()'s own guess at each image's
+ * "native" border. That guess kept being wrong in new ways: first a
+ * band photo's black negative space read as a deliberate matte
+ * (leaving it un-padded next to its padded siblings), then — after
+ * that was special-cased — an album cover's dark navy background did
+ * the exact same thing. Rather than keep chasing one color at a time,
+ * every image now gets shrunk by exactly this much and padded out to
+ * TARGET_ARTWORK_TRIM, full stop, regardless of what's actually in the
+ * file. Guarantees every quadrant in a cover grid (and every DropTile
+ * on the site) matches, every time.
+ *
+ * Known tradeoff, accepted going in: Drop 1's own files were
+ * deliberately left untouched by the old per-image logic (see
+ * TARGET_ARTWORK_TRIM's own comment above) because they already had
+ * MORE native border (~0.31-0.32) than the target — this now shrinks
+ * them too, on top of their own existing generous matting, so Drop 1
+ * specifically may read as more padded/smaller than it used to. Worth
+ * a look next to the other drops once this ships.
+ *
+ * Keeps its (now-unused) parameter so every existing call site —
+ * dropCover.ts, DropTile.tsx — doesn't need touching; detectArtworkTrim
+ * above still exists and still works correctly as a pure
+ * border-measurement utility, it's just no longer trusted to drive the
+ * final rendered scale.
  */
-export function trimScale(detectedTrim: number): number {
-  return Math.min(1, (1 - 2 * TARGET_ARTWORK_TRIM) / (1 - 2 * detectedTrim));
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for call-site compatibility, see comment above
+export function trimScale(_detectedTrim: number): number {
+  return 1 - 2 * TARGET_ARTWORK_TRIM;
 }

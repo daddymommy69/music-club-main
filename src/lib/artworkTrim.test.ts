@@ -125,24 +125,24 @@ describe("detectArtworkTrim", () => {
 });
 
 describe("trimScale", () => {
-  it("never scales above 1 — an image that already meets the target is left alone", () => {
-    expect(trimScale(TARGET_ARTWORK_TRIM)).toBe(1);
-    expect(trimScale(MAX_ARTWORK_TRIM)).toBeLessThanOrEqual(1); // more border than target — still untouched, never cropped into
+  // 2026-11-02 — founder's own call: trimScale no longer varies by the
+  // image's own detected border at all (see its own comment in
+  // artworkTrimMath.ts for the full story — repeated per-image
+  // false-positive detections, a band photo's black background then an
+  // album cover's navy one, each separately read as a deliberate
+  // matte). It always returns the same fixed scale now, regardless of
+  // input, so every quadrant/tile ends up padded identically.
+
+  it("always returns the same fixed scale, regardless of input", () => {
+    const expected = 1 - 2 * TARGET_ARTWORK_TRIM;
+    expect(trimScale(0)).toBeCloseTo(expected, 10);
+    expect(trimScale(TARGET_ARTWORK_TRIM)).toBeCloseTo(expected, 10);
+    expect(trimScale(MAX_ARTWORK_TRIM)).toBeCloseTo(expected, 10);
+    expect(trimScale(0.31)).toBeCloseTo(expected, 10); // ~Drop 1's own real measured trim — no longer special-cased
   });
 
-  it("shrinks a full-bleed image down toward the target instead of zooming into it", () => {
-    const scale = trimScale(0);
-    expect(scale).toBeLessThan(1);
-    expect(scale).toBeCloseTo(1 - 2 * TARGET_ARTWORK_TRIM, 5);
-  });
-
-  it("is never the old backwards zoom-in formula (1 / (1 - 2*trim))", () => {
-    // The bug this replaces: scaling UP by the image's own detected
-    // trim, which crops into any image that already has a border
-    // instead of only padding out images that lack one.
-    const detected = 0.31; // close to Drop 1's own real measured trim
-    const buggyZoomIn = 1 / (1 - 2 * detected);
-    expect(trimScale(detected)).not.toBeCloseTo(buggyZoomIn, 2);
-    expect(trimScale(detected)).toBeLessThanOrEqual(1);
+  it("is less than 1 — every image gets shrunk and padded, never cropped into", () => {
+    expect(trimScale(0)).toBeLessThan(1);
+    expect(trimScale(MAX_ARTWORK_TRIM)).toBeLessThan(1);
   });
 });
