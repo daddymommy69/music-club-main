@@ -2,7 +2,6 @@ import sharp from "sharp";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { artworkTrimCache } from "@/db/schema";
-import { isUniqueViolation } from "./normalize";
 import { MAX_ARTWORK_TRIM, TARGET_ARTWORK_TRIM, trimScale } from "./artworkTrimMath";
 
 // Re-exported so existing imports from this file (dropCover.ts,
@@ -113,14 +112,40 @@ export async function detectArtworkTrim(buffer: Buffer): Promise<number> {
   return Math.min(maxBorder / SAMPLE, MAX_ARTWORK_TRIM);
 }
 
+/**
+ * How recent a cached row's `computedAt` must be to still be trusted —
+ * the same cache-busting spirit as dropCoverPath.ts's
+ * DROP_COVER_CACHE_VERSION, just keyed off the timestamp this table
+ * already stores per row instead of a new version column.
+ *
+ * 2026-11-02 fix: detectArtworkTrim gained the near-black carve-out
+ * above (see its own comment) so a photo's black negative space stops
+ * reading as a deliberate border. But this table caches a URL's
+ * detected trim forever once computed — "no TTL, no override UI yet"
+ * by original design, since a drop's own artwork never changes after
+ * it ships. That assumption doesn't hold when the DETECTION LOGIC
+ * itself changes: a URL whose trim was cached under the old algorithm
+ * keeps returning that same wrong value no matter what
+ * detectArtworkTrim now computes, completely invisible to the cover
+ * image's own HTTP cache-busting (dropCoverPath.ts) since that's a
+ * different cache at a different layer — confirmed by the founder
+ * still seeing an un-padded drop-3 quadrant even after that fix
+ * shipped and the image itself was demonstrably no longer stale.
+ * Any row older than this is treated as a miss and re-detected below,
+ * which also re-caches it with a fresh computedAt — self-healing, no
+ * manual DB access needed.
+ */
+const ARTWORK_TRIM_CACHE_VALID_SINCE = new Date("2026-11-02T00:00:00Z");
+
 export async function getCachedArtworkTrim(url: string): Promise<number | null> {
   try {
     const [cached] = await getDb()
-      .select({ trimPct: artworkTrimCache.trimPct })
+      .select({ trimPct: artworkTrimCache.trimPct, computedAt: artworkTrimCache.computedAt })
       .from(artworkTrimCache)
       .where(eq(artworkTrimCache.url, url))
       .limit(1);
-    return cached ? cached.trimPct : null;
+    if (!cached || cached.computedAt < ARTWORK_TRIM_CACHE_VALID_SINCE) return null;
+    return cached.trimPct;
   } catch {
     return null; // cache read failing is never worth blocking a render over
   }
@@ -128,16 +153,22 @@ export async function getCachedArtworkTrim(url: string): Promise<number | null> 
 
 export async function cacheArtworkTrim(url: string, trimPct: number): Promise<void> {
   try {
-    await getDb().insert(artworkTrimCache).values({ url, trimPct });
+    // Upsert, not insert-only: a stale row (see
+    // ARTWORK_TRIM_CACHE_VALID_SINCE above) reads as a miss and lands
+    // right back here, so this has to overwrite the old row rather
+    // than silently losing to the unique constraint on `url` the way a
+    // plain insert-only write used to (which, before this change, left
+    // a stale row's wrong value in place forever even once it was
+    // re-detected — recomputed every request, cached never).
+    await getDb()
+      .insert(artworkTrimCache)
+      .values({ url, trimPct })
+      .onConflictDoUpdate({ target: artworkTrimCache.url, set: { trimPct, computedAt: new Date() } });
   } catch (err) {
-    // Lost a race with a concurrent lookup for the same URL — fine, the
-    // other write already cached it. Any other failure is swallowed
-    // too (same best-effort contract as the rest of this file): worst
-    // case, this URL just gets re-detected next time instead of
-    // reading from cache, never worth failing a page render over.
-    if (!isUniqueViolation(err)) {
-      console.error("[artworkTrim] cache write failed:", err);
-    }
+    // Best-effort, same spirit as everywhere else in this file: worst
+    // case this URL just gets re-detected next time instead of reading
+    // from cache, never worth failing a page render over.
+    console.error("[artworkTrim] cache write failed:", err);
   }
 }
 
