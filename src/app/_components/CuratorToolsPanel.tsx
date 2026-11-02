@@ -12,6 +12,7 @@ import Top10Card, { type Top10CardProps } from "./Top10Card";
 import RoleName from "./RoleName";
 import { ExternalArrowIcon, NavArrowIcon } from "./icons/ArrowIcons";
 import DownloadIcon from "./icons/DownloadIcon";
+import { dropCoverPath } from "@/lib/dropCoverPath";
 
 /**
  * The curator workspace (formerly the standalone /room + /overview
@@ -2163,7 +2164,7 @@ function DropOptionsRow({ drop, onChanged }: { drop: PublishedDropSummary; onCha
           {drop.title ? ` — ${drop.title}` : ""}
         </span>
         <a
-          href={`/api/drops/${drop.num}/cover`}
+          href={dropCoverPath(drop.num)}
           download={`drop-${drop.num}-cover.jpg`}
           className="cover-download-btn"
         >

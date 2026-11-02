@@ -19,6 +19,15 @@ import { buildDropCoverJpegBase64 } from "@/lib/dropCover";
  * recomputed per open.
  *
  * 2026-10-10 — founder's own ask (see claude/next-build.md).
+ *
+ * Every real caller of this route builds its URL via
+ * src/lib/dropCoverPath.ts, which appends a `?v=` cache-busting query
+ * param — intentionally unused here. Its only job is to make the
+ * Cache-Control below (which Vercel's own edge network honors, not
+ * just a visitor's browser) actually get busted when dropCoverPath's
+ * version constant is bumped, instead of every existing drop's cover
+ * staying wedged on its old cached bytes forever (2026-11-02 fix — see
+ * that file's own comment for the full story).
  */
 export async function GET(request: Request, { params }: { params: Promise<{ num: string }> }) {
   const { num: numParam } = await params;

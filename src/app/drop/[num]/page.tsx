@@ -5,6 +5,7 @@ import DropDetail from "@/app/_components/DropDetail";
 import { getDefaultClub } from "@/lib/club";
 import { getPublicDrop } from "@/lib/archive";
 import { siteUrl } from "@/lib/site";
+import { dropCoverPath } from "@/lib/dropCoverPath";
 import { getSessionMember } from "@/lib/memberSession";
 import { getMemberLikedSongIds } from "@/lib/songLikes";
 import { getMemberDropRating } from "@/lib/ratings";
@@ -37,7 +38,7 @@ export async function generateMetadata({
 
   const name = drop.title ? `Drop ${drop.num} — ${drop.title}` : `Drop ${drop.num}`;
   const description = `${drop.songs.length} song${drop.songs.length === 1 ? "" : "s"}, picked by the club.`;
-  const coverUrl = siteUrl(`/api/drops/${drop.num}/cover`);
+  const coverUrl = siteUrl(dropCoverPath(drop.num));
   const pageUrl = siteUrl(`/drop/${drop.num}`);
 
   return {

@@ -1,6 +1,7 @@
 import type { Drop } from "@/db/schema";
 import { siteUrl } from "@/lib/site";
 import { siteCopy, renderTemplate } from "@/lib/copy";
+import { dropCoverPath } from "@/lib/dropCoverPath";
 
 const CLUB_NAME = process.env.NEXT_PUBLIC_CLUB_NAME || "the music club";
 
@@ -116,7 +117,7 @@ function dropUrl(dropNum: number) {
  * anywhere (see src/app/api/drops/[num]/cover/route.ts's own comment
  * for why). */
 function dropCoverImageUrl(dropNum: number) {
-  return siteUrl(`/api/drops/${dropNum}/cover`);
+  return siteUrl(dropCoverPath(dropNum));
 }
 
 /** Founder's own rewrite, 2026-10-10 (see claude/next-build.md): now
