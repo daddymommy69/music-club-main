@@ -681,6 +681,26 @@ input {
   gap: 22px 16px;
 }
 
+/* Browse's own Artists/Songs grids (2026-11-03 — founder's own ask,
+   "now that there's more music coming into the website": a fixed
+   column count instead of .archive-grid/.archive-grid-sm's auto-fill,
+   so these two sections keep exactly 3 and 4 columns as the directory
+   grows, rather than however many auto-fill happens to fit. Split out
+   from the shared archive-grid classes on purpose — those two stay
+   untouched for Releases and /account's Liked Songs, which weren't
+   part of this ask. Same gap as both. */
+.browse-artist-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px 16px;
+}
+
+.browse-song-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 22px 16px;
+}
+
 .drop-card {
   display: block;
   min-width: 0;

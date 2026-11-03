@@ -54,7 +54,7 @@ export default async function BrowsePage() {
             No artists yet — they&rsquo;ll show up here once a drop ships.
           </p>
         ) : (
-          <div className="archive-grid" style={{ marginBottom: 32 }}>
+          <div className="browse-artist-grid" style={{ marginBottom: 32 }}>
             {directory.artists.map((artist) => (
               <ArtistTile key={artist.normalizedName} club={club} artist={artist} />
             ))}
@@ -69,13 +69,13 @@ export default async function BrowsePage() {
             No songs yet — they&rsquo;ll show up here once a drop ships.
           </p>
         ) : (
-          <div className="archive-grid-sm">
+          <div className="browse-song-grid">
             {/* Artwork = play target, title/artist = link to the artist
                 page — same split as every drop-page tracklist row
                 (2026-10-08 — founder's own ask: "the song links under
                 songs to act like the ones in the drops" — see
                 claude/next-build.md). Smaller tiles than the Artists
-                grid above, .archive-grid-sm, per the same request.
+                grid above, .browse-song-grid, per the same request.
                 Player revamp (2026-10-08 — see claude/next-build.md):
                 this whole grid is its own queue — clicking any song
                 plays through every song on the site, in this order,
