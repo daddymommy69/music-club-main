@@ -42,8 +42,14 @@
  * shrinkAndPad's scale and matte color both changed (dropCover.ts),
  * which should retroactively repaint every already-shipped drop's
  * cover the same way the website's own tiles just did.
+ *
+ * 2026-11-03, round 2: bumped again — fetchQuadBuffer now crops into a
+ * quadrant whose own file has more native border than the site's
+ * uniform target (cropToFill(), via detectArtworkTrim()), instead of
+ * just stacking the uniform pad on top of it. Changes already-shipped
+ * drops with over-bordered art (Drop 1, at least).
  */
-export const DROP_COVER_CACHE_VERSION = 5;
+export const DROP_COVER_CACHE_VERSION = 6;
 
 export function dropCoverPath(dropNum: number): string {
   return `/api/drops/${dropNum}/cover?v=${DROP_COVER_CACHE_VERSION}`;

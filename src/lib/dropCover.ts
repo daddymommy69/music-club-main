@@ -1,6 +1,7 @@
 import sharp from "sharp";
 import { DROP_COVER_DIGITS, DIGIT_TILE_WIDTH, DIGIT_TILE_HEIGHT } from "./dropCoverDigits";
-import { trimScale } from "./artworkTrimMath";
+import { trimScale, TARGET_ARTWORK_TRIM } from "./artworkTrimMath";
+import { detectArtworkTrim } from "./artworkTrim";
 
 /**
  * Builds the Spotify playlist cover for a drop: the same 2x2 artwork
@@ -71,6 +72,45 @@ export async function shrinkAndPad(bytes: Buffer, scale: number): Promise<Buffer
 }
 
 /**
+ * The opposite of shrinkAndPad: crops `trim` off every edge (a fraction
+ * 0-1, same meaning detectArtworkTrim() returns) and resizes back up to
+ * the original size — zooming in just enough to push an image's OWN
+ * baked-in border entirely outside the frame, leaving it full-bleed.
+ * The server-side equivalent of DropTile.tsx's CSS `transform: scale()`
+ * for the same case (see that component's own comment) — there, the
+ * slot's `overflow: hidden` clips the excess; here, sharp's extract()
+ * does the clipping directly on the pixels.
+ *
+ * 2026-11-03, round 2 — founder's own report: Drop 1's own song-artwork
+ * files each have a generous native white margin baked in (confirmed by
+ * pixel-sampling a screenshot — a flat near-white box distinct from the
+ * site's own cream CSS padding), which used to show up as a second,
+ * bigger margin stacked on top of this file's own uniform shrinkAndPad
+ * step. Crop first, then shrinkAndPad: an over-bordered image becomes
+ * full-bleed here, then gets exactly the same uniform treatment as every
+ * other quadrant — one consistent margin for everyone, not two.
+ *
+ * Caller's responsibility to only call this when `trim` is actually
+ * worth acting on (see fetchQuadBuffer below) — this itself does
+ * whatever it's told, including a no-op at trim <= 0.
+ */
+export async function cropToFill(bytes: Buffer, trim: number): Promise<Buffer> {
+  const { width, height } = await sharp(bytes).metadata();
+  if (!width || !height || trim <= 0) return bytes;
+
+  const insetX = Math.round(width * trim);
+  const insetY = Math.round(height * trim);
+  const cropW = width - insetX * 2;
+  const cropH = height - insetY * 2;
+  if (cropW < 1 || cropH < 1) return bytes; // safety: never crop an image to nothing
+
+  return sharp(bytes)
+    .extract({ left: insetX, top: insetY, width: cropW, height: cropH })
+    .resize(width, height, { fit: "fill" })
+    .toBuffer();
+}
+
+/**
  * Picks up to 4 artwork URLs for the cover grid, skipping any song with
  * no artwork rather than leaving it an empty quadrant — the exact same
  * "skip songs with no artwork" rule DropDetail.tsx's hero tile and the
@@ -101,15 +141,31 @@ export function pickCoverArtworkUrls(urls: (string | null)[]): (string | null)[]
 
 /**
  * 2026-11-02 — founder's own call: this used to call out to
- * detectArtworkTrim()/getCachedArtworkTrim() per URL to decide how much
- * each individual image needed shrinking, varying it image to image.
- * That kept producing new false positives (a band photo's black
- * background, then an album cover's navy background, each separately
- * read as a deliberate matte and left under-padded next to its
- * properly-padded siblings) — see trimScale()'s own comment
- * (artworkTrimMath.ts) for the full story. Every quadrant now gets the
- * exact same fixed shrink unconditionally, no per-image detection, no
- * DB round trip — guaranteed-consistent instead of "usually right."
+ * detectArtworkTrim() per URL to decide how much each individual image
+ * needed SHRINKING (padding added), varying it image to image. That
+ * kept producing new false positives (a band photo's black background,
+ * then an album cover's navy background, each separately read as a
+ * deliberate matte and left under-padded next to its properly-padded
+ * siblings) — see trimScale()'s own comment (artworkTrimMath.ts) for
+ * the full story. Every quadrant gets the exact same fixed shrink
+ * unconditionally now — no detection drives THAT part any more.
+ *
+ * 2026-11-03, round 2 — detection is back, but for a different job:
+ * CROPPING (not shrinking) a quadrant whose own file has more border
+ * than the site's uniform target, same as DropTile.tsx's CSS
+ * transform:scale() does for the identical case (see that component's
+ * own comment, and cropToFill()'s above). Founder's own report,
+ * screenshot in hand: Drop 1's own song art has a real, visible native
+ * margin baked into the files — this isn't a detection false positive,
+ * it's genuinely there.
+ *
+ * Known, accepted risk going back in: detectArtworkTrim() still has the
+ * same blind spot that caused the navy-background false positive above
+ * — it carves out near-black reference colors specifically, but a dark,
+ * saturated, NON-near-black background (navy, deep red, forest green)
+ * can still read as a deliberate border on some future drop's art and
+ * get cropped into. Worth a visual spot-check on any drop with
+ * dark/solid album art after this ships.
  */
 async function fetchQuadBuffer(url: string | null): Promise<Buffer | null> {
   if (!url) return null;
@@ -118,8 +174,19 @@ async function fetchQuadBuffer(url: string | null): Promise<Buffer | null> {
     if (!res.ok) return null;
     const bytes = Buffer.from(await res.arrayBuffer());
 
+    // Cover-crop to the exact square this quadrant renders at FIRST —
+    // the same crop detectArtworkTrim() samples internally (fit:
+    // "cover", see that function's own comment on why fit matters) —
+    // so cropToFill below crops relative to the frame the border was
+    // actually measured in, not the source file's own (possibly
+    // non-square) aspect ratio.
+    const squared = await sharp(bytes).resize(HALF, HALF, { fit: "cover" }).toBuffer();
+
+    const trim = await detectArtworkTrim(bytes);
+    const uncropped = trim > TARGET_ARTWORK_TRIM ? await cropToFill(squared, trim) : squared;
+
     const scale = trimScale(0); // argument ignored — see trimScale()'s own comment
-    const padded = scale < 1 ? await shrinkAndPad(bytes, scale) : bytes;
+    const padded = scale < 1 ? await shrinkAndPad(uncropped, scale) : uncropped;
 
     return await sharp(padded).resize(HALF, HALF, { fit: "cover" }).jpeg().toBuffer();
   } catch {
