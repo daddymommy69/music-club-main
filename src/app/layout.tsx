@@ -34,8 +34,18 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <NowPlayingProvider>{children}</NowPlayingProvider>
-        {modal}
+        {/* 2026-11-03 follow-up — founder's own report: songs stopped
+            playing from the new root drop modal. Cause: {modal} was a
+            SIBLING of <NowPlayingProvider> below, not a child of it —
+            every PlayableArt inside the modal called usePlayer() with
+            no provider above it in the tree to find. Has to be inside,
+            same as /releases' own modal always has been (it's nested
+            under this same provider automatically, being one layout
+            level deeper). */}
+        <NowPlayingProvider>
+          {children}
+          {modal}
+        </NowPlayingProvider>
         <SiteFooter />
       </body>
     </html>
