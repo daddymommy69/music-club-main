@@ -34,13 +34,15 @@ const BG = "#2b2b2b"; // approximates the site's dark tile background
 
 /**
  * Shrinks an image toward its center by `scale` (< 1) and pads the
- * freed-up edges with white, so the visible artwork ends up occupying
- * exactly `scale` of the frame — the server-side equivalent of
- * DropTile.tsx's CSS `scale()` transform. sharp's extract() can only
- * crop (zoom in); achieving the opposite (zoom out, reveal more
- * border) means resizing the image down and compositing it onto a
- * full-size white canvas, matching the site's own tile/slot background
- * (globals.css's .drop-tile / .drop-tile-quad-empty).
+ * freed-up edges with the site's own matte color, so the visible
+ * artwork ends up occupying exactly `scale` of the frame — the
+ * server-side equivalent of DropTile.tsx's CSS padding on
+ * .drop-tile-quad-slot. sharp's extract() can only crop (zoom in);
+ * achieving the opposite (zoom out, reveal more border) means resizing
+ * the image down and compositing it onto a full-size canvas painted to
+ * match (globals.css's .drop-tile-quad-slot / .drop-tile-quad-empty —
+ * #f8f3e7 cream as of 2026-11-03, was white, then #f8f8f8 grey; keep
+ * this in sync with that CSS by hand).
  *
  * Exported standalone (and returning a fully materialized buffer,
  * rather than a lazy sharp() pipeline) so it's unit-testable without a
@@ -62,7 +64,7 @@ export async function shrinkAndPad(bytes: Buffer, scale: number): Promise<Buffer
   const shrunkH = Math.max(1, Math.round(height * scale));
   const shrunk = await sharp(bytes).resize(shrunkW, shrunkH, { fit: "fill" }).toBuffer();
 
-  return sharp({ create: { width, height, channels: 3, background: "#ffffff" } })
+  return sharp({ create: { width, height, channels: 3, background: "#f8f3e7" } })
     .composite([{ input: shrunk, left: Math.round((width - shrunkW) / 2), top: Math.round((height - shrunkH) / 2) }])
     .png()
     .toBuffer();

@@ -37,8 +37,13 @@
  * fix alone — every prior round in this file's history did this
  * together with its own fix; this one didn't, and that's the whole
  * bug.
+ *
+ * 2026-11-03: bumped for the tuner-driven padding/cream change —
+ * shrinkAndPad's scale and matte color both changed (dropCover.ts),
+ * which should retroactively repaint every already-shipped drop's
+ * cover the same way the website's own tiles just did.
  */
-export const DROP_COVER_CACHE_VERSION = 4;
+export const DROP_COVER_CACHE_VERSION = 5;
 
 export function dropCoverPath(dropNum: number): string {
   return `/api/drops/${dropNum}/cover?v=${DROP_COVER_CACHE_VERSION}`;

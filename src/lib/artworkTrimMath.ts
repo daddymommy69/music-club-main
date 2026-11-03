@@ -47,8 +47,16 @@ export const MAX_ARTWORK_TRIM = 0.32;
  * that already meets or exceeds this (Drop 1's own files) is never
  * touched; only an image with *less* border than this (Drop 2's
  * files) gets shrunk to simulate having it.
+ *
+ * 0.14 (2026-11-03, was 0.15, briefly 0.135) — founder's own final
+ * value from the interactive padding/square/number tuner ("smaller
+ * padding, larger artwork"). Drives the downloaded/Spotify cover's
+ * matting (dropCover.ts, via trimScale() below); the website's own
+ * matting is now a separate, plain CSS percentage on
+ * .drop-tile-quad-slot (globals.css) kept at this same value by hand,
+ * not by import — CSS can't read a TS constant. Change both together.
  */
-export const TARGET_ARTWORK_TRIM = 0.15;
+export const TARGET_ARTWORK_TRIM = 0.14;
 
 /**
  * Always returns the same fixed scale now, ignoring its argument —
@@ -72,11 +80,13 @@ export const TARGET_ARTWORK_TRIM = 0.15;
  * specifically may read as more padded/smaller than it used to. Worth
  * a look next to the other drops once this ships.
  *
- * Keeps its (now-unused) parameter so every existing call site —
- * dropCover.ts, DropTile.tsx — doesn't need touching; detectArtworkTrim
- * above still exists and still works correctly as a pure
- * border-measurement utility, it's just no longer trusted to drive the
- * final rendered scale.
+ * Keeps its (now-unused) parameter so its one remaining call site —
+ * dropCover.ts — doesn't need touching; detectArtworkTrim above still
+ * exists and still works correctly as a pure border-measurement
+ * utility, it's just no longer trusted to drive the final rendered
+ * scale. DropTile.tsx stopped calling this entirely (2026-11-03
+ * cleanup) — the website's matting is plain CSS now, see
+ * globals.css's .drop-tile-quad-slot.
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for call-site compatibility, see comment above
 export function trimScale(_detectedTrim: number): number {

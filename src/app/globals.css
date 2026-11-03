@@ -773,14 +773,17 @@ input {
    against its neighbors). The gap plus this inset both show the same
    white .drop-tile background underneath, which is what makes the
    four quadrants look evenly matted no matter what each image's own
-   edges look like. */
+   edges look like.
+   3.5% (2026-11-03, was 6%, briefly 4.5%) — founder's own value, dialed
+   in with the interactive padding/square/number tuner ("larger artwork,
+   smaller padding"): bigger squares, less dead space between them. */
 .drop-tile-grid {
   position: absolute;
-  inset: 6%;
+  inset: 3.5%;
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: 1fr 1fr;
-  gap: 6%;
+  gap: 3.5%;
 }
 
 .drop-tile-quad {
@@ -822,22 +825,35 @@ input {
    quadrant now shrinks its own artwork inward by this padding before
    cropping it to fill what's left, so every drop gets that same inset,
    generously-matted look regardless of what margin (if any) happens to
-   be baked into its own song art. */
+   be baked into its own song art.
+   14% (2026-11-03, was 10%, briefly 13.5%) — founder's own value from
+   the interactive tuner, replacing a second system that used to stack
+   on top of this one: DropTile.tsx used to ALSO apply a per-quadrant JS
+   `transform: scale()` (src/lib/artworkTrimMath.ts's trimScale()),
+   so every quadrant was shrinking twice — once here, once in JS. That
+   JS layer is gone (see DropTile.tsx's own comment); this percentage
+   is now the only thing controlling matting on the website. The
+   downloaded/Spotify cover (src/lib/dropCover.ts) still uses its own
+   sharp-based equivalent, kept in sync via the shared
+   TARGET_ARTWORK_TRIM constant in artworkTrimMath.ts. */
 .drop-tile-quad-slot {
   display: block;
   width: 100%;
   height: 100%;
   overflow: hidden;
-  padding: 10%;
+  padding: 14%;
   box-sizing: border-box;
-  /* #f8f8f8, not the tile's own pure #fff (2026-10-26 round — founder's
-     own catch, comparing Drop 1 against Drop 2 with the new rounded
-     corners: Drop 1's own source files all have a matte baked in at
-     exactly rgb(248,248,248), pixel-confirmed on every one of them, not
-     pure white. That 7-point gap against this slot's old pure-white
-     backdrop read as a faint grey halo specifically around Drop 1's
-     art once the rounded corners gave the eye a crisp edge to notice
-     it at.
+  /* #f8f3e7 ("Ivory," 2026-11-03, was #f8f8f8 grey) — founder's own
+     pick from the tuner's cream swatches, same reasoning as the
+     grey-vs-white call below: a flat pure white/grey backdrop read as
+     cold next to the site's own warm tones. Known, accepted tradeoff
+     (same shape as the original grey-vs-white mismatch this comment
+     used to describe): Drop 1's own source files have a matte baked in
+     at exactly rgb(248,248,248) — not this cream — so Drop 1's own
+     quadrants still show a faint grey-vs-cream edge where the baked-in
+     border meets this slot's background. Recoloring the matte that's
+     literally painted into Drop 1's image files isn't something CSS can
+     do; only re-exporting those source files would fully match them.
      Scoped to THIS element — not .drop-tile itself — on purpose, after
      a first pass that changed the whole tile's background and got it
      backwards per the founder's own correction ("the grey is removed
@@ -846,10 +862,10 @@ input {
      rather than visibly bringing Drop 2's own matting up to match it.
      Scoping it to each quadrant's own slot — which is also exactly
      what shows through behind a shrunk, under-matted image — means
-     Drop 2's art-adjacent padding visibly picks up Drop 1's matte tone
-     while the outer card edge and the gaps *between* quadrants
+     Drop 2's art-adjacent padding visibly picks up the site's matte
+     tone while the outer card edge and the gaps *between* quadrants
      (.drop-tile's own background, still pure white) are untouched. */
-  background: #f8f8f8;
+  background: #f8f3e7;
 }
 
 .drop-tile-quad-slot a {
@@ -864,12 +880,13 @@ input {
    of the site's own light/dark theme, since most drops don't have all
    4 quadrants' worth of real artwork yet and this is what the number
    overlay below now relies on for contrast. #f8f8f8, matching
-   .drop-tile-quad-slot's own background above (2026-10-26 round) —
-   same reason: a missing quadrant's placeholder should read as the
-   exact same backdrop as a real quadrant's own matting, not a
-   slightly brighter patch next to it. */
+   .drop-tile-quad-slot's own background above (2026-10-26 round,
+   recolored to #f8f3e7 cream 2026-11-03 alongside it) — same reason: a
+   missing quadrant's placeholder should read as the exact same backdrop
+   as a real quadrant's own matting, not a slightly brighter patch next
+   to it. */
 .drop-tile-quad-empty {
-  background: #f8f8f8;
+  background: #f8f3e7;
 }
 
 .drop-tile-num {
@@ -891,6 +908,8 @@ input {
 .drop-tile-num span {
   font-family: var(--font-display);
   font-weight: 700;
+  /* Cap 34px (2026-11-03, founder's own final value from the
+     interactive tuner — briefly tried 38px in an earlier round). */
   font-size: clamp(22px, 8vw, 34px);
   letter-spacing: -0.03em;
   color: #2a2a28;

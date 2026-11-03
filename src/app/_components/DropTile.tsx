@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { artistHref } from "@/lib/artistLink";
-import { trimScale } from "@/lib/artworkTrimMath";
 
 /**
  * The square number+artwork tile (design decision, 2026-10): a 2x2
@@ -16,24 +15,26 @@ import { trimScale } from "@/lib/artworkTrimMath";
 export default function DropTile({
   num,
   artworkUrls,
-  artworkTrims,
   quadrantArtists,
   hero,
   framed = true,
 }: {
   num: number;
   artworkUrls: string[];
-  /** One entry per artworkUrls, same order (src/lib/artworkTrim.ts) —
-   * how much of that image is a solid-color border baked into the file
-   * itself, 0-to-~0.32. A quadrant whose own border falls short of the
-   * site-wide standard (src/lib/artworkTrim.ts's TARGET_ARTWORK_TRIM)
-   * shrinks in to gain matching matting; one that already meets or
-   * beats it is left untouched (2026-10-25 round, corrected same day —
-   * see claude/next-build.md: the founder noticed one drop's collage
-   * read as way more generously matted than another's, and it turned
-   * out to be entirely down to some source files already having their
-   * own padding baked in). Optional/omitted entries default to 0 (no zoom)
-   * rather than this being a required prop everywhere DropTile is used. */
+  /** DEAD as of 2026-11-03's padding cleanup — matting is now driven
+   * entirely by .drop-tile-quad-slot's own CSS `padding` (globals.css),
+   * the same amount for every quadrant regardless of what's in the
+   * source file. This used to also drive a per-quadrant `transform:
+   * scale()` here, computed from each image's own detected border
+   * (src/lib/artworkTrim.ts) — that was a second, independent shrink
+   * stacked on top of the CSS padding (double-matting), the actual bug
+   * behind the founder's "drops don't all look uniform" report. Kept in
+   * the type, still accepted and still passed by every caller (archive.ts,
+   * DropDetail.tsx, account/page.tsx, releases/page.tsx), so none of
+   * them need touching; just no longer read here. Safe to delete end to
+   * end (including the artworkTrim.ts detection/DB-cache machinery it
+   * fed) whenever that's wanted — nothing in this component depends on
+   * it anymore. */
   artworkTrims?: number[];
   /** Each quadrant's own artist, same order as artworkUrls (2026-10-07
    * — see claude/next-build.md) — when given, every quadrant links to
@@ -56,25 +57,14 @@ export default function DropTile({
     <div className={`drop-tile${hero ? " drop-tile-hero" : ""}${framed ? " drop-tile-framed" : ""}`}>
       <div className="drop-tile-grid">
         {quads.map((url, i) => {
-          const trim = artworkTrims?.[i] ?? 0;
-          // scale() shrinks from center, revealing more of the slot's
-          // own background around the art — this only ever brings an
-          // under-bordered image (e.g. a full-bleed photo) up to match
-          // the standard set by images that already have generous
-          // baked-in matting; it never zooms into (crops) an image
-          // that already meets or beats that standard. See
-          // src/lib/artworkTrim.ts's trimScale()/TARGET_ARTWORK_TRIM
-          // for why — a 2026-10-25 round got this backwards and
-          // zoomed into every detected border unconditionally, which
-          // stripped away the real matting on the already-generously-
-          // bordered drop instead of adding matting to the other one.
-          const scale = trimScale(trim);
-          const quadStyle = scale < 1 ? { transform: `scale(${scale})` } : undefined;
           const art = url ? (
             // External Apple/Spotify CDN art — not worth configuring
-            // next/image's remotePatterns for.
+            // next/image's remotePatterns for. No inline transform
+            // here (2026-11-03 cleanup) — every quadrant's matting
+            // comes from .drop-tile-quad-slot's own CSS padding alone
+            // now, see that rule's comment in globals.css.
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={url} alt="" className="drop-tile-quad" loading="lazy" style={quadStyle} />
+            <img src={url} alt="" className="drop-tile-quad" loading="lazy" />
           ) : (
             <div className="drop-tile-quad drop-tile-quad-empty" aria-hidden="true" />
           );
