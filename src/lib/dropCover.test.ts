@@ -1,38 +1,9 @@
 import { describe, it, expect } from "vitest";
 import sharp from "sharp";
-import { shrinkAndPad, cropToFill, pickCoverArtworkUrls } from "./dropCover";
+import { shrinkAndPad, pickCoverArtworkUrls } from "./dropCover";
 
 async function makeSolidImage(width: number, height: number): Promise<Buffer> {
   return sharp({ create: { width, height, channels: 3, background: "#336699" } }).jpeg().toBuffer();
-}
-
-/** Same shape as artworkTrim.test.ts's makeBorderedImage — a solid
- * border `borderPx` wide on every edge, varied (never-uniform) content
- * inside it, so a crop-to-fill test can assert the border pixels are
- * actually gone rather than just checking output dimensions. */
-async function makeBorderedImage(
-  size: number,
-  borderPx: number,
-  borderColor: [number, number, number] = [255, 255, 255]
-): Promise<Buffer> {
-  const channels = 3;
-  const buf = Buffer.alloc(size * size * channels);
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const idx = (y * size + x) * channels;
-      const isBorder = x < borderPx || x >= size - borderPx || y < borderPx || y >= size - borderPx;
-      if (isBorder) {
-        buf[idx] = borderColor[0];
-        buf[idx + 1] = borderColor[1];
-        buf[idx + 2] = borderColor[2];
-      } else {
-        buf[idx] = (x * 7) % 256;
-        buf[idx + 1] = (y * 13) % 256;
-        buf[idx + 2] = ((x + y) * 5) % 256;
-      }
-    }
-  }
-  return sharp(buf, { raw: { width: size, height: size, channels } }).png().toBuffer();
 }
 
 describe("shrinkAndPad", () => {
@@ -68,49 +39,6 @@ describe("shrinkAndPad", () => {
     const meta = await sharp(out).metadata();
     expect(meta.width).toBe(1200);
     expect(meta.height).toBe(630);
-  });
-});
-
-describe("cropToFill", () => {
-  // Regression test for a real bug (2026-11-03, round 2 — founder's own
-  // report, screenshot in hand): Drop 1's own song-artwork files each
-  // have a generous native white border baked into the file, which used
-  // to show up as a second margin stacked on top of this file's own
-  // uniform shrinkAndPad step. cropToFill zooms in past a file's own
-  // border before that uniform step runs, so the end result is one
-  // consistent margin, not two.
-
-  it("crops a border off every edge and keeps the original canvas size", async () => {
-    const buf = await makeBorderedImage(200, 40); // 20% border on every edge
-    const out = await cropToFill(buf, 0.2);
-    const meta = await sharp(out).metadata();
-    expect(meta.width).toBe(200);
-    expect(meta.height).toBe(200);
-  });
-
-  it("the border color is actually gone from the output, not just resized", async () => {
-    const buf = await makeBorderedImage(200, 40, [255, 255, 255]);
-    const out = await cropToFill(buf, 0.2);
-    const { data, info } = await sharp(out).raw().toBuffer({ resolveWithObject: true });
-    // Sample the very edge pixels — if the crop worked, the border is
-    // gone and these should be regular (non-near-white) image content,
-    // not the solid white that was there before cropping.
-    const corner = [data[0], data[1], data[2]];
-    const isNearWhite = corner.every((c) => c > 240);
-    expect(isNearWhite).toBe(false);
-    void info;
-  });
-
-  it("is a no-op at trim <= 0 — never crops an image that has no border", async () => {
-    const buf = await makeSolidImage(300, 300);
-    const out = await cropToFill(buf, 0);
-    expect(out).toBe(buf);
-  });
-
-  it("never crops an image down to nothing on an absurd trim value", async () => {
-    const buf = await makeSolidImage(10, 10);
-    const out = await cropToFill(buf, 0.9);
-    expect(out).toBe(buf); // safety fallback, not a throw
   });
 });
 

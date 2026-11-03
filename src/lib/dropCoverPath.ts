@@ -48,8 +48,19 @@
  * uniform target (cropToFill(), via detectArtworkTrim()), instead of
  * just stacking the uniform pad on top of it. Changes already-shipped
  * drops with over-bordered art (Drop 1, at least).
+ *
+ * 2026-11-03, round 3 — REVERTED round 2: the per-image crop-to-fill
+ * mechanism (founder's own report, screenshots in hand) both
+ * mis-detected a dark-but-not-bordered quadrant as over-bordered
+ * (Drop 3's Skrillex art lost its padding) and, on the website side,
+ * interacted badly with .drop-tile-quad-slot's own overflow:hidden —
+ * the scaled-up image bled past its content box into the padding area
+ * instead of being cleanly cropped within it. dropCover.ts/DropTile.tsx
+ * are back to the fixed, unconditional pad every quadrant got before
+ * round 2 (same as Drop 2's confirmed-correct output) — bumped again so
+ * every drop, Drop 1 included, goes back to that uniform look.
  */
-export const DROP_COVER_CACHE_VERSION = 6;
+export const DROP_COVER_CACHE_VERSION = 7;
 
 export function dropCoverPath(dropNum: number): string {
   return `/api/drops/${dropNum}/cover?v=${DROP_COVER_CACHE_VERSION}`;
