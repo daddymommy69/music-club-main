@@ -522,6 +522,7 @@ export type PublicStats = {
   dropCount: number;
   songCount: number;
   artistCount: number;
+  curatorCount: number;
 };
 
 /**
@@ -534,6 +535,16 @@ export type PublicStats = {
  * the site. artistCount is normalized (trimmed + lowercased) before
  * counting distinct values so "Drake" and "drake " don't inflate the
  * count as two different artists.
+ *
+ * curatorCount (2026-11-03 — founder's own ask, Releases' own stats
+ * line) is deliberately NOT members.isCurator's count — a member can
+ * be granted curator status (src/lib/curatorAssignments.ts) and never
+ * actually pick anything. This counts distinct curatorId values among
+ * the same curator-pick songs above instead: curators who have really
+ * put something into a published drop, not just everyone with access.
+ * Null curatorId (a subscriber submission nobody claimed credit for,
+ * same case curatorCredit's own comment describes) doesn't count
+ * toward anyone, same spirit as artistCount never counting a blank.
  */
 export async function getPublicStats(clubId: number): Promise<PublicStats> {
   const db = getDb();
@@ -544,21 +555,23 @@ export async function getPublicStats(clubId: number): Promise<PublicStats> {
     .where(and(eq(drops.clubId, clubId), isNotNull(drops.publishedAt)));
 
   if (publishedDropIds.length === 0) {
-    return { dropCount: 0, songCount: 0, artistCount: 0 };
+    return { dropCount: 0, songCount: 0, artistCount: 0, curatorCount: 0 };
   }
 
   const dropIds = publishedDropIds.map((d) => d.id);
   const songRows = await db
-    .select({ artist: songs.artist })
+    .select({ artist: songs.artist, curatorId: songs.curatorId })
     .from(songs)
     .where(and(inArray(songs.dropId, dropIds), eq(songs.pickType, "curator")));
 
   const artistSet = new Set(songRows.map((s) => s.artist.trim().toLowerCase()));
+  const curatorSet = new Set(songRows.map((s) => s.curatorId).filter((id): id is number => id != null));
 
   return {
     dropCount: dropIds.length,
     songCount: songRows.length,
     artistCount: artistSet.size,
+    curatorCount: curatorSet.size,
   };
 }
 

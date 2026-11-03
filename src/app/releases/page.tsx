@@ -36,7 +36,7 @@ export async function generateReleasesMetadata(): Promise<Metadata> {
   const stats = await getPublicStats(club.id);
   const description =
     stats.dropCount > 0
-      ? `${stats.dropCount} drops, ${stats.songCount} songs, from ${stats.artistCount} artists.`
+      ? `${stats.dropCount} drops, ${stats.songCount} songs, from ${stats.artistCount} artists, curated by ${stats.curatorCount} curator${stats.curatorCount === 1 ? "" : "s"}.`
       : siteCopy.tagline;
   const pageUrl = siteUrl("/");
 
@@ -160,12 +160,18 @@ export async function ReleasesPageContent() {
             line (2026-10-13 — founder's own ask, "add the drop numbers
             with songs/artists/drops like how i wanted," see
             claude/next-build.md). Reuses getPublicStats() and the
-            .about-num class as-is. */}
+            .about-num class as-is.
+            2026-11-03 — founder's own follow-up ask: added curator
+            count. Deliberately getPublicStats().curatorCount (curators
+            who've actually had a pick land in a published drop), not
+            members.isCurator's count — see that function's own
+            comment for why those two numbers can genuinely differ. */}
         {dropList.length > 0 && (
           <p style={{ fontSize: 14, lineHeight: 1.7, marginBottom: 16 }}>
             <span className="about-num">{stats.dropCount}</span> drops,{" "}
             <span className="about-num">{stats.songCount}</span> songs, from{" "}
-            <span className="about-num">{stats.artistCount}</span> artists.
+            <span className="about-num">{stats.artistCount}</span> artists, curated by{" "}
+            <span className="about-num">{stats.curatorCount}</span> curator{stats.curatorCount === 1 ? "" : "s"}.
           </p>
         )}
 
