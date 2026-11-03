@@ -1882,6 +1882,117 @@ input {
   color: var(--accent);
 }
 
+/* ---------- Admin Tools (2026-11-03 "scoped curator terms" round) ---------- */
+
+/* Roster status dot — AdminToolsPanel.tsx. Reuses --role-curator (gold)
+   and --accent (this site's existing "green = saved/liked" token, see
+   --accent-blue's own comment) rather than inventing new colors: solid
+   gold for an active curator, solid green for a plain listener. A
+   listener who's been a curator before (members.everCurator) gets the
+   same green fill with a thin gold ring around it instead of a third
+   color — "used to be gold," not a new status. */
+.status-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 7px;
+  flex: none;
+}
+
+.status-dot-curator {
+  background: var(--role-curator);
+}
+
+.status-dot-listener {
+  background: var(--accent);
+}
+
+.status-dot-former-curator {
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--role-curator);
+}
+
+/* Segmented mode picker — the grant form's "Next N drops / Until date /
+   Specific drops / No end date" choice. */
+.mode-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.mode-tab {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--ln);
+  background: none;
+  color: var(--mut);
+  cursor: pointer;
+}
+
+.mode-tab.active {
+  color: var(--fg);
+  border-color: var(--fg);
+  background: var(--fill);
+}
+
+/* Member search dropdown — a short floating list under the search
+   input, same bordered-card language as .ct-card elsewhere rather than
+   a native <select> (so it can show both name and email per row). */
+.member-picker {
+  position: relative;
+}
+
+.member-picker-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  background: var(--bg);
+  border: 1px solid var(--ln);
+  border-radius: 10px;
+  max-height: 220px;
+  overflow-y: auto;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+.member-picker-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  font-size: 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--ln);
+  cursor: pointer;
+  color: var(--fg);
+}
+
+.member-picker-row:last-child {
+  border-bottom: none;
+}
+
+.member-picker-row:hover {
+  background: var(--fill);
+}
+
+.member-picker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  padding: 7px 10px;
+  border: 1px solid var(--ln);
+  border-radius: 8px;
+  background: var(--fill);
+  margin-bottom: 10px;
+}
+
 /* A song's like button + count, next to its track row on the release
    page. No border/background chip (2026-10-07 — the founder's own
    call: the bordered-oval treatment looked bad stacked next to the

@@ -6,6 +6,7 @@ import { buildSpotifyPlaylistForDrop } from "./spotifyBuild";
 import { computeAutoOpenDate } from "./cycle";
 import { getDropNotes } from "./notes";
 import { combineDropNotes } from "./spotifyDescription";
+import { onDropShipped } from "./curatorAssignments";
 
 export type ShipResult = {
   ok: true;
@@ -94,6 +95,21 @@ export async function shipDrop(
       .update(clubs)
       .set({ nextDropOpensAt: computeAutoOpenDate() })
       .where(eq(clubs.id, club.id));
+  }
+
+  // Scoped curator terms (2026-11-03 — see claude/next-build.md): a
+  // count/drops/date-mode assignment checks itself off here, the same
+  // "once the ship actually went through" guard as the auto-schedule
+  // step above, just not conditioned on club.cycle — a curator's term
+  // counts down whether or not this club auto-opens its next drop.
+  // Best-effort, same spirit as every other side-effect in this
+  // function: never lets a revert-bookkeeping bug block a real ship.
+  if (!("skipped" in result)) {
+    try {
+      await onDropShipped(club, drop.num);
+    } catch (err) {
+      console.error("onDropShipped failed (ship itself still went through):", err);
+    }
   }
 
   return {

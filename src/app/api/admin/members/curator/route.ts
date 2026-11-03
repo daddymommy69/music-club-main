@@ -1,34 +1,38 @@
 import { NextResponse } from "next/server";
 import { getDefaultClub } from "@/lib/club";
 import { requireAdminSession } from "@/lib/memberSession";
-import { findMemberByEmail, setCuratorStatus, addPendingCurator } from "@/lib/members";
+import { findMemberByEmail, getMemberById, addPendingCurator } from "@/lib/members";
+import { grantCuratorAssignment, type GrantParams } from "@/lib/curatorAssignments";
 import { sendEmail } from "@/lib/email";
-import { CURATOR_GRANTED_SUBJECT, curatorGrantedEmailHtml, curatorInviteEmailHtml } from "@/lib/messages";
+import { CURATOR_GRANTED_SUBJECT, curatorInviteEmailHtml } from "@/lib/messages";
 
 /**
- * Grants or revokes curator status for a member. Gated on the
- * requester's own logged-in session being a Member with isAdmin true —
- * NOT the ADMIN_SECRET bearer-token pattern /api/drops and
- * /api/admin/spotify-backfill use, since flipping someone's curator
- * status needs a real human identity behind it, not a shared secret.
+ * Grants curator status for a defined stretch of drops, a calendar
+ * date, or indefinitely (2026-11-03 "scoped curator terms" round — see
+ * claude/next-build.md). Gated on the requester's own logged-in
+ * session being a Member with isAdmin true — NOT the ADMIN_SECRET
+ * bearer-token pattern /api/drops and /api/admin/spotify-backfill use,
+ * since flipping someone's curator status needs a real human identity
+ * behind it, not a shared secret.
  *
- * Grant-by-email panel lives in /settings (AdminSection in
- * SettingsBoard.tsx) — this route is what it posts to.
+ * Grant panel lives at /admin (AdminToolsPanel.tsx), which replaced
+ * the old permanent on/off toggle this route used to be — the
+ * "unlimited" mode below is that same permanent grant, just one option
+ * among several now instead of the only one. Ending an active
+ * assignment early is a separate route (/api/admin/curator-assignments/
+ * [id]/end), since a member can have more than one.
  *
  * curl -X POST https://yoursite/api/admin/members/curator \
  *   -H "Content-Type: application/json" \
  *   -H "Cookie: gz_session=<the admin's own session cookie>" \
- *   -d '{"email": "someone@example.com", "isCurator": true}'
+ *   -d '{"memberId": 12, "mode": "count", "count": 3}'
  *
- * 2026-10-09 (see claude/next-build.md — the founder's own "i type an
- * email and when they sign up they are a curator"): granting an email
- * with no member yet no longer 404s. It falls through to a pending
- * invite instead (addPendingCurator/members.ts's findOrCreateMember),
- * consumed automatically the moment that email actually signs up.
- * Revoking still requires a real existing member — there's nothing to
- * revoke for an email that was never granted, pending or otherwise;
- * canceling a still-pending invite goes through
- * /api/admin/pending-curators instead (see SettingsBoard.tsx).
+ * Pending invites (an email with no member yet — 2026-10-09, see
+ * claude/next-build.md) only ever support "unlimited": the other modes
+ * need a real member row to attach a count/date/drop-list to, and
+ * there's no sign a founder ever wants a scoped grant to kick in sight
+ * unseen for someone who hasn't even signed up. Canceling a still-
+ * pending invite goes through /api/admin/pending-curators instead.
  */
 export async function POST(request: Request) {
   const admin = await requireAdminSession();
@@ -37,33 +41,53 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => null);
-  const { email, isCurator } = (body ?? {}) as { email?: string; isCurator?: boolean };
+  const { memberId, email, mode, count, endDate, dropNums } = (body ?? {}) as {
+    memberId?: number;
+    email?: string;
+    mode?: string;
+    count?: number;
+    endDate?: string;
+    dropNums?: number[];
+  };
 
-  if (!email || !email.trim()) {
-    return NextResponse.json({ error: "email is required" }, { status: 400 });
+  if (mode !== "count" && mode !== "date" && mode !== "drops" && mode !== "unlimited") {
+    return NextResponse.json({ error: "mode must be count, date, drops, or unlimited" }, { status: 400 });
   }
-  if (typeof isCurator !== "boolean") {
-    return NextResponse.json({ error: "isCurator (boolean) required" }, { status: 400 });
+
+  let params: GrantParams;
+  if (mode === "count") {
+    if (!Number.isInteger(count) || count! < 1) {
+      return NextResponse.json({ error: "count must be a whole number of at least 1" }, { status: 400 });
+    }
+    params = { mode: "count", count: count! };
+  } else if (mode === "date") {
+    const parsed = endDate ? new Date(endDate) : null;
+    if (!parsed || Number.isNaN(parsed.getTime()) || parsed <= new Date()) {
+      return NextResponse.json({ error: "endDate must be a valid date in the future" }, { status: 400 });
+    }
+    params = { mode: "date", endDate: parsed };
+  } else if (mode === "drops") {
+    const nums = Array.isArray(dropNums) ? dropNums.filter((n) => Number.isInteger(n) && n > 0) : [];
+    if (nums.length === 0) {
+      return NextResponse.json({ error: "dropNums must list at least one drop number" }, { status: 400 });
+    }
+    params = { mode: "drops", dropNums: nums };
+  } else {
+    params = { mode: "unlimited" };
   }
 
   const club = await getDefaultClub();
-  const member = await findMemberByEmail(club, email);
+  const member = memberId ? await getMemberById(memberId) : email ? await findMemberByEmail(club, email) : null;
 
   if (!member) {
-    if (!isCurator) {
-      return NextResponse.json({ error: "No member found for that email" }, { status: 404 });
+    if (mode !== "unlimited" || !email?.trim()) {
+      return NextResponse.json(
+        { error: "No member found. Scoped grants (drop count, date, specific drops) need an existing member — search for them above." },
+        { status: 404 }
+      );
     }
     try {
       const added = await addPendingCurator(club, email, admin.name || admin.email || "An admin");
-      // Best-effort "go sign up" nudge — 2026-10-09 follow-up (see
-      // claude/next-build.md): a pending invite used to sit completely
-      // silent until the invited person happened to sign up on their
-      // own, with nothing ever telling them an invite existed. Same
-      // email/wording as the real grant (the founder's own call —
-      // "we made it together, use that one"), just pointed at /signup
-      // since /curators itself refuses anyone with no member row yet.
-      // Never blocks the invite save on a delivery failure, same
-      // pattern as every other sendEmail call here.
       try {
         await sendEmail(added.email, CURATOR_GRANTED_SUBJECT, curatorInviteEmailHtml());
       } catch (err) {
@@ -77,22 +101,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    await setCuratorStatus(member.id, isCurator);
+    const assignment = await grantCuratorAssignment(club, member, params, admin.name || admin.email || "An admin");
+    return NextResponse.json({
+      ok: true,
+      id: member.id,
+      name: member.name,
+      email: member.email,
+      assignment: { id: assignment.id, mode: assignment.mode },
+    });
   } catch (err) {
-    console.error("setCuratorStatus failed:", err);
+    console.error("grantCuratorAssignment failed:", err);
     return NextResponse.json({ error: "Couldn't save that. Try again." }, { status: 500 });
   }
-
-  // Best-effort "you're a chosen one" notification — only on a grant,
-  // never a revoke. Mirrors every other sendEmail call in this app:
-  // never blocks the actual grant on a delivery failure, just logs it.
-  if (isCurator && member.email) {
-    try {
-      await sendEmail(member.email, CURATOR_GRANTED_SUBJECT, curatorGrantedEmailHtml());
-    } catch (err) {
-      console.error("Curator-granted email failed (grant still applied):", err);
-    }
-  }
-
-  return NextResponse.json({ ok: true, id: member.id, name: member.name, isCurator });
 }

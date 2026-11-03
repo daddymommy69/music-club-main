@@ -4,8 +4,9 @@ import { getDb } from "@/db/client";
 import { members, loginCodes, pendingCurators, type Club, type Member } from "@/db/schema";
 import { normalizePhone, normalizeEmail, isUniqueViolation, slugify } from "./normalize";
 import { sendEmail } from "./email";
-import { CURATOR_GRANTED_SUBJECT, curatorGrantedEmailHtml, LOGIN_CODE_SUBJECT, loginCodeEmailHtml } from "./messages";
+import { LOGIN_CODE_SUBJECT, loginCodeEmailHtml } from "./messages";
 import { generateMemberToken } from "./memberToken";
+import { grantCuratorAssignment } from "./curatorAssignments";
 
 const CODE_TTL_MINUTES = 10;
 
@@ -178,22 +179,18 @@ export async function findOrCreateMember(club: Club, input: NewMemberInput): Pro
           .where(and(eq(pendingCurators.clubId, club.id), eq(pendingCurators.emailKey, emailKey)))
           .returning();
         if (claimed) {
-          const [promoted] = await db
-            .update(members)
-            .set({ isCurator: true })
-            .where(eq(members.id, created.id))
-            .returning();
-          // Best-effort "you're a chosen one" notification, same as the
-          // immediate-grant path in /api/admin/members/curator — never
-          // blocks the signup itself on a delivery failure.
-          if (promoted.email) {
-            try {
-              await sendEmail(promoted.email, CURATOR_GRANTED_SUBJECT, curatorGrantedEmailHtml());
-            } catch (err) {
-              console.error("Curator-granted email failed (grant still applied):", err);
-            }
-          }
-          return promoted;
+          // 2026-11-03 "scoped curator terms" round — granting through
+          // curatorAssignments.ts (mode "unlimited": a pending invite
+          // never carried a drop-count/end-date, so it keeps meaning
+          // "curator, no end date" same as before this system existed)
+          // instead of flipping isCurator directly, so a signup that
+          // consumes an invite shows up in the Admin Tools roster the
+          // same way a direct grant does. That function also sends the
+          // "you're a chosen one" email itself — best-effort, same as
+          // this used to inline here.
+          await grantCuratorAssignment(club, created, { mode: "unlimited" }, claimed.invitedBy);
+          const promoted = await getMemberById(created.id);
+          if (promoted) return promoted;
         }
       } catch (err) {
         console.error("Pending-curator invite consume failed (member still created fine):", err);
@@ -439,26 +436,13 @@ export async function verifyLoginCode(memberId: number, code: string): Promise<V
   return { ok: true };
 }
 
-/**
- * Grants or revokes curator status. Caller is responsible for checking
- * the acting member is an admin first (see memberSession.ts's
- * requireAdmin) — this function itself trusts its input, same pattern
- * as every other write helper in this app.
- */
-export async function setCuratorStatus(memberId: number, isCurator: boolean): Promise<void> {
-  const db = getDb();
-  await db.update(members).set({ isCurator }).where(eq(members.id, memberId));
-}
-
-/** Every curator on the club, for the admin panel's roster — see
- * SettingsBoard.tsx's AdminSection. */
-export async function listCurators(clubId: number): Promise<Member[]> {
-  const db = getDb();
-  return db
-    .select()
-    .from(members)
-    .where(and(eq(members.clubId, clubId), eq(members.isCurator, true)));
-}
+// setCuratorStatus/listCurators removed (2026-11-03 "scoped curator
+// terms" round — see claude/next-build.md): granting/revoking and the
+// admin roster both moved to src/lib/curatorAssignments.ts
+// (grantCuratorAssignment/endCuratorAssignmentManual/listMemberRoster),
+// which also tracks WHY and for how long, not just on/off. The one
+// direct isCurator write left outside that file is ensureFounderAccess
+// below — the founder's own access, which was never meant to expire.
 
 /**
  * The bootstrap-admin problem (2026-10-06 — see claude/next-build.md):
@@ -491,12 +475,12 @@ export function isFounderEmail(email: string): boolean {
  * leaves), then makes sure isCurator/isAdmin are both set. */
 export async function ensureFounderAccess(club: Club, email: string): Promise<Member> {
   const member = await findOrCreateMember(club, { email });
-  if (member.isCurator && member.isAdmin) return member;
+  if (member.isCurator && member.isAdmin && member.everCurator) return member;
 
   const db = getDb();
   const [updated] = await db
     .update(members)
-    .set({ isCurator: true, isAdmin: true })
+    .set({ isCurator: true, isAdmin: true, everCurator: true })
     .where(eq(members.id, member.id))
     .returning();
   return updated;

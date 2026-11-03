@@ -42,8 +42,12 @@ export default async function CopyEditorPage() {
   return (
     <main className="shell page">
       <div style={{ marginBottom: 18 }}>
-        <Link href="/account" className="mut" style={{ fontSize: 11 }}>
-          ← Back to curator tools
+        {/* Pointed at /admin, not /account (2026-11-03 — see
+            claude/next-build.md's "scoped curator terms" round): that's
+            the new Admin Tools hub this page is reached from now, with
+            the curator-grant panel alongside it. */}
+        <Link href="/admin" className="mut" style={{ fontSize: 11 }}>
+          ← Back to admin tools
         </Link>
       </div>
 

@@ -44,6 +44,14 @@ export default async function SiteHeader() {
     const openDrop = await getOpenDrop(club);
     items = [...BASE_NAV_ITEMS, { href: "/curator", label: "Curator tools", badge: !!openDrop }];
   }
+  // Admin Tools tab (2026-11-03 "scoped curator terms" round — see
+  // claude/next-build.md: the founder's own ask, "make it a main tab
+  // button next to curator tools") — gated on isAdmin specifically, not
+  // isCurator, same "just me" gate /admin's own page already enforces
+  // server-side. A non-admin curator never sees this tab exists.
+  if (member?.isAdmin) {
+    items = [...items, { href: "/admin", label: "Admin tools" }];
+  }
 
   return (
     <header style={{ padding: "28px 0 0" }}>

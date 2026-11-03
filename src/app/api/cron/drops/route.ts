@@ -7,6 +7,7 @@ import { getDefaultClub } from "@/lib/club";
 import { getOpenDrop } from "@/lib/room";
 import { shipDrop } from "@/lib/shipDrop";
 import { computeAutoShipDate } from "@/lib/cycle";
+import { sweepExpiredDateAssignments } from "@/lib/curatorAssignments";
 
 /**
  * Runs on Vercel's daily Cron schedule (see vercel.json). Replaces the
@@ -95,5 +96,21 @@ export async function GET(request: Request) {
     shipError = err instanceof Error ? err.message : String(err);
   }
 
-  return NextResponse.json({ ok: true, opened, openError, shipped, shipError });
+  // Scoped curator terms' date-mode catch-all (2026-11-03 — see
+  // claude/next-build.md and src/lib/curatorAssignments.ts's own
+  // comment): most date-mode expirations get caught right away by
+  // shipDrop.ts's own hook, but a club that's gone quiet (nothing
+  // shipping) still needs *something* checking the calendar. The
+  // founder said monthly is plenty — piggybacking on this existing
+  // daily cron is simpler than adding a second schedule, and it's a
+  // no-op on every day nothing's actually due.
+  let sweepError: string | null = null;
+  try {
+    await sweepExpiredDateAssignments(club);
+  } catch (err) {
+    console.error("[cron/drops] curator-assignment sweep failed:", err);
+    sweepError = err instanceof Error ? err.message : String(err);
+  }
+
+  return NextResponse.json({ ok: true, opened, openError, shipped, shipError, sweepError });
 }

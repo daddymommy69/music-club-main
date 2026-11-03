@@ -281,7 +281,26 @@ export const members = pgTable(
     // The role flag replacing "which table is this row in." Granted
     // manually by an admin (there's no self-serve join-code path to
     // curator status anymore) — see isAdmin below.
+    //
+    // 2026-11-03 "scoped curator terms" round (see claude/next-build.md
+    // and the Admin Tools page): this is now a CACHE, not the source of
+    // truth — true exactly while `curatorAssignments` has at least one
+    // active row for this member (see src/lib/curatorAssignments.ts,
+    // which is the only thing that writes it going forward). Kept as a
+    // real column rather than a computed join because every existing
+    // read site (session, nav, /curator gate, picks) already checks
+    // this one boolean and none of them need to change. The one
+    // standing exception is ensureFounderAccess below, which still
+    // flips this directly with no assignment row behind it — the
+    // founder's own access was never meant to expire.
     isCurator: boolean("is_curator").notNull().default(false),
+    // Ever been a curator, even if not right now (2026-11-03, same
+    // round) — never cleared once set, purely cosmetic (the Admin Tools
+    // roster uses it to color a former curator differently than a
+    // listener who's never curated at all). Set alongside isCurator the
+    // one time isCurator first flips true for this member; untouched by
+    // every later grant/revoke.
+    everCurator: boolean("ever_curator").notNull().default(false),
     // Who can grant isCurator. Founder-only for now (no admin UI yet,
     // flipped directly in the data) — jacobfogelhut@gmail.com is the
     // sole admin as of this column's introduction.
@@ -363,6 +382,111 @@ export const pendingCurators = pgTable(
   },
   (table) => [unique().on(table.clubId, table.emailKey)],
 );
+
+/**
+ * How long a curator assignment runs before it reverts on its own
+ * (2026-11-03 "scoped curator terms" round — founder's own ask: "add
+ * curators for a certain amount of drops... then go back to listeners,
+ * but grant them curation status for other drops as well," see
+ * claude/next-build.md). Replaces granting `members.isCurator` forever
+ * with granting it for a defined stretch — see
+ * src/lib/curatorAssignments.ts, the only code that writes this table.
+ *
+ *   - "count": the next N drops to ship, starting now — just a plain
+ *     countdown (`remainingCount` below), decremented by one on every
+ *     ship while this assignment is active, ending at 0. Deliberately
+ *     NOT pre-computed as specific drop numbers (unlike "drops" below):
+ *     the whole point is "whatever ships next, N times," so it has to
+ *     stay correct even if a drop in between gets canceled/skipped.
+ *   - "date": runs until a calendar date. Checked after every ship
+ *     (src/lib/shipDrop.ts) and on a sweep that piggybacks on the
+ *     existing daily cron (src/app/api/cron/drops) — either way, if a
+ *     drop is open when the date passes, it waits for that drop to
+ *     finish rather than cutting someone off mid-drop (founder's own
+ *     call, "i like extend until drop is done").
+ *   - "drops": specific drop numbers the admin typed in by hand, not
+ *     necessarily consecutive — can include a number that doesn't
+ *     exist yet (founder confirmed: assigning ahead of a drop being
+ *     created is fine). Each one is its own
+ *     curatorAssignmentDropNums row.
+ *   - "unlimited": no auto-revert at all — the old permanent on/off
+ *     toggle this whole table replaces, kept as one more option
+ *     alongside the time-boxed ones rather than a separate system.
+ *
+ * Every mode can still be ended early by hand (Admin Tools' "End now").
+ */
+export const curatorAssignmentModeEnum = pgEnum("curator_assignment_mode", [
+  "count",
+  "date",
+  "drops",
+  "unlimited",
+]);
+
+/**
+ * One row per curator grant (2026-11-03, same round as the mode enum
+ * above) — a member can have more than one across their lifetime (the
+ * founder's own ask: re-grant for a different stretch of drops later,
+ * with the earlier one still showing in their history), and in theory
+ * more than one active at once, though Admin Tools never creates that
+ * on its own. `members.isCurator` is kept true for exactly as long as
+ * a member has ≥1 row here with `active` true — see
+ * src/lib/curatorAssignments.ts for every read/write.
+ */
+export const curatorAssignments = pgTable("curator_assignments", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id")
+    .notNull()
+    .references(() => clubs.id, { onDelete: "cascade" }),
+  memberId: integer("member_id")
+    .notNull()
+    .references(() => members.id, { onDelete: "cascade" }),
+  mode: curatorAssignmentModeEnum("mode").notNull(),
+  // mode = "count" only — how many more ships are left on this grant.
+  // Decremented once per ship (any drop, not just ones this curator
+  // touched — "the next N drops" counts calendar/ship events, not
+  // participation) until it hits 0, same moment the drop that brought
+  // it to 0 finishes shipping.
+  remainingCount: integer("remaining_count"),
+  // mode = "date" only.
+  endDate: timestamp("end_date", { withTimezone: true }),
+  // Free-text "who did this," same spirit as pendingCurators.invitedBy
+  // and drops.startedBy — no FK, display only.
+  grantedBy: text("granted_by"),
+  active: boolean("active").notNull().default(true),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  // "drops_complete" | "date_passed" | "manual" — display only, not an
+  // enum: this is purely for the roster's own history line and never
+  // branched on in code, same free-text spirit as grantedBy above.
+  endedReason: text("ended_reason"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
+ * The specific drop numbers a "drops"-mode assignment covers
+ * (2026-11-03, same round) — one row per number the admin typed in, not
+ * necessarily consecutive. No FK to `drops.num` on purpose — the
+ * founder confirmed an assignment can point at a drop that doesn't
+ * exist yet, so this has to be able to hold a number before that row
+ * does. `consumedAt` is set the moment the matching drop number ships
+ * (src/lib/curatorAssignments.ts's onDropShipped) — once every row for
+ * an assignment is consumed, the assignment itself ends. Not used by
+ * any other mode — "count" is a plain countdown (see remainingCount
+ * above), with no numbers of its own to track.
+ */
+export const curatorAssignmentDropNums = pgTable("curator_assignment_drop_nums", {
+  id: serial("id").primaryKey(),
+  assignmentId: integer("assignment_id")
+    .notNull()
+    .references(() => curatorAssignments.id, { onDelete: "cascade" }),
+  dropNum: integer("drop_num").notNull(),
+  consumedAt: timestamp("consumed_at", { withTimezone: true }),
+});
+
+export type CuratorAssignment = typeof curatorAssignments.$inferSelect;
+export type NewCuratorAssignment = typeof curatorAssignments.$inferInsert;
+export type CuratorAssignmentDropNum = typeof curatorAssignmentDropNums.$inferSelect;
 
 /**
  * One-time six-digit codes for the unified email-code login (replaces
