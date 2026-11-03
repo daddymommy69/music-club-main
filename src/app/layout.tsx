@@ -17,11 +17,25 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+// Parallel `modal` slot (2026-11-03 — see src/app/@modal/(.)drop/
+// [num]/page.tsx's own comment for the full story): plain inline prop
+// type, same as src/app/releases/layout.tsx, rather than the generated
+// LayoutProps<"/"> this used before adding @modal — that type only
+// reflects whatever slots already existed the last time Next generated
+// it, so depending on it here would make this file's own types racy
+// against when that regeneration happens to run.
+export default function RootLayout({
+  children,
+  modal,
+}: {
+  children: React.ReactNode;
+  modal: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body>
         <NowPlayingProvider>{children}</NowPlayingProvider>
+        {modal}
         <SiteFooter />
       </body>
     </html>

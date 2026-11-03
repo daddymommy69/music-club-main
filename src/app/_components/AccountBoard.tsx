@@ -400,6 +400,16 @@ function SpotifyConnectControl({ connected }: { connected: boolean }) {
 
   return (
     <p className="mut" style={{ fontSize: 11, marginBottom: 24 }}>
+      {/* Deliberately a plain <a>, not <Link> — this has to be a real
+          hard navigation to kick off the Spotify OAuth redirect, which
+          a client-side transition can't do. False-positive lint flag
+          as of 2026-11-03 (adding the root src/app/@modal's own
+          [...catchAll]/page.tsx for the "/" drop-modal fix made this
+          rule think /api/account/spotify/connect matches that
+          catch-all "page" — a root-level catch-all really does match
+          every path, API routes included; that's the whole reason it
+          exists, see that file's own comment). */}
+      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
       <a href="/api/account/spotify/connect" className="link-btn" style={{ fontSize: 11 }}>
         Connect Spotify for full playback
       </a>{" "}

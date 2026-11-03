@@ -285,6 +285,12 @@ function SpotifySection({
           <p className="mut" style={{ fontSize: 11.5, marginBottom: 10 }}>
             {siteCopy.spotifyNotConnectedHint}
           </p>
+          {/* Deliberately a plain <a>, not <Link> — real hard
+              navigation for the Spotify OAuth redirect. False-positive
+              lint flag as of 2026-11-03, same root-catch-all cause as
+              AccountBoard.tsx's own identical connect link — see that
+              file's comment. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a
             href="/api/spotify/connect"
             className="btn"

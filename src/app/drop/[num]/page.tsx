@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import SiteHeader from "@/app/_components/SiteHeader";
 import DropDetail from "@/app/_components/DropDetail";
 import { getDefaultClub } from "@/lib/club";
@@ -90,6 +91,19 @@ export default async function DropPage({
     <>
       <SiteHeader />
       <main className="col page gz-up">
+        {/* 2026-11-03 — founder's own report: landing on this page
+            directly (not through the Releases modal — see
+            src/app/@modal/(.)drop/[num]/page.tsx's own comment for
+            that separate fix) left no way back to Releases at all.
+            This page has no CloseButton (that's modal-only, via
+            DropDetail's `closable` prop below) — a plain link instead,
+            unconditional, same "mut" back-link style /settings and
+            /admin use. */}
+        <div style={{ marginBottom: 18 }}>
+          <Link href="/" className="mut" style={{ fontSize: 11 }}>
+            ← Back to Releases
+          </Link>
+        </div>
         <DropDetail
           drop={drop}
           shareUrl={siteUrl(`/drop/${drop.num}`)}
