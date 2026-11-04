@@ -13,6 +13,7 @@ import LikeButton from "./LikeButton";
 import SongRatingControl from "./SongRatingControl";
 import DropLikeButton from "./DropLikeButton";
 import DropSaveButton from "./DropSaveButton";
+import ConnectSpotifyButton from "./ConnectSpotifyButton";
 import { ExternalArrowIcon } from "./icons/ArrowIcons";
 import RateDropControl from "./RateDropControl";
 import RoleName from "./RoleName";
@@ -27,6 +28,7 @@ export default function DropDetail({
   viewerDropLiked,
   viewerDropSaved,
   viewerSongRatings,
+  viewerSpotifyConnected,
 }: {
   drop: PublicDropDetail;
   closable?: boolean;
@@ -51,6 +53,14 @@ export default function DropDetail({
    * for a logged-out visitor, same spirit as likedSongIds above
    * (SongRatingControl still works for them; see its own comment). */
   viewerSongRatings?: Record<number, number>;
+  /** null = not logged in (no sensible "connect" action to offer —
+   * /api/account/spotify/connect would just bounce them to /account),
+   * false = logged in but hasn't connected their own Spotify yet (shows
+   * the Connect button below), true = already connected (Share goes
+   * back to its old full-width slot, same as before this round).
+   * 2026-11-04 — founder's own ask, see ConnectSpotifyButton's own
+   * comment. */
+  viewerSpotifyConnected?: boolean | null;
 }) {
   // Same "skip songs with no artwork rather than leave a gap" selection
   // as the archive tile's artworkUrls (src/lib/archive.ts) — carrying
@@ -169,7 +179,24 @@ export default function DropDetail({
           its own line above everything else, disconnected from the
           other two "do something with this drop" actions. */}
       <div className="drop-controls-row">
-        <ShareButton url={shareUrl} title={drop.title ?? `Drop ${drop.num}`} />
+        {/* Connect Spotify (2026-11-04 round — see ConnectSpotifyButton's
+            own comment): only for a logged-in viewer who hasn't
+            connected yet. Share's button has no wrapping element of its
+            own (unlike Save/Like below, which each wrap their button in
+            a span for their "Log in to…" link) — it's the one that's
+            always stretched to fill this whole slot on its own (see
+            .drop-action-btn's CSS comment). Splitting that same slot in
+            two via .drop-controls-split reproduces Share's old footprint
+            exactly, just shared with Connect, so Save/Like next to it
+            never move. */}
+        {viewerSpotifyConnected === false ? (
+          <div className="drop-controls-split">
+            <ShareButton url={shareUrl} title={drop.title ?? `Drop ${drop.num}`} />
+            <ConnectSpotifyButton />
+          </div>
+        ) : (
+          <ShareButton url={shareUrl} title={drop.title ?? `Drop ${drop.num}`} />
+        )}
         <DropSaveButton dropId={drop.id} initialSaved={viewerDropSaved ?? false} />
         <DropLikeButton
           dropId={drop.id}

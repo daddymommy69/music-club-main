@@ -4,6 +4,7 @@ import SiteHeader from "@/app/_components/SiteHeader";
 import SignupPopup from "@/app/_components/SignupPopup";
 import DropTile from "@/app/_components/DropTile";
 import InfoTip from "@/app/_components/InfoTip";
+import SpotifyConnectBanner from "@/app/_components/SpotifyConnectBanner";
 import { NavArrowIcon } from "@/app/_components/icons/ArrowIcons";
 import { getDefaultClub } from "@/lib/club";
 import { getPublishedDrops, getPublicStats } from "@/lib/archive";
@@ -11,6 +12,7 @@ import { getDropStatus } from "@/lib/dropStatus";
 import { formatDropMeta, formatScheduledDate } from "@/lib/format";
 import { siteUrl } from "@/lib/site";
 import { siteCopy } from "@/lib/copy";
+import { getSessionMember } from "@/lib/memberSession";
 
 // Drops change whenever curators ship a new one — never freeze this
 // at build time.
@@ -85,11 +87,16 @@ export async function generateMetadata(): Promise<Metadata> {
 // longer needs its own copy of getSignupContext/the popup form.
 export async function ReleasesPageContent() {
   const club = await getDefaultClub();
-  const [dropList, status, stats] = await Promise.all([
+  const [dropList, status, stats, viewer] = await Promise.all([
     getPublishedDrops(club.id),
     getDropStatus(club),
     getPublicStats(club.id),
+    getSessionMember(),
   ]);
+  // Same logged-out-hides-it / already-connected-hides-it logic as the
+  // drop page's Connect button (2026-11-04 round — see
+  // ConnectSpotifyButton.tsx's own comment).
+  const showSpotifyBanner = !!viewer && !viewer.spotifyRefreshToken;
 
   // Public scheduled-date line (2026-10-08 "drop control" round —
   // founder's own answer, "yes they see it," to whether subscribers
@@ -174,6 +181,8 @@ export async function ReleasesPageContent() {
             <span className="about-num">{stats.curatorCount}</span> curator{stats.curatorCount === 1 ? "" : "s"}.
           </p>
         )}
+
+        {showSpotifyBanner && <SpotifyConnectBanner />}
 
         {dropList.length === 0 ? (
           <p className="empty-state">

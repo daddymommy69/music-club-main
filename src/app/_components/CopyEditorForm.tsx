@@ -24,7 +24,7 @@ const SECTIONS: { title: string; fields: Field[] }[] = [
     fields: [
       { key: "homeIntro", label: "Home page intro", hint: "Shown at the top of the home/releases page." },
       { key: "tagline", label: "Site tagline", hint: "Under the wordmark in the header, and a fallback page description." },
-      { key: "footerSignature", label: "Footer signature", hint: "Bottom-right of every page." },
+      { key: "footerSignature", label: "Footer signature", hint: "Bottom-right of every page — no longer shown as text (that's a drawn signature mark now), just the image's screen-reader label." },
     ],
   },
   {

@@ -1,4 +1,5 @@
 import SiteHeader from "@/app/_components/SiteHeader";
+import AboutBody from "@/app/_components/AboutBody";
 import { getDefaultClub } from "@/lib/club";
 import { getPublicStats } from "@/lib/archive";
 import { siteCopy, renderAboutHtml } from "@/lib/copy";
@@ -35,6 +36,11 @@ export default async function AboutPage() {
     dropCount: `<span class="about-num">${stats.dropCount}</span>`,
     songCount: `<span class="about-num">${stats.songCount}</span>`,
     artistCount: `<span class="about-num">${stats.artistCount}</span>`,
+    // 2026-11-04 — founder's own ask, Releases' own stats line already
+    // does this (see getPublicStats' own comment for why this is
+    // curators who've actually had a pick land in a published drop,
+    // not members.isCurator's count).
+    curatorCount: `<span class="about-num">${stats.curatorCount}</span>`,
   });
 
   return (
@@ -42,7 +48,7 @@ export default async function AboutPage() {
       <SiteHeader />
       <main className="col page gz-up about-body">
         <h1 style={{ fontSize: 20, letterSpacing: "-0.02em", marginBottom: 12 }}>about</h1>
-        <div dangerouslySetInnerHTML={{ __html: html }} />
+        <AboutBody html={html} />
       </main>
     </>
   );

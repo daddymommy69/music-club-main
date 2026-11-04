@@ -121,10 +121,28 @@ export default async function UserProfilePage({ params }: { params: Promise<{ sl
             <div className="notes-feed">
               {profile.blurbs.map((blurb, i) => (
                 <p key={i} className="mut" style={{ fontSize: 12.5, lineHeight: 1.6, marginBottom: 14 }}>
-                  <Link href={`/drop/${blurb.dropNum}`} style={{ fontWeight: 600 }}>
+                  {/* Color-coded by note type (2026-11-04 — founder's
+                      own ask): a song-level note (blurb.songTitle set)
+                      colors that song's title gold, same as a curator's
+                      name elsewhere; a whole-drop note (songTitle null)
+                      colors its "Drop N" link instead, in the site's
+                      green accent — so which kind of note this is
+                      reads at a glance, reusing the same two tokens
+                      /account and Admin Tools already use for role
+                      colors rather than inventing new ones. */}
+                  <Link
+                    href={`/drop/${blurb.dropNum}`}
+                    className={blurb.songTitle ? undefined : "role-member"}
+                    style={{ fontWeight: 600 }}
+                  >
                     Drop {blurb.dropNum}
                   </Link>
-                  {blurb.songTitle && <> · {blurb.songTitle}</>}
+                  {blurb.songTitle && (
+                    <>
+                      {" · "}
+                      <span className="role-curator">{blurb.songTitle}</span>
+                    </>
+                  )}
                   <br />
                   {blurb.text}
                 </p>

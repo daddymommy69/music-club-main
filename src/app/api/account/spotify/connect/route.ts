@@ -5,6 +5,12 @@ import { getSessionMember } from "@/lib/memberSession";
 import { getVisitorSpotifyAuthorizeUrl, visitorSpotifyConfigured } from "@/lib/visitorSpotify";
 
 const STATE_COOKIE = "gz_visitor_spotify_state";
+// 2026-11-04 — see useSpotifyConnectPopup.ts's own comment: set only
+// when this visit came from the popup-window connect flow (the drop
+// page's Connect button, the Releases banner), so
+// /api/account/spotify/callback knows to render its tiny self-closing
+// page instead of redirecting to /account.
+const POPUP_COOKIE = "gz_visitor_spotify_popup";
 
 /**
  * Kicks off a VISITOR'S OWN Spotify connect flow (2026-10-08 "drop
@@ -36,6 +42,20 @@ export async function GET(request: Request) {
     maxAge: 600,
     path: "/",
   });
+
+  const url = new URL(request.url);
+  const cookieOpts = {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 600,
+    path: "/",
+  };
+  if (url.searchParams.get("popup") === "1") {
+    store.set(POPUP_COOKIE, "1", cookieOpts);
+  } else {
+    store.delete(POPUP_COOKIE);
+  }
 
   return NextResponse.redirect(getVisitorSpotifyAuthorizeUrl(state));
 }

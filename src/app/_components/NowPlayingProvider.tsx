@@ -515,7 +515,31 @@ export default function NowPlayingProvider({ children }: { children: React.React
    * eligible and the request succeeds, preview otherwise. Does NOT
    * touch the queue/order/pos refs; callers (playFromQueue, advance)
    * set those up first, this just does the mechanical "go play this
-   * track" work both of them share. */
+   * track" work both of them share.
+   *
+   * 2026-11-04 follow-up — founder's own report: clicking a track
+   * loaded the bar but never actually made sound until clicked again.
+   * Cause: this used to always `await ensureFullPlaybackReady()`
+   * (a fetch) BEFORE ever calling the preview embed's `play()` — by
+   * the time that await resolved, the browser no longer considered it
+   * part of the click that started it, so its autoplay policy silently
+   * blocked the iframe's play() (a real <iframe>/media autoplay rule,
+   * unlike the full-mode PUT below, which just tells an
+   * already-registered Spotify Connect device to play and was never
+   * subject to this). Fix: once a visitor's eligibility is already
+   * known good from an earlier track this session, skip straight to
+   * full mode (no gesture at risk there). Otherwise, start the preview
+   * immediately/synchronously instead of waiting on the eligibility
+   * check — for every click after the very first one of the session,
+   * embedControllerRef.current already exists by then, so
+   * startPreview's own play() call runs synchronously inside this same
+   * click, same as a native media element would need. The eligibility
+   * check still runs in the background and switches a Premium +
+   * connected visitor over to full playback the moment it resolves,
+   * same track, nothing for them to do. The very first track of a
+   * session (embed controller doesn't exist yet, so creating it is
+   * genuinely async) can still need a second click — a real,
+   * narrower residual limitation, not the bug reported. */
   const beginPlayback = useCallback(
     (track: PlayableTrack) => {
       // Pause whatever the embed controller was doing first so a
@@ -528,36 +552,58 @@ export default function NowPlayingProvider({ children }: { children: React.React
       setIsPlaying(false);
       trackStartedAtRef.current = Date.now();
 
+      const playFull = async () => {
+        if (!deviceIdRef.current || !accessTokenRef.current) return false;
+        try {
+          const res = await fetch(
+            `https://api.spotify.com/v1/me/player/play?device_id=${deviceIdRef.current}`,
+            {
+              method: "PUT",
+              headers: {
+                Authorization: `Bearer ${accessTokenRef.current}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ uris: [`spotify:track:${track.id}`] }),
+            }
+          );
+          return res.ok;
+        } catch {
+          return false;
+        }
+      };
+
+      // Already confirmed eligible this session — straight to full
+      // mode, no preview detour needed.
+      if (eligibleRef.current === true && deviceIdRef.current && accessTokenRef.current) {
+        (async () => {
+          if (await playFull()) {
+            setMode("full");
+            setIsPlaying(true);
+            return;
+          }
+          try {
+            await startPreview(track);
+          } catch {
+            stop(false);
+          }
+        })();
+        return;
+      }
+
+      // Eligibility not yet known (or known false) — start the preview
+      // right away, synchronously where possible (see comment above),
+      // so this click is the one that actually makes sound.
+      startPreview(track).catch(() => stop(false));
+
       (async () => {
         const ready = await ensureFullPlaybackReady();
-        if (ready && deviceIdRef.current && accessTokenRef.current) {
-          try {
-            const res = await fetch(
-              `https://api.spotify.com/v1/me/player/play?device_id=${deviceIdRef.current}`,
-              {
-                method: "PUT",
-                headers: {
-                  Authorization: `Bearer ${accessTokenRef.current}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ uris: [`spotify:track:${track.id}`] }),
-              }
-            );
-            if (res.ok) {
-              setMode("full");
-              setIsPlaying(true);
-              return;
-            }
-          } catch {
-            // fall through to preview
-          }
-        }
-        try {
-          await startPreview(track);
-        } catch {
-          // Couldn't even get a preview going — don't leave the bar
-          // stuck showing "Loading…" forever.
-          stop(false);
+        if (!ready) return;
+        if (await playFull()) {
+          // Eligible after all — hand off from the preview that's
+          // already playing to full mode.
+          embedControllerRef.current?.pause();
+          setMode("full");
+          setIsPlaying(true);
         }
       })();
     },
