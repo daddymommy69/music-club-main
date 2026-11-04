@@ -1,12 +1,12 @@
 import { randomInt } from "crypto";
-import { and, asc, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/db/client";
-import { members, loginCodes, pendingCurators, type Club, type Member } from "@/db/schema";
+import { members, loginCodes, pendingCurators, pendingCuratorDropNums, type Club, type Member } from "@/db/schema";
 import { normalizePhone, normalizeEmail, isUniqueViolation, slugify } from "./normalize";
 import { sendEmail } from "./email";
 import { LOGIN_CODE_SUBJECT, loginCodeEmailHtml } from "./messages";
 import { generateMemberToken } from "./memberToken";
-import { grantCuratorAssignment } from "./curatorAssignments";
+import { grantCuratorAssignment, type GrantParams } from "./curatorAssignments";
 
 const CODE_TTL_MINUTES = 10;
 
@@ -163,34 +163,62 @@ export async function findOrCreateMember(club: Club, input: NewMemberInput): Pro
         .returning();
 
       // Consume a pending curator invite, if an admin typed this exact
-      // email into Settings' Curators panel before this person ever
-      // signed up (2026-10-09 — see claude/next-build.md and
-      // addPendingCurator/listPendingCurators below). The DELETE...
-      // RETURNING is the "claim" — only this signup gets to consume a
-      // given invite, same atomic-claim pattern as Round 9's double-ship
-      // fix, so two near-simultaneous signups for the same email can't
-      // both see the invite and both grant themselves curator. Best
-      // effort: a failure here shouldn't fail the signup itself — it
-      // would just leave the invite sitting there for the admin to
-      // notice and grant by hand instead.
+      // email into Admin Tools before this person ever signed up
+      // (2026-10-09 — see claude/next-build.md and
+      // addPendingCurator/listPendingCurators below). Reads the pending
+      // row (and, for "drops" mode, its drop numbers) BEFORE deleting
+      // it — the delete's own ON DELETE CASCADE wipes
+      // pendingCuratorDropNums in the same statement, so those numbers
+      // have to be read first or they're gone. The DELETE...RETURNING
+      // by id is still the actual "claim" — only this signup gets to
+      // consume a given invite, same atomic-claim pattern as Round 9's
+      // double-ship fix, so two near-simultaneous signups for the same
+      // email can't both see the invite and both grant themselves
+      // curator. Best effort throughout: a failure here shouldn't fail
+      // the signup itself — it would just leave the invite sitting
+      // there for the admin to notice and grant by hand instead.
       try {
-        const [claimed] = await db
-          .delete(pendingCurators)
+        const [pending] = await db
+          .select()
+          .from(pendingCurators)
           .where(and(eq(pendingCurators.clubId, club.id), eq(pendingCurators.emailKey, emailKey)))
-          .returning();
-        if (claimed) {
-          // 2026-11-03 "scoped curator terms" round — granting through
-          // curatorAssignments.ts (mode "unlimited": a pending invite
-          // never carried a drop-count/end-date, so it keeps meaning
-          // "curator, no end date" same as before this system existed)
-          // instead of flipping isCurator directly, so a signup that
-          // consumes an invite shows up in the Admin Tools roster the
-          // same way a direct grant does. That function also sends the
-          // "you're a chosen one" email itself — best-effort, same as
-          // this used to inline here.
-          await grantCuratorAssignment(club, created, { mode: "unlimited" }, claimed.invitedBy);
-          const promoted = await getMemberById(created.id);
-          if (promoted) return promoted;
+          .limit(1);
+
+        if (pending) {
+          let dropNums: number[] = [];
+          if (pending.mode === "drops") {
+            const rows = await db
+              .select({ dropNum: pendingCuratorDropNums.dropNum })
+              .from(pendingCuratorDropNums)
+              .where(eq(pendingCuratorDropNums.pendingCuratorId, pending.id));
+            dropNums = rows.map((r) => r.dropNum);
+          }
+
+          const [claimed] = await db.delete(pendingCurators).where(eq(pendingCurators.id, pending.id)).returning();
+          if (claimed) {
+            // 2026-11-03 "scoped curator terms" round, then a same-day
+            // follow-up (founder's own report: a drop-count/date/
+            // specific-drops grant for someone not signed up yet got
+            // refused entirely) — this invite now carries whatever
+            // grant the admin actually chose, not always "unlimited."
+            // Granting through curatorAssignments.ts rather than
+            // flipping isCurator directly means a signup that consumes
+            // an invite shows up in the Admin Tools roster the same
+            // way a direct grant does. That function also sends the
+            // "you're a chosen one" email itself — best-effort, same
+            // as this used to inline here.
+            const params: GrantParams =
+              claimed.mode === "count"
+                ? { mode: "count", count: claimed.remainingCount ?? 1 }
+                : claimed.mode === "date"
+                  ? { mode: "date", endDate: claimed.endDate ?? new Date() }
+                  : claimed.mode === "drops"
+                    ? { mode: "drops", dropNums }
+                    : { mode: "unlimited" };
+            await grantCuratorAssignment(club, created, params, claimed.invitedBy);
+            const promoted = await getMemberById(created.id);
+            if (promoted) return promoted;
+          }
         }
       } catch (err) {
         console.error("Pending-curator invite consume failed (member still created fine):", err);
@@ -225,52 +253,109 @@ export async function findOrCreateMember(club: Club, input: NewMemberInput): Pro
  * findOrCreateMember above, which consumes this the moment they do).
  * Caller (the admin route) is responsible for checking the email
  * doesn't already belong to an existing member first — this function
- * doesn't look, it just inserts. Idempotent: adding the same pending
- * email twice is a no-op, same "already in progress" spirit as every
- * other insert-and-catch-the-unique-violation path in this app.
+ * doesn't look, it just inserts.
+ *
+ * `params` (2026-11-03 follow-up — founder's own report: a scoped
+ * grant for someone not signed up yet was flatly refused) carries the
+ * same grant an existing member would get — see findOrCreateMember's
+ * consume logic above for how it's applied. Defaults to "unlimited",
+ * the only thing this ever supported before.
+ *
+ * Re-adding an email that's already pending updates its grant terms to
+ * the new ones (an admin redoing this clearly means the new terms)
+ * rather than silently keeping whatever the first attempt set.
  */
 export async function addPendingCurator(
   club: Club,
   email: string,
-  invitedBy: string | null
+  invitedBy: string | null,
+  params: GrantParams = { mode: "unlimited" }
 ): Promise<{ id: number; email: string }> {
   const db = getDb();
   const emailKey = normalizeEmail(email);
+  const values = {
+    clubId: club.id,
+    email: email.trim(),
+    emailKey,
+    invitedBy,
+    mode: params.mode,
+    remainingCount: params.mode === "count" ? params.count : null,
+    endDate: params.mode === "date" ? params.endDate : null,
+  };
+
+  async function setDropNums(pendingCuratorId: number) {
+    if (params.mode !== "drops" || params.dropNums.length === 0) return;
+    await db.insert(pendingCuratorDropNums).values(params.dropNums.map((dropNum) => ({ pendingCuratorId, dropNum })));
+  }
+
   try {
-    const [created] = await db
-      .insert(pendingCurators)
-      .values({ clubId: club.id, email: email.trim(), emailKey, invitedBy })
-      .returning();
+    const [created] = await db.insert(pendingCurators).values(values).returning();
+    await setDropNums(created.id);
     return { id: created.id, email: created.email };
   } catch (err) {
     if (!isUniqueViolation(err)) throw err;
-    // Already pending — hand back the existing row's id so the caller
-    // (the admin panel) still has something real to show/cancel.
     const [existing] = await db
       .select({ id: pendingCurators.id, email: pendingCurators.email })
       .from(pendingCurators)
       .where(and(eq(pendingCurators.clubId, club.id), eq(pendingCurators.emailKey, emailKey)))
       .limit(1);
-    return existing ?? { id: -1, email: email.trim() };
+    if (!existing) return { id: -1, email: email.trim() };
+
+    await db.update(pendingCurators).set(values).where(eq(pendingCurators.id, existing.id));
+    await db.delete(pendingCuratorDropNums).where(eq(pendingCuratorDropNums.pendingCuratorId, existing.id));
+    await setDropNums(existing.id);
+    return existing;
   }
 }
 
-/** Every pending curator invite for the admin panel's own list — see
- * SettingsBoard.tsx's AdminSection. */
-export async function listPendingCurators(
-  clubId: number
-): Promise<{ id: number; email: string; invitedBy: string | null; createdAt: Date }[]> {
+/** Every pending curator invite for the Admin Tools roster — see
+ * AdminToolsPanel.tsx. Mirrors curatorAssignments.ts's
+ * listMemberRoster in shape: the grant terms come along so the panel
+ * can describe what each invite becomes on signup, not just that one
+ * exists. */
+export async function listPendingCurators(clubId: number): Promise<
+  {
+    id: number;
+    email: string;
+    invitedBy: string | null;
+    createdAt: Date;
+    mode: (typeof pendingCurators.$inferSelect)["mode"];
+    remainingCount: number | null;
+    endDate: Date | null;
+    dropNums: number[];
+  }[]
+> {
   const db = getDb();
-  return db
-    .select({
-      id: pendingCurators.id,
-      email: pendingCurators.email,
-      invitedBy: pendingCurators.invitedBy,
-      createdAt: pendingCurators.createdAt,
-    })
+  const rows = await db
+    .select()
     .from(pendingCurators)
     .where(eq(pendingCurators.clubId, clubId))
     .orderBy(asc(pendingCurators.createdAt));
+
+  const dropsModeIds = rows.filter((r) => r.mode === "drops").map((r) => r.id);
+  const dropNumsByPending = new Map<number, number[]>();
+  if (dropsModeIds.length > 0) {
+    const dropNumRows = await db
+      .select()
+      .from(pendingCuratorDropNums)
+      .where(inArray(pendingCuratorDropNums.pendingCuratorId, dropsModeIds));
+    for (const r of dropNumRows) {
+      const list = dropNumsByPending.get(r.pendingCuratorId) ?? [];
+      list.push(r.dropNum);
+      dropNumsByPending.set(r.pendingCuratorId, list);
+    }
+  }
+
+  return rows.map((r) => ({
+    id: r.id,
+    email: r.email,
+    invitedBy: r.invitedBy,
+    createdAt: r.createdAt,
+    mode: r.mode,
+    remainingCount: r.remainingCount,
+    endDate: r.endDate,
+    dropNums: (dropNumsByPending.get(r.id) ?? []).sort((a, b) => a - b),
+  }));
 }
 
 /** Cancels a pending invite before that person ever signs up — the

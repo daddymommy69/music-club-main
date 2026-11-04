@@ -28,11 +28,13 @@ import { CURATOR_GRANTED_SUBJECT, curatorInviteEmailHtml } from "@/lib/messages"
  *   -d '{"memberId": 12, "mode": "count", "count": 3}'
  *
  * Pending invites (an email with no member yet — 2026-10-09, see
- * claude/next-build.md) only ever support "unlimited": the other modes
- * need a real member row to attach a count/date/drop-list to, and
- * there's no sign a founder ever wants a scoped grant to kick in sight
- * unseen for someone who hasn't even signed up. Canceling a still-
- * pending invite goes through /api/admin/pending-curators instead.
+ * claude/next-build.md) support every mode, same as a real member
+ * (2026-11-03 same-day follow-up — founder's own report: a scoped
+ * grant for someone not signed up yet was flatly refused at first).
+ * The grant terms are saved on the invite and applied the moment that
+ * email actually signs up — see members.ts's addPendingCurator and
+ * findOrCreateMember. Canceling a still-pending invite goes through
+ * /api/admin/pending-curators instead.
  */
 export async function POST(request: Request) {
   const admin = await requireAdminSession();
@@ -80,14 +82,11 @@ export async function POST(request: Request) {
   const member = memberId ? await getMemberById(memberId) : email ? await findMemberByEmail(club, email) : null;
 
   if (!member) {
-    if (mode !== "unlimited" || !email?.trim()) {
-      return NextResponse.json(
-        { error: "No member found. Scoped grants (drop count, date, specific drops) need an existing member — search for them above." },
-        { status: 404 }
-      );
+    if (!email?.trim()) {
+      return NextResponse.json({ error: "No member found. Search for one above, or type an email to invite." }, { status: 404 });
     }
     try {
-      const added = await addPendingCurator(club, email, admin.name || admin.email || "An admin");
+      const added = await addPendingCurator(club, email, admin.name || admin.email || "An admin", params);
       try {
         await sendEmail(added.email, CURATOR_GRANTED_SUBJECT, curatorInviteEmailHtml());
       } catch (err) {

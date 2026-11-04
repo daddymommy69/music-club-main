@@ -364,25 +364,6 @@ export const members = pgTable(
  * goes here at all — the existing grant-by-email path just promotes
  * them immediately, same as before this table existed.
  */
-export const pendingCurators = pgTable(
-  "pending_curators",
-  {
-    id: serial("id").primaryKey(),
-    clubId: integer("club_id")
-      .notNull()
-      .references(() => clubs.id, { onDelete: "cascade" }),
-    email: text("email").notNull(),
-    emailKey: text("email_key").notNull(),
-    // The admin who added this invite, for display only — no FK, same
-    // free-text "who did this" spirit as drops.titleUpdatedBy/startedBy.
-    invitedBy: text("invited_by"),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [unique().on(table.clubId, table.emailKey)],
-);
-
 /**
  * How long a curator assignment runs before it reverts on its own
  * (2026-11-03 "scoped curator terms" round — founder's own ask: "add
@@ -421,6 +402,65 @@ export const curatorAssignmentModeEnum = pgEnum("curator_assignment_mode", [
   "drops",
   "unlimited",
 ]);
+
+/**
+ * An admin-typed email, pre-authorized for curator status before that
+ * person has ever signed up (2026-10-09 — see claude/next-build.md:
+ * the founder's own ask, "i type an email and when they sign up they
+ * are a curator," so he isn't stuck hardcoding people). Consumed
+ * automatically the moment a member row is created for a matching
+ * email (see members.ts's findOrCreateMember) — this table only ever
+ * holds emails that HAVEN'T signed up yet; the moment they do, the row
+ * here is deleted and a real curatorAssignments row is created for the
+ * new member instead. If the email already belongs to an existing
+ * member when an admin adds it, nothing goes here at all — the
+ * existing grant-by-email path just promotes them immediately, same as
+ * before this table existed.
+ *
+ * mode/remainingCount/endDate (2026-11-03 "scoped curator terms"
+ * round, same follow-up as curatorAssignments below — founder's own
+ * report: Admin Tools refused a drop-count/date/specific-drops grant
+ * for someone who hadn't signed up yet, "i want to be able to grant
+ * this person curatorship for this amount and it wont let me") carry
+ * the SAME grant a signed-up member would get, applied the moment this
+ * invite is consumed — see members.ts's findOrCreateMember, which
+ * reads these back and calls grantCuratorAssignment with them instead
+ * of always hardcoding "unlimited" the way it used to. "drops" mode's
+ * actual numbers live in pendingCuratorDropNums below, same split as
+ * curatorAssignments/curatorAssignmentDropNums.
+ */
+export const pendingCurators = pgTable(
+  "pending_curators",
+  {
+    id: serial("id").primaryKey(),
+    clubId: integer("club_id")
+      .notNull()
+      .references(() => clubs.id, { onDelete: "cascade" }),
+    email: text("email").notNull(),
+    emailKey: text("email_key").notNull(),
+    // The admin who added this invite, for display only — no FK, same
+    // free-text "who did this" spirit as drops.titleUpdatedBy/startedBy.
+    invitedBy: text("invited_by"),
+    mode: curatorAssignmentModeEnum("mode").notNull().default("unlimited"),
+    remainingCount: integer("remaining_count"),
+    endDate: timestamp("end_date", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [unique().on(table.clubId, table.emailKey)],
+);
+
+/** mode = "drops" only — see pendingCurators' own comment. Mirrors
+ * curatorAssignmentDropNums exactly, just for an invite that hasn't
+ * been consumed into a real assignment yet. */
+export const pendingCuratorDropNums = pgTable("pending_curator_drop_nums", {
+  id: serial("id").primaryKey(),
+  pendingCuratorId: integer("pending_curator_id")
+    .notNull()
+    .references(() => pendingCurators.id, { onDelete: "cascade" }),
+  dropNum: integer("drop_num").notNull(),
+});
 
 /**
  * One row per curator grant (2026-11-03, same round as the mode enum

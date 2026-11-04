@@ -4,9 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { MemberRosterRow } from "@/lib/curatorAssignments";
 
-type PendingCuratorRow = { id: number; email: string; invitedBy: string | null };
-
 type Mode = "count" | "date" | "drops" | "unlimited";
+
+type PendingCuratorRow = {
+  id: number;
+  email: string;
+  invitedBy: string | null;
+  mode: Mode;
+  remainingCount: number | null;
+  endDate: string | Date | null;
+  dropNums: number[];
+};
 
 type SearchResult = { id: number; name: string | null; email: string | null; isCurator: boolean };
 
@@ -96,14 +104,12 @@ export default function AdminToolsPanel({
   async function grant() {
     setError(null);
 
-    // A raw, unselected email only ever makes sense for "no end
-    // date" — see /api/admin/members/curator's own comment: the other
-    // modes need a real member row to attach a count/date/drop-list
-    // to, so there's nothing sensible to pre-grant sight-unseen.
-    if (!selected && mode !== "unlimited") {
-      setError("Pick an existing member from the list above for this kind of grant.");
-      return;
-    }
+    // An unselected, typed email now works for every mode, not just
+    // "no end date" (2026-11-04 follow-up — founder's own ask: "i am
+    // trying to grant a person curatorship thats not on the site yet
+    // ... it wont let me"). The terms are saved on a pending-invite
+    // row and applied the moment that email actually signs up — see
+    // addPendingCurator/findOrCreateMember in members.ts.
     const email = !selected ? query.trim() : undefined;
     if (!selected && !email) {
       setError("Search for a member, or type an email to invite.");
@@ -321,7 +327,7 @@ export default function AdminToolsPanel({
                 <span className="roster-name">
                   {p.email}
                   <span className="roster-meta" style={{ marginLeft: 6 }}>
-                    becomes curator (no end date) on signup
+                    becomes curator ({describeGrant(p)}) on signup
                   </span>
                 </span>
                 <button
@@ -346,12 +352,11 @@ export default function AdminToolsPanel({
         <div className="roster-list">
           {initialRoster.map((m) => (
             <div className="roster-row" key={m.id} style={{ alignItems: "flex-start" }}>
-              <span className="roster-name" style={{ display: "flex", alignItems: "center" }}>
-                <span
-                  className={`status-dot ${
-                    m.isCurator ? "status-dot-curator" : m.everCurator ? "status-dot-former-curator" : "status-dot-listener"
-                  }`}
-                />
+              <span
+                className={`roster-name ${
+                  m.isCurator ? "role-curator" : m.everCurator ? "role-former-curator" : "role-member"
+                }`}
+              >
                 {m.name?.trim() || m.email || "Unnamed"}
               </span>
               <span style={{ textAlign: "right" }}>
@@ -382,6 +387,22 @@ export default function AdminToolsPanel({
       </div>
     </div>
   );
+}
+
+/** Shared by the active-assignment roster and the pending-invite list
+ * below — both carry the same mode/remainingCount/endDate/dropNums
+ * shape, just with "left" (already in progress) vs. a flat
+ * description (not started yet) wording. */
+function describeGrant(p: {
+  mode: Mode;
+  remainingCount: number | null;
+  endDate: string | Date | null;
+  dropNums: number[];
+}): string {
+  if (p.mode === "count") return `next ${p.remainingCount} drop${p.remainingCount === 1 ? "" : "s"}`;
+  if (p.mode === "date") return `until ${p.endDate ? new Date(p.endDate).toLocaleDateString() : "?"}`;
+  if (p.mode === "drops") return p.dropNums.length > 0 ? `drops ${p.dropNums.join(", ")}` : "specific drops";
+  return "no end date";
 }
 
 function describeAssignment(a: MemberRosterRow["activeAssignments"][number]): string {

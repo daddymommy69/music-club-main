@@ -47,7 +47,18 @@ export default async function AdminToolsPage() {
         with no end date — and see who&rsquo;s currently a curator at a glance.
       </p>
 
-      <AdminToolsPanel initialRoster={roster} initialPending={pending.map((p) => ({ id: p.id, email: p.email, invitedBy: p.invitedBy }))} />
+      <AdminToolsPanel
+        initialRoster={roster}
+        initialPending={pending.map((p) => ({
+          id: p.id,
+          email: p.email,
+          invitedBy: p.invitedBy,
+          mode: p.mode,
+          remainingCount: p.remainingCount,
+          endDate: p.endDate,
+          dropNums: p.dropNums,
+        }))}
+      />
 
       <div style={{ marginTop: 24 }}>
         <Link href="/admin/copy" className="link-btn">

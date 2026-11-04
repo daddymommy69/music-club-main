@@ -1904,33 +1904,17 @@ input {
 
 /* ---------- Admin Tools (2026-11-03 "scoped curator terms" round) ---------- */
 
-/* Roster status dot — AdminToolsPanel.tsx. Reuses --role-curator (gold)
-   and --accent (this site's existing "green = saved/liked" token, see
-   --accent-blue's own comment) rather than inventing new colors: solid
-   gold for an active curator, solid green for a plain listener. A
-   listener who's been a curator before (members.everCurator) gets the
-   same green fill with a thin gold ring around it instead of a third
-   color — "used to be gold," not a new status. */
-.status-dot {
-  display: inline-block;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  margin-right: 7px;
-  flex: none;
-}
-
-.status-dot-curator {
-  background: var(--role-curator);
-}
-
-.status-dot-listener {
-  background: var(--accent);
-}
-
-.status-dot-former-curator {
-  background: var(--accent);
-  box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--role-curator);
+/* Roster name coloring — AdminToolsPanel.tsx (2026-11-04 follow-up:
+   founder's own correction, "i meant coloring the text itself. so
+   curator names would be gold" — replaces the status-dot approach
+   this round originally shipped with). Reuses the same two tokens as
+   /account's own role-colored names (.role-curator gold,
+   .role-member green) instead of inventing new ones, so a name here
+   reads exactly like it would on /account. A listener who's been a
+   curator before (members.everCurator) gets a third, muted-gold
+   shade — "used to be gold," not full gold and not plain green. */
+.role-former-curator {
+  color: color-mix(in oklab, var(--role-curator) 55%, var(--mut) 45%);
 }
 
 /* Segmented mode picker — the grant form's "Next N drops / Until date /
