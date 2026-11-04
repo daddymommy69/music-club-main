@@ -1,12 +1,9 @@
-import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import SiteHeader from "@/app/_components/SiteHeader";
+import DropModalShell from "@/app/_components/DropModalShell";
 import DropDetail from "@/app/_components/DropDetail";
 import { getDefaultClub } from "@/lib/club";
 import { getPublicDrop } from "@/lib/archive";
 import { siteUrl } from "@/lib/site";
-import { dropCoverPath } from "@/lib/dropCoverPath";
 import { getSessionMember } from "@/lib/memberSession";
 import { getMemberLikedSongIds } from "@/lib/songLikes";
 import { getMemberDropRating } from "@/lib/ratings";
@@ -17,52 +14,25 @@ import { getMemberSavedDropIds } from "@/lib/dropSaves";
 export const dynamic = "force-dynamic";
 
 /**
- * Per-drop link-preview metadata (2026-10-15 — founder's own report:
- * sharing a drop link showed the site's static "project music club"
- * title everywhere, not which drop it even was). Title is "Drop N" or
- * "Drop N — Title" when one's set, dynamic per drop rather than
- * hard-coded — same getPublicDrop() the page itself uses, so this
- * never drifts from what's actually published. The OG/Twitter image
- * reuses the existing /api/drops/[num]/cover route (same artwork
- * collage already used for the release email and the Spotify playlist
- * cover) so a shared link previews with real art instead of nothing.
+ * Root-level twin of src/app/releases/@modal/(..)drop/[num]/page.tsx
+ * (2026-11-03 — founder's own report: clicking a drop from the home
+ * page opened the full /drop/[num] page instead of popping up as a
+ * modal). "/" renders the exact same content as "/releases"
+ * (src/app/page.tsx, 2026-10-18's "make '/' the real home" round) but
+ * is its OWN route segment with its OWN layout chain — it never passes
+ * through releases/layout.tsx, so releases' own @modal slot never
+ * applied here at all. This is that same slot, duplicated one level up
+ * so clicking a drop from "/" intercepts too.
+ *
+ * `(.)drop` not `(..)drop` — this slot sits directly in src/app/ (the
+ * root segment itself), and drop/[num] is a direct child of that same
+ * root segment, same "same level" case the framework's own docs use
+ * for a root-level `@auth/(.)login` modal. Releases' own version uses
+ * `(..)` instead because ITS slot sits one file-system level deeper
+ * (inside src/app/releases/) while still needing to reach a sibling of
+ * releases, not a child of it — see that file's own comment.
  */
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ num: string }>;
-}): Promise<Metadata> {
-  const { num } = await params;
-  const club = await getDefaultClub();
-  const drop = await getPublicDrop(club.id, Number(num));
-  if (!drop) return {};
-
-  const name = drop.title ? `Drop ${drop.num} — ${drop.title}` : `Drop ${drop.num}`;
-  const description = `${drop.songs.length} song${drop.songs.length === 1 ? "" : "s"}, picked by the club.`;
-  const coverUrl = siteUrl(dropCoverPath(drop.num));
-  const pageUrl = siteUrl(`/drop/${drop.num}`);
-
-  return {
-    title: name,
-    description,
-    alternates: { canonical: pageUrl },
-    openGraph: {
-      title: name,
-      description,
-      url: pageUrl,
-      siteName: "project music club",
-      images: [{ url: coverUrl, width: 800, height: 800 }],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: name,
-      description,
-      images: [coverUrl],
-    },
-  };
-}
-
-export default async function DropPage({
+export default async function InterceptedDropModal({
   params,
 }: {
   params: Promise<{ num: string }>;
@@ -72,9 +42,6 @@ export default async function DropPage({
   const drop = await getPublicDrop(club.id, Number(num));
   if (!drop) notFound();
 
-  // Logged-out viewers get no liked/rated/saved state — LikeButton,
-  // RateDropControl, DropLikeButton, and DropSaveButton all still work
-  // for them, see their own comments.
   const viewer = await getSessionMember();
   const songIds = drop.songs.map((s) => s.id);
   const [likedSongIds, viewerRating, viewerDropLiked, viewerDropSaved, viewerSongRatings] = viewer
@@ -86,38 +53,21 @@ export default async function DropPage({
         getMemberSongRatings(viewer.id, songIds).then((map) => Object.fromEntries(map)),
       ])
     : [[], null, false, false, {}];
-  // null = logged out (DropDetail hides the Connect button entirely —
-  // see its own comment on viewerSpotifyConnected).
   const viewerSpotifyConnected = viewer ? !!viewer.spotifyRefreshToken : null;
 
   return (
-    <>
-      <SiteHeader />
-      <main className="col page gz-up">
-        {/* 2026-11-03 — founder's own report: landing on this page
-            directly (not through the Releases modal — see
-            src/app/@modal/(.)drop/[num]/page.tsx's own comment for
-            that separate fix) left no way back to Releases at all.
-            This page has no CloseButton (that's modal-only, via
-            DropDetail's `closable` prop below) — a plain link instead,
-            unconditional, same "mut" back-link style /settings and
-            /admin use. */}
-        <div style={{ marginBottom: 18 }}>
-          <Link href="/" className="mut" style={{ fontSize: 11 }}>
-            ← Back to Releases
-          </Link>
-        </div>
-        <DropDetail
-          drop={drop}
-          shareUrl={siteUrl(`/drop/${drop.num}`)}
-          likedSongIds={likedSongIds}
-          viewerRating={viewerRating}
-          viewerDropLiked={viewerDropLiked}
-          viewerDropSaved={viewerDropSaved}
-          viewerSongRatings={viewerSongRatings}
-          viewerSpotifyConnected={viewerSpotifyConnected}
-        />
-      </main>
-    </>
+    <DropModalShell>
+      <DropDetail
+        drop={drop}
+        closable
+        shareUrl={siteUrl(`/drop/${drop.num}`)}
+        likedSongIds={likedSongIds}
+        viewerRating={viewerRating}
+        viewerDropLiked={viewerDropLiked}
+        viewerDropSaved={viewerDropSaved}
+        viewerSongRatings={viewerSongRatings}
+        viewerSpotifyConnected={viewerSpotifyConnected}
+      />
+    </DropModalShell>
   );
 }
