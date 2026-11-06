@@ -43,6 +43,10 @@ export default function AdminToolsPanel({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Per-row "Sent ✓" confirmation after Resend (same transient-label
+  // pattern as ShareButton's "Copied ✓") — a Set, not one shared flag,
+  // since more than one pending row could be resent in quick succession.
+  const [justResent, setJustResent] = useState<Set<number>>(new Set());
 
   // Grant form state
   const [query, setQuery] = useState("");
@@ -210,6 +214,39 @@ export default function AdminToolsPanel({
     }
   }
 
+  // No router.refresh() here, deliberately — unlike cancelPending, a
+  // resend changes nothing about the invite itself (same terms, same
+  // row), so there's nothing on the page that needs to catch up. Just
+  // the inline "Sent ✓" confirmation below.
+  async function resendPending(row: PendingCuratorRow) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/pending-curators/resend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: row.id }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Something went wrong. Try again.");
+        return;
+      }
+      setJustResent((prev) => new Set(prev).add(row.id));
+      setTimeout(() => {
+        setJustResent((prev) => {
+          const next = new Set(prev);
+          next.delete(row.id);
+          return next;
+        });
+      }, 2500);
+    } catch {
+      setError("Something went wrong. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="gz-up">
       <div className="settings-section">
@@ -330,15 +367,26 @@ export default function AdminToolsPanel({
                     becomes curator ({describeGrant(p)}) on signup
                   </span>
                 </span>
-                <button
-                  type="button"
-                  className="link-btn"
-                  style={{ fontSize: 11.5 }}
-                  onClick={() => cancelPending(p)}
-                  disabled={busy}
-                >
-                  Cancel
-                </button>
+                <span style={{ display: "inline-flex", gap: 10, flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    className="link-btn"
+                    style={{ fontSize: 11.5 }}
+                    onClick={() => resendPending(p)}
+                    disabled={busy}
+                  >
+                    {justResent.has(p.id) ? "Sent ✓" : "Resend"}
+                  </button>
+                  <button
+                    type="button"
+                    className="link-btn"
+                    style={{ fontSize: 11.5 }}
+                    onClick={() => cancelPending(p)}
+                    disabled={busy}
+                  >
+                    Cancel
+                  </button>
+                </span>
               </div>
             ))}
           </div>

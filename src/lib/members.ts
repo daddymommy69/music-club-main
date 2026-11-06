@@ -4,7 +4,7 @@ import { getDb } from "@/db/client";
 import { members, loginCodes, pendingCurators, pendingCuratorDropNums, type Club, type Member } from "@/db/schema";
 import { normalizePhone, normalizeEmail, isUniqueViolation, slugify } from "./normalize";
 import { sendEmail } from "./email";
-import { LOGIN_CODE_SUBJECT, loginCodeEmailHtml } from "./messages";
+import { LOGIN_CODE_SUBJECT, loginCodeEmailHtml, CURATOR_GRANTED_SUBJECT, curatorInviteEmailHtml } from "./messages";
 import { generateMemberToken } from "./memberToken";
 import { grantCuratorAssignment, type GrantParams } from "./curatorAssignments";
 
@@ -363,6 +363,26 @@ export async function listPendingCurators(clubId: number): Promise<
 export async function removePendingCurator(id: number): Promise<void> {
   const db = getDb();
   await db.delete(pendingCurators).where(eq(pendingCurators.id, id));
+}
+
+/** Re-sends the exact same "you're a chosen one" invite email for an
+ * already-saved pending invite — the admin panel's "Resend" link on a
+ * pending row (2026-11-06 — founder's own report: two invitees never
+ * got the first email, see claude/next-build.md). Doesn't touch the
+ * invite's terms or re-save anything — addPendingCurator already
+ * covers "change the terms and resend" (submitting the grant form
+ * again for the same email upserts + resends in one step); this is
+ * only for "nothing changed, just try the send again." Throws (route
+ * turns it into a 404) if the invite was canceled or already claimed
+ * out from under the admin between page load and clicking Resend. */
+export async function resendPendingCuratorInvite(id: number): Promise<{ email: string }> {
+  const db = getDb();
+  const [pending] = await db.select().from(pendingCurators).where(eq(pendingCurators.id, id)).limit(1);
+  if (!pending) {
+    throw new Error("That invite no longer exists — it may have been canceled or already signed up.");
+  }
+  await sendEmail(pending.email, CURATOR_GRANTED_SUBJECT, curatorInviteEmailHtml());
+  return { email: pending.email };
 }
 
 /** Masks an email for display on the code-entry step, e.g. "j•••@example.com". */
