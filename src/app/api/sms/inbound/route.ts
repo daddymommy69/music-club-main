@@ -5,6 +5,8 @@ import { members } from "@/db/schema";
 import { getDefaultClub } from "@/lib/club";
 import { normalizePhone } from "@/lib/normalize";
 import { handleInboundSongText } from "@/lib/smsSubmit";
+import { isValidTwilioRequest } from "@/lib/sms";
+import { siteUrl } from "@/lib/site";
 
 /**
  * Twilio calls this (as form-encoded POST data) for every inbound text
@@ -24,6 +26,18 @@ import { handleInboundSongText } from "@/lib/smsSubmit";
  */
 export async function POST(request: Request) {
   const formData = await request.formData();
+
+  // Reject anything not signed by Twilio (see isValidTwilioRequest).
+  // Uses SITE_URL rather than request.url because behind Vercel's proxy
+  // request.url may not match the public URL Twilio signed.
+  const params: Record<string, string> = {};
+  formData.forEach((value, key) => {
+    params[key] = value.toString();
+  });
+  if (!isValidTwilioRequest(request.headers.get("x-twilio-signature"), siteUrl("/api/sms/inbound"), params)) {
+    return new NextResponse("Forbidden", { status: 403 });
+  }
+
   const from = formData.get("From")?.toString();
   const rawBody = formData.get("Body")?.toString() ?? "";
   const bodyUpper = rawBody.trim().toUpperCase();

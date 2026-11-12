@@ -16,6 +16,22 @@ function getClient() {
   return twilio(sid, token);
 }
 
+/**
+ * True only if an inbound webhook really came from Twilio: Twilio signs
+ * every request with your auth token (X-Twilio-Signature). Without this
+ * check anyone could POST a fake "From" number and opt a member out or
+ * submit songs as them. `url` must be the exact public URL Twilio calls.
+ */
+export function isValidTwilioRequest(
+  signature: string | null,
+  url: string,
+  params: Record<string, string>
+): boolean {
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  if (!token || !signature) return false;
+  return twilio.validateRequest(token, signature, url, params);
+}
+
 export async function sendSms(to: string, body: string) {
   const from = process.env.TWILIO_FROM_NUMBER;
   if (!from) {
