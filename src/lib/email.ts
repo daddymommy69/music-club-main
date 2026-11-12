@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { withEmailFooter } from "@/lib/emailFooter";
 
 function getClient() {
   const apiKey = process.env.RESEND_API_KEY;
@@ -14,7 +15,7 @@ export async function sendEmail(to: string, subject: string, html: string) {
     throw new Error("EMAIL_FROM_ADDRESS is not set (see .env.example).");
   }
   const client = getClient();
-  const result = await client.emails.send({ from, to, subject, html });
+  const result = await client.emails.send({ from, to, subject, html: withEmailFooter(html) });
   // Resend's SDK does NOT throw on an API-level failure (bad key,
   // unverified domain, rate limit) — it resolves normally with
   // `{ data: null, error }`. Every caller wraps this call in a plain
